@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, ArrowRight, CheckCircle2, Layers, ReceiptText, ShoppingBag, Trash2, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, Layers, MapPin, ReceiptText, ShoppingBag, Truck, Trash2, X } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
@@ -47,6 +47,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
   const [myOrders, setMyOrders] = useState<Order[]>([]);
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [drawerMode, setDrawerMode] = useState<'cart' | 'orders'>('cart');
 
   const canShip = tenantSettings?.delivery_ship_enabled ?? true;
   const canPickup = tenantSettings?.delivery_pickup_enabled ?? true;
@@ -60,21 +61,35 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
     if (deliveryMethod === 'pickup' && !canPickup && canShip) setDeliveryMethod('shipping');
   }, [canPickup, canShip, deliveryMethod]);
 
-  if (!isCartOpen) return null;
-
   const loadMyOrders = async () => {
     if (!isAuthenticated) return;
     setIsLoadingOrders(true);
     setErrorMessage(null);
     try {
       const orders = await api.getMyOrders(tenantSettings?.tenant_id);
-      setMyOrders(orders.slice(0, 5));
+      setMyOrders(orders);
     } catch (err: any) {
       setErrorMessage(err.message || 'Nao foi possivel carregar seus pedidos.');
     } finally {
       setIsLoadingOrders(false);
     }
   };
+
+  useEffect(() => {
+    const handleOpenCart = () => setDrawerMode('cart');
+    const handleOpenOrders = () => {
+      setDrawerMode('orders');
+      loadMyOrders();
+    };
+    window.addEventListener('az3d:open-cart', handleOpenCart);
+    window.addEventListener('az3d:open-orders', handleOpenOrders);
+    return () => {
+      window.removeEventListener('az3d:open-cart', handleOpenCart);
+      window.removeEventListener('az3d:open-orders', handleOpenOrders);
+    };
+  }, [isAuthenticated, tenantSettings?.tenant_id]);
+
+  if (!isCartOpen) return null;
 
   const handleCheckout = async () => {
     if (!isAuthenticated) {
@@ -138,24 +153,45 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
       <div className="absolute inset-0" onClick={() => setIsCartOpen(false)} />
 
       <div className="fixed inset-y-0 right-0 max-w-full flex pl-0 sm:pl-10">
-        <div className="w-screen max-w-md bg-chumbo-950 border-l border-chumbo-800 shadow-2xl flex flex-col justify-between">
+        <div className="w-screen max-w-md bg-chumbo-950 border-l border-chumbo-800 shadow-2xl flex flex-col justify-between sm:max-w-lg">
           <div className="p-6 border-b border-chumbo-850 flex items-center justify-between bg-chumbo-900/60">
             <div className="flex items-center space-x-3">
               <div className="w-9 h-9 rounded-xl bg-chumbo-800 border border-chumbo-700 flex items-center justify-center text-white">
                 <ShoppingBag className="w-5 h-5 text-laser-400" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-white">Carrinho</h2>
-                <p className="text-xs text-slate-400 font-mono">{totalItems} {totalItems === 1 ? 'item selecionado' : 'itens selecionados'}</p>
+                <h2 className="text-lg font-bold text-white">{drawerMode === 'orders' ? 'Meus pedidos' : 'Carrinho'}</h2>
+                <p className="text-xs text-slate-400 font-mono">
+                  {drawerMode === 'orders' ? 'Acompanhe suas compras' : `${totalItems} ${totalItems === 1 ? 'item selecionado' : 'itens selecionados'}`}
+                </p>
               </div>
             </div>
 
-            <button onClick={() => setIsCartOpen(false)} className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-chumbo-800 transition-colors">
-              <X className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-2">
+              {drawerMode === 'orders' && (
+                <button onClick={() => setDrawerMode('cart')} className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-chumbo-800 transition-colors">
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+              )}
+              <button onClick={() => setIsCartOpen(false)} className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-chumbo-800 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
-          {orderSuccess ? (
+          {drawerMode === 'orders' ? (
+            <OrdersPanel
+              orders={myOrders}
+              isLoading={isLoadingOrders}
+              errorMessage={errorMessage}
+              onReload={loadMyOrders}
+              onOpenLogin={() => {
+                setIsCartOpen(false);
+                onOpenLogin();
+              }}
+              isAuthenticated={isAuthenticated}
+            />
+          ) : orderSuccess ? (
             <div className="p-8 flex-1 overflow-y-auto text-center space-y-5">
               <div className="mx-auto w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/40">
                 <CheckCircle2 className="w-10 h-10" />
@@ -170,7 +206,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
 
               <div className="grid grid-cols-2 gap-2">
                 <button
-                  onClick={loadMyOrders}
+                  onClick={() => {
+                    setDrawerMode('orders');
+                    loadMyOrders();
+                  }}
                   className="inline-flex items-center justify-center gap-2 rounded-xl border border-chumbo-700 bg-chumbo-900 px-4 py-2.5 text-xs font-bold text-white hover:bg-chumbo-800"
                 >
                   <ReceiptText className="h-4 w-4" />
@@ -189,22 +228,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
                 </button>
               </div>
 
-              {isLoadingOrders && <p className="text-xs text-slate-500">Carregando pedidos...</p>}
-              {myOrders.length > 0 && (
-                <div className="space-y-2 text-left">
-                  {myOrders.map((order) => (
-                    <div key={order.id} className="rounded-xl border border-chumbo-800 bg-chumbo-900/80 p-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-sm font-bold text-white">#{order.id}</span>
-                        <span className="text-xs font-bold text-slate-300">{money(order.total_amount)}</span>
-                      </div>
-                      <p className="mt-1 text-[11px] uppercase tracking-wider text-slate-500">
-                        {ORDER_STATUS_LABELS[order.status] || order.status}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
+              {myOrders.length > 0 && <OrdersList orders={myOrders.slice(0, 3)} compact />}
             </div>
           ) : (
             <>
@@ -342,3 +366,113 @@ const RequiredInput = ({
     className="bg-chumbo-950 border border-chumbo-700/80 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-white"
   />
 );
+
+const OrdersPanel = ({
+  orders,
+  isLoading,
+  errorMessage,
+  onReload,
+  onOpenLogin,
+  isAuthenticated,
+}: {
+  orders: Order[];
+  isLoading: boolean;
+  errorMessage: string | null;
+  onReload: () => void;
+  onOpenLogin: () => void;
+  isAuthenticated: boolean;
+}) => (
+  <div className="flex-1 overflow-y-auto p-6">
+    {!isAuthenticated ? (
+      <div className="py-16 text-center">
+        <ReceiptText className="mx-auto h-12 w-12 text-slate-600" />
+        <h3 className="mt-4 text-lg font-bold text-white">Entre para ver seus pedidos</h3>
+        <p className="mt-2 text-sm text-slate-400">Seu historico fica vinculado a conta de comprador.</p>
+        <button onClick={onOpenLogin} className="mt-5 rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-chumbo-950 hover:bg-slate-200">
+          Entrar
+        </button>
+      </div>
+    ) : (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs text-slate-400">{orders.length} pedido(s) encontrado(s)</p>
+          <button onClick={onReload} className="rounded-lg border border-chumbo-700 px-3 py-1.5 text-xs font-bold text-slate-200 hover:bg-chumbo-800">
+            Atualizar
+          </button>
+        </div>
+        {errorMessage && (
+          <div className="rounded-xl border border-red-800/80 bg-red-950/60 p-3 text-xs text-red-200">{errorMessage}</div>
+        )}
+        {isLoading ? (
+          <p className="py-12 text-center text-xs text-slate-500">Carregando pedidos...</p>
+        ) : orders.length === 0 ? (
+          <div className="py-16 text-center text-sm text-slate-500">Voce ainda nao fez pedidos nesta loja.</div>
+        ) : (
+          <OrdersList orders={orders} />
+        )}
+      </div>
+    )}
+  </div>
+);
+
+const OrdersList = ({ orders, compact = false }: { orders: Order[]; compact?: boolean }) => (
+  <div className="space-y-3 text-left">
+    {orders.map((order) => {
+      const latestShipment = order.shipments?.[0];
+      const latestEvent = latestShipment?.events?.[0];
+      return (
+        <div key={order.id} className="rounded-2xl border border-chumbo-800 bg-chumbo-900/80 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <span className="text-sm font-bold text-white">Pedido #{order.id}</span>
+              <p className="mt-1 text-[11px] text-slate-500">{new Date(order.created_at).toLocaleString('pt-BR')}</p>
+            </div>
+            <span className="text-sm font-extrabold text-white">{money(order.total_amount)}</span>
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+            <StatusPill label={ORDER_STATUS_LABELS[order.status] || order.status} tone={order.status === 'cancelled' ? 'danger' : order.status === 'delivered' || order.status === 'paid' ? 'success' : 'warning'} />
+            <StatusPill label={order.payment_status || 'pagamento pendente'} tone={order.payment_status === 'approved' ? 'success' : order.payment_status === 'rejected' ? 'danger' : 'warning'} />
+          </div>
+
+          {!compact && (
+            <div className="mt-3 space-y-2 text-xs text-slate-400">
+              <div className="flex items-center gap-2">
+                <MapPin className="h-3.5 w-3.5 text-slate-500" />
+                <span>{order.delivery_method === 'pickup' ? 'Retirada na loja' : order.shipping_address || 'Endereco nao informado'}</span>
+              </div>
+              {latestShipment ? (
+                <div className="rounded-xl border border-chumbo-800 bg-chumbo-950/70 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-2 font-mono text-slate-300">
+                      <Truck className="h-3.5 w-3.5 text-laser-400" />
+                      {latestShipment.tracking_code}
+                    </span>
+                    <span className="text-[10px] uppercase text-slate-500">{latestShipment.status}</span>
+                  </div>
+                  {latestEvent && (
+                    <p className="mt-2 text-slate-400">
+                      {latestEvent.description}
+                      {latestEvent.location ? ` - ${latestEvent.location}` : ''}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="rounded-xl border border-chumbo-800 bg-chumbo-950/70 p-3 text-slate-500">Rastreio ainda nao informado pela loja.</p>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    })}
+  </div>
+);
+
+const StatusPill = ({ label, tone }: { label: string; tone: 'success' | 'warning' | 'danger' }) => {
+  const classes = tone === 'success'
+    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
+    : tone === 'danger'
+      ? 'border-red-500/40 bg-red-500/10 text-red-200'
+      : 'border-amber-500/40 bg-amber-500/10 text-amber-200';
+  return <span className={`rounded-full border px-2 py-1 text-center font-bold ${classes}`}>{label}</span>;
+};

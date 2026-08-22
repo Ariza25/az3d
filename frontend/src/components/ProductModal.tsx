@@ -199,7 +199,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
                 </div>
                 <div className={`rounded-xl border px-3 py-2 text-xs ${stockStatus.tone}`}>
                   {stockLimit > 0
-                    ? `${stockLimit} unidade${stockLimit === 1 ? '' : 's'} disponivel${stockLimit === 1 ? '' : 's'} nesta cor.`
+                    ? `${stockLimit <= 3 ? 'Ultimas unidades: ' : ''}${stockLimit} unidade${stockLimit === 1 ? '' : 's'} disponivel${stockLimit === 1 ? '' : 's'} nesta cor.`
                     : 'Esta cor esta sem estoque no momento.'}
                 </div>
               </div>
@@ -242,7 +242,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
 
                 <button onClick={handleAddToCart} disabled={stockLimit <= 0} className="flex items-center space-x-2 px-6 py-3 rounded-xl bg-white hover:bg-slate-200 text-chumbo-950 font-extrabold text-sm transition-all shadow-xl active:scale-95 disabled:cursor-not-allowed disabled:opacity-50">
                   <ShoppingBag className="w-4 h-4" />
-                  <span>{stockLimit > 0 ? 'Adicionar ao carrinho' : 'Sem estoque'}</span>
+                  <span>{stockLimit > 0 ? isAuthenticated ? 'Adicionar ao carrinho' : 'Entrar para comprar' : 'Sem estoque'}</span>
                 </button>
               </div>
             </div>

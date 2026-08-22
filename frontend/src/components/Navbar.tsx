@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShoppingBag, LogOut, Search, Layers, ChevronDown, Store, ShieldAlert, Heart } from 'lucide-react';
+import { ShoppingBag, LogOut, Search, Layers, ChevronDown, Store, ShieldAlert, Heart, ReceiptText } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { Tenant, TenantSettings } from '../types';
@@ -30,7 +30,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   tenantSettings,
 }) => {
   const { user, isAuthenticated, logout } = useAuth();
-  const { totalItems, setIsCartOpen } = useCart();
+  const { totalItems, openCart, openOrders } = useCart();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const storeName = tenantSettings?.store_name || activeTenant?.name || 'AZ3D';
   const logoUrl = tenantSettings?.logo_url || activeTenant?.logo_url;
@@ -112,18 +112,29 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
 
             {isAuthenticated && user?.role === 'customer' && (
-              <button
-                onClick={onOpenFavorites}
-                className="relative p-2.5 rounded-xl bg-chumbo-900 hover:bg-chumbo-800 border border-chumbo-700/50 text-slate-200 hover:text-white transition-all"
-                aria-label="Abrir favoritos"
-              >
-                <Heart className="w-5 h-5" />
-              </button>
+              <>
+                <button
+                  onClick={openOrders}
+                  className="relative p-2.5 rounded-xl bg-chumbo-900 hover:bg-chumbo-800 border border-chumbo-700/50 text-slate-200 hover:text-white transition-all"
+                  aria-label="Abrir meus pedidos"
+                  title="Meus pedidos"
+                >
+                  <ReceiptText className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={onOpenFavorites}
+                  className="relative p-2.5 rounded-xl bg-chumbo-900 hover:bg-chumbo-800 border border-chumbo-700/50 text-slate-200 hover:text-white transition-all"
+                  aria-label="Abrir favoritos"
+                  title="Favoritos"
+                >
+                  <Heart className="w-5 h-5" />
+                </button>
+              </>
             )}
 
             {/* Botão Carrinho */}
             <button
-              onClick={() => setIsCartOpen(true)}
+              onClick={openCart}
               className="relative p-2.5 rounded-xl bg-chumbo-900 hover:bg-chumbo-800 border border-chumbo-700/50 text-slate-200 hover:text-white transition-all group"
               aria-label="Abrir carrinho de vendas"
             >

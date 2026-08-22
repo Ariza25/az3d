@@ -12,29 +12,49 @@ interface CartContextType {
   totalPrice: number;
   isCartOpen: boolean;
   setIsCartOpen: (open: boolean) => void;
+  openCart: () => void;
+  openOrders: () => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
+const cartKeyForTenant = (tenantId: string | number | null | undefined) => `az3d_cart_tenant_${tenantId || localStorage.getItem('az3d_tenant_id') || '1'}`;
+const LEGACY_CART_KEY = 'az3d_cart';
+const PENDING_CART_KEY = 'az3d_pending_cart_item';
+
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, user } = useAuth();
   const [cart, setCart] = useState<CartItem[]>(() => {
-    const saved = localStorage.getItem('az3d_cart');
+    const tenantKey = cartKeyForTenant(localStorage.getItem('az3d_tenant_id'));
+    const saved = localStorage.getItem(tenantKey) || localStorage.getItem(LEGACY_CART_KEY);
     return saved ? JSON.parse(saved) : [];
+  });
+  const [activeTenantId, setActiveTenantId] = useState(() => localStorage.getItem('az3d_tenant_id') || '1');
+  const [pendingItem, setPendingItem] = useState<CartItem | null>(() => {
+    const saved = sessionStorage.getItem(PENDING_CART_KEY);
+    return saved ? JSON.parse(saved) : null;
   });
 
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
 
   useEffect(() => {
-    localStorage.setItem('az3d_cart', JSON.stringify(cart));
-  }, [cart]);
+    localStorage.setItem(cartKeyForTenant(activeTenantId), JSON.stringify(cart));
+  }, [activeTenantId, cart]);
 
-  const addToCart = (product: Product, quantity = 1, color = 'Preto Slate') => {
-    if (!isAuthenticated || user?.role !== 'customer') {
-      window.dispatchEvent(new CustomEvent('az3d:require-login', { detail: { reason: 'cart' } }));
-      return false;
-    }
+  useEffect(() => {
+    const handleTenantChange = (event: Event) => {
+      const detail = (event as CustomEvent<{ tenantId?: number }>).detail;
+      const nextTenantId = String(detail?.tenantId || localStorage.getItem('az3d_tenant_id') || '1');
+      setActiveTenantId(nextTenantId);
+      const saved = localStorage.getItem(cartKeyForTenant(nextTenantId));
+      setCart(saved ? JSON.parse(saved) : []);
+      setIsCartOpen(false);
+    };
+    window.addEventListener('az3d:tenant-changed', handleTenantChange);
+    return () => window.removeEventListener('az3d:tenant-changed', handleTenantChange);
+  }, []);
 
+  const appendToCart = (product: Product, quantity = 1, color = 'Preto Slate') => {
     setCart((prev) => {
       const existingIndex = prev.findIndex(
         (item) => item.product.id === product.id && item.color === color
@@ -48,7 +68,26 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       return [...prev, { product, quantity, color }];
     });
-    setIsCartOpen(true);
+    window.dispatchEvent(new CustomEvent('az3d:cart-added', { detail: { product, quantity, color } }));
+  };
+
+  useEffect(() => {
+    if (!pendingItem || !isAuthenticated || user?.role !== 'customer') return;
+    appendToCart(pendingItem.product, pendingItem.quantity, pendingItem.color);
+    setPendingItem(null);
+    sessionStorage.removeItem(PENDING_CART_KEY);
+  }, [isAuthenticated, pendingItem, user?.role]);
+
+  const addToCart = (product: Product, quantity = 1, color = 'Preto Slate') => {
+    if (!isAuthenticated || user?.role !== 'customer') {
+      const nextPending = { product, quantity, color };
+      setPendingItem(nextPending);
+      sessionStorage.setItem(PENDING_CART_KEY, JSON.stringify(nextPending));
+      window.dispatchEvent(new CustomEvent('az3d:require-login', { detail: { reason: 'cart', product } }));
+      return false;
+    }
+
+    appendToCart(product, quantity, color);
     return true;
   };
 
@@ -74,6 +113,16 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCart([]);
   };
 
+  const openCart = () => {
+    window.dispatchEvent(new CustomEvent('az3d:open-cart'));
+    setIsCartOpen(true);
+  };
+
+  const openOrders = () => {
+    window.dispatchEvent(new CustomEvent('az3d:open-orders'));
+    setIsCartOpen(true);
+  };
+
   const totalItems = cart.reduce((acc, item) => acc + item.quantity, 0);
   const totalPrice = cart.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
 
@@ -89,6 +138,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         totalPrice,
         isCartOpen,
         setIsCartOpen,
+        openCart,
+        openOrders,
       }}
     >
       {children}

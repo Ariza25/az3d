@@ -224,6 +224,7 @@ export interface Order {
   mp_init_point?: string;
   mp_sandbox_init_point?: string;
   paid_at?: string;
+  shipments?: OrderShipment[];
   created_at: string;
 }
 

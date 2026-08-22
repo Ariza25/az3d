@@ -15,6 +15,7 @@ import { api } from '../../services/api';
 import { StoreFilters, AvailabilityFilter, StoreSort } from '../../components/StoreFilters';
 import { getStockStatus, getTotalStock } from '../../shared/storePresentation';
 import { AlertCircle, CheckCircle2, Clock3, X } from 'lucide-react';
+import { useCart } from '../../context/CartContext';
 
 const getProductSlugFromLocation = () => {
   const [, first, , third, fourth] = window.location.pathname.split('/');
@@ -45,6 +46,7 @@ export const StoreApp: React.FC = () => {
     isLoading,
     onSelectTenant,
   } = useTenantCatalog();
+  const { openCart, openOrders } = useCart();
 
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [tenantSettings, setTenantSettings] = useState<TenantSettings | null>(null);
@@ -61,11 +63,29 @@ export const StoreApp: React.FC = () => {
   const [isLoginOpen, setIsLoginOpen] = useState<boolean>(false);
   const [isRegisterOpen, setIsRegisterOpen] = useState<boolean>(false);
   const [isFavoritesOpen, setIsFavoritesOpen] = useState<boolean>(false);
+  const [loginContext, setLoginContext] = useState<'default' | 'cart'>('default');
+  const [cartNotice, setCartNotice] = useState<{ title: string; text: string } | null>(null);
 
   useEffect(() => {
-    const handleRequireLogin = () => setIsLoginOpen(true);
+    const handleRequireLogin = () => {
+      setLoginContext('cart');
+      setIsLoginOpen(true);
+    };
     window.addEventListener('az3d:require-login', handleRequireLogin);
     return () => window.removeEventListener('az3d:require-login', handleRequireLogin);
+  }, []);
+
+  useEffect(() => {
+    const handleCartAdded = (event: Event) => {
+      const detail = (event as CustomEvent<{ product?: Product; quantity?: number }>).detail;
+      setCartNotice({
+        title: 'Produto adicionado',
+        text: detail?.product?.title || 'Item incluido no carrinho.',
+      });
+      window.setTimeout(() => setCartNotice(null), 5000);
+    };
+    window.addEventListener('az3d:cart-added', handleCartAdded);
+    return () => window.removeEventListener('az3d:cart-added', handleCartAdded);
   }, []);
 
   useEffect(() => {
@@ -211,6 +231,10 @@ export const StoreApp: React.FC = () => {
           <PaymentReturnBanner
             status={paymentReturn.status}
             orderId={paymentReturn.orderId}
+            onOpenOrders={() => {
+              setPaymentReturn(null);
+              openOrders();
+            }}
             onClose={() => {
               setPaymentReturn(null);
               if (activeTenant?.slug) window.history.replaceState({}, '', `/loja/${activeTenant.slug}`);
@@ -249,6 +273,15 @@ export const StoreApp: React.FC = () => {
           products={visibleProducts}
           isLoading={isLoading}
           onOpenModal={openProduct}
+          categories={categories}
+          onSelectCategory={setActiveCategory}
+          onClearFilters={() => {
+            setSearchQuery('');
+            setActiveCategory('todas');
+            setMaterialFilter('todos');
+            setAvailabilityFilter('all');
+            setMaxPrice(priceCeiling);
+          }}
         />
       </main>
 
@@ -275,9 +308,15 @@ export const StoreApp: React.FC = () => {
 
       <LoginModal
         isOpen={isLoginOpen}
-        onClose={() => setIsLoginOpen(false)}
+        onClose={() => {
+          setIsLoginOpen(false);
+          setLoginContext('default');
+        }}
         tenantId={activeTenant?.id}
         googleScope="customer"
+        title={loginContext === 'cart' ? 'Entre para continuar sua compra' : undefined}
+        subtitle={loginContext === 'cart' ? 'Depois do login, vamos adicionar o produto ao seu carrinho' : undefined}
+        submitLabel={loginContext === 'cart' ? 'Entrar e continuar' : undefined}
         onSwitchToRegister={() => {
           setIsLoginOpen(false);
           setIsRegisterOpen(true);
@@ -293,6 +332,28 @@ export const StoreApp: React.FC = () => {
           setIsLoginOpen(true);
         }}
       />
+
+      {cartNotice && (
+        <div className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-md rounded-2xl border border-emerald-500/30 bg-chumbo-950 p-4 shadow-2xl sm:left-auto sm:right-6">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-bold text-white">{cartNotice.title}</h3>
+              <p className="mt-1 line-clamp-1 text-xs text-slate-400">{cartNotice.text}</p>
+            </div>
+            <button onClick={() => setCartNotice(null)} className="rounded-lg p-1 text-slate-500 hover:text-white">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button onClick={() => setCartNotice(null)} className="rounded-xl border border-chumbo-700 px-3 py-2 text-xs font-bold text-slate-200 hover:bg-chumbo-800">
+              Continuar comprando
+            </button>
+            <button onClick={() => { setCartNotice(null); openCart(); }} className="rounded-xl bg-white px-3 py-2 text-xs font-bold text-chumbo-950 hover:bg-slate-200">
+              Finalizar compra
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -300,10 +361,12 @@ export const StoreApp: React.FC = () => {
 const PaymentReturnBanner = ({
   status,
   orderId,
+  onOpenOrders,
   onClose,
 }: {
   status: string;
   orderId: string;
+  onOpenOrders: () => void;
   onClose: () => void;
 }) => {
   const content = status === 'success'
@@ -337,9 +400,14 @@ const PaymentReturnBanner = ({
             <p className="text-xs text-slate-300">{content.text}</p>
           </div>
         </div>
-        <button type="button" onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-chumbo-900 hover:text-white">
-          <X className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={onOpenOrders} className="rounded-lg bg-white px-3 py-2 text-xs font-bold text-chumbo-950 hover:bg-slate-200">
+            Ver meus pedidos
+          </button>
+          <button type="button" onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-chumbo-900 hover:text-white">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       </div>
     </div>
   );

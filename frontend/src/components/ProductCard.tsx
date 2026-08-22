@@ -88,6 +88,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal }
                 />
               );
             })}
+            {colors.length === 1 && <span className="ml-2 text-slate-500">{colors[0]}</span>}
             {colors.length === 0 && <span className="text-slate-500">Cor padrao</span>}
           </div>
         </div>
@@ -106,7 +107,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal }
             className="flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-white hover:bg-slate-200 text-chumbo-950 font-bold text-xs transition-all active:scale-95 shadow-md disabled:cursor-not-allowed disabled:opacity-45"
           >
             <ShoppingBag className="w-4 h-4" />
-            <span>{stockStatus.canBuy ? 'Adicionar' : 'Indisponivel'}</span>
+            <span>{stockStatus.canBuy ? 'Adicionar ao carrinho' : 'Indisponivel'}</span>
           </button>
         </div>
       </div>

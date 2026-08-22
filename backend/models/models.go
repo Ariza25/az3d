@@ -418,32 +418,33 @@ type ProductReviewSummary struct {
 }
 
 type Order struct {
-	ID              uint        `gorm:"primaryKey" json:"id"`
-	TenantID        uint        `gorm:"default:1;index" json:"tenant_id"`
-	Tenant          *Tenant     `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
-	UserID          uint        `gorm:"not null" json:"user_id"`
-	User            *User       `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	TotalAmount     float64     `gorm:"not null" json:"total_amount"`
-	Status          string      `gorm:"size:30;default:'pending_confirmation'" json:"status"` // pending_confirmation, pending_payment, paid, preparing, delivered, cancelled
-	Items           []OrderItem `gorm:"foreignKey:OrderID" json:"items"`
-	ShippingAddress string      `gorm:"type:text" json:"shipping_address"`
-	DeliveryMethod  string      `gorm:"size:30;default:'shipping'" json:"delivery_method"`
-	RecipientName   string      `gorm:"size:120" json:"recipient_name"`
-	RecipientPhone  string      `gorm:"size:40" json:"recipient_phone"`
-	ZipCode         string      `gorm:"size:20" json:"zip_code"`
-	City            string      `gorm:"size:80" json:"city"`
-	State           string      `gorm:"size:40" json:"state"`
-	Notes           string      `gorm:"type:text" json:"notes"`
-	PaymentProvider string      `gorm:"size:40" json:"payment_provider"`
-	PaymentStatus   string      `gorm:"size:40;index" json:"payment_status"`
-	PaymentID       string      `gorm:"size:120;index" json:"payment_id"`
-	PaymentDetail   string      `gorm:"size:120" json:"payment_detail"`
-	MPPreferenceID  string      `gorm:"size:120;index" json:"mp_preference_id"`
-	MPInitPoint     string      `gorm:"type:text" json:"mp_init_point"`
-	MPSandboxPoint  string      `gorm:"type:text" json:"mp_sandbox_init_point"`
-	PaidAt          *time.Time  `json:"paid_at,omitempty"`
-	CreatedAt       time.Time   `json:"created_at"`
-	UpdatedAt       time.Time   `json:"updated_at"`
+	ID              uint            `gorm:"primaryKey" json:"id"`
+	TenantID        uint            `gorm:"default:1;index" json:"tenant_id"`
+	Tenant          *Tenant         `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+	UserID          uint            `gorm:"not null" json:"user_id"`
+	User            *User           `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	TotalAmount     float64         `gorm:"not null" json:"total_amount"`
+	Status          string          `gorm:"size:30;default:'pending_confirmation'" json:"status"` // pending_confirmation, pending_payment, paid, preparing, delivered, cancelled
+	Items           []OrderItem     `gorm:"foreignKey:OrderID" json:"items"`
+	Shipments       []OrderShipment `gorm:"foreignKey:OrderID" json:"shipments,omitempty"`
+	ShippingAddress string          `gorm:"type:text" json:"shipping_address"`
+	DeliveryMethod  string          `gorm:"size:30;default:'shipping'" json:"delivery_method"`
+	RecipientName   string          `gorm:"size:120" json:"recipient_name"`
+	RecipientPhone  string          `gorm:"size:40" json:"recipient_phone"`
+	ZipCode         string          `gorm:"size:20" json:"zip_code"`
+	City            string          `gorm:"size:80" json:"city"`
+	State           string          `gorm:"size:40" json:"state"`
+	Notes           string          `gorm:"type:text" json:"notes"`
+	PaymentProvider string          `gorm:"size:40" json:"payment_provider"`
+	PaymentStatus   string          `gorm:"size:40;index" json:"payment_status"`
+	PaymentID       string          `gorm:"size:120;index" json:"payment_id"`
+	PaymentDetail   string          `gorm:"size:120" json:"payment_detail"`
+	MPPreferenceID  string          `gorm:"size:120;index" json:"mp_preference_id"`
+	MPInitPoint     string          `gorm:"type:text" json:"mp_init_point"`
+	MPSandboxPoint  string          `gorm:"type:text" json:"mp_sandbox_init_point"`
+	PaidAt          *time.Time      `json:"paid_at,omitempty"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
 }
 
 type OrderItem struct {

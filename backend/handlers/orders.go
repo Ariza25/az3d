@@ -241,7 +241,12 @@ func (h *OrderHandler) GetMyOrders(c *gin.Context) {
 	tenantID := getTenantID(c)
 
 	var orders []models.Order
-	if err := database.DB.Preload("Items.Product").Where("user_id = ? AND tenant_id = ?", userID, tenantID).Order("created_at desc").Find(&orders).Error; err != nil {
+	if err := database.DB.
+		Preload("Items.Product").
+		Preload("Shipments.Events", func(db *gorm.DB) *gorm.DB { return db.Order("occurred_at desc") }).
+		Where("user_id = ? AND tenant_id = ?", userID, tenantID).
+		Order("created_at desc").
+		Find(&orders).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar historico de pedidos"})
 		return
 	}
@@ -253,7 +258,13 @@ func (h *OrderHandler) GetAllOrders(c *gin.Context) {
 	tenantID := getTenantID(c)
 
 	var orders []models.Order
-	if err := database.DB.Preload("User").Preload("Items.Product").Where("tenant_id = ?", tenantID).Order("created_at desc").Find(&orders).Error; err != nil {
+	if err := database.DB.
+		Preload("User").
+		Preload("Items.Product").
+		Preload("Shipments.Events", func(db *gorm.DB) *gorm.DB { return db.Order("occurred_at desc") }).
+		Where("tenant_id = ?", tenantID).
+		Order("created_at desc").
+		Find(&orders).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao carregar lista de pedidos do tenant"})
 		return
 	}

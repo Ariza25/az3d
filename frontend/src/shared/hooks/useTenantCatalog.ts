@@ -52,6 +52,7 @@ export const useTenantCatalog = (options: UseTenantCatalogOptions = {}) => {
             : fromPath || fromHost || found || visibleTenants[0];
           setActiveTenant(initial);
           localStorage.setItem('az3d_tenant_id', String(initial.id));
+          window.dispatchEvent(new CustomEvent('az3d:tenant-changed', { detail: { tenantId: initial.id } }));
         }
       } catch (err) {
         console.error('Erro ao carregar lista de tenants:', err);
@@ -65,6 +66,7 @@ export const useTenantCatalog = (options: UseTenantCatalogOptions = {}) => {
     if (lockedTenantId && tenant.id !== lockedTenantId) return;
     setActiveTenant(tenant);
     localStorage.setItem('az3d_tenant_id', String(tenant.id));
+    window.dispatchEvent(new CustomEvent('az3d:tenant-changed', { detail: { tenantId: tenant.id } }));
     setActiveCategory('todas');
     if (window.location.pathname.startsWith('/loja/')) {
       window.history.pushState({}, '', `/loja/${tenant.slug}`);
