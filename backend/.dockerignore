@@ -1,0 +1,9 @@
+.env
+.env.*
+!.env.example
+az3d-server.exe
+az3d-server
+uploads
+graphify-out
+.git
+*.log
