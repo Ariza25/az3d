@@ -244,6 +244,24 @@ export const api = {
     return data;
   },
 
+  startGoogleOAuth: async (
+    scope: 'customer' | 'admin' | 'seller',
+    options: { tenantId?: number; returnTo?: string; storeName?: string } = {}
+  ): Promise<{ auth_url: string }> => {
+    const params = new URLSearchParams();
+    params.set('scope', scope);
+    params.set('return_to', options.returnTo || window.location.pathname + window.location.search);
+    if (options.tenantId) params.set('tenant_id', String(options.tenantId));
+    if (options.storeName) params.set('store_name', options.storeName);
+
+    const res = await fetch(`${API_BASE_URL}/auth/google/start?${params.toString()}`, {
+      headers: getHeaders(options.tenantId, scope === 'admin' || scope === 'seller' ? ADMIN_TOKEN_KEY : CUSTOMER_TOKEN_KEY),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro ao iniciar login Google');
+    return data;
+  },
+
   // Pedidos Cliente
   createOrder: async (payload: CreateOrderPayload, tenantId?: number): Promise<CreateOrderResponse> => {
     const res = await fetch(`${API_BASE_URL}/orders`, {

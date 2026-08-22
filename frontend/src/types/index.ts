@@ -13,6 +13,9 @@ export interface User {
   username?: string;
   email: string;
   role: string;
+  google_id?: string;
+  avatar_url?: string;
+  auth_provider?: string;
   created_at: string;
 }
 

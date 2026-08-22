@@ -9,6 +9,7 @@ AZ3D e uma plataforma multi-tenant para lojas de produtos de impressao 3D. O MVP
 - tenant por URL;
 - store publica;
 - catalogo/produtos/estoque;
+- login Google para comprador/admin/tenant;
 - carrinho e checkout Mercado Pago;
 - painel admin;
 - integracoes base com marketplaces;
@@ -77,6 +78,8 @@ Frontend:
 
 ## Pagamento
 
+Visitante pode navegar na store, mas adicionar ao carrinho exige `customer` autenticado. O `CartContext` dispara `az3d:require-login` quando a tentativa vem de visitante ou role diferente de comprador.
+
 Checkout usa Mercado Pago Checkout Pro:
 
 - Pedido nasce como `pending_payment`.
@@ -94,6 +97,24 @@ Env relevante:
 - `FRONTEND_BASE_URL`
 - `API_PUBLIC_BASE_URL`
 
+## Login Google
+
+Rotas:
+
+- `GET /api/auth/google/start`
+- `GET /api/auth/google/callback`
+
+Fluxo:
+
+- Backend usa Authorization Code Flow.
+- `state` e assinado com `JWT_SECRET` e carrega `scope`, `tenant_id`, `return_to` e `store_name`.
+- `scope=customer` cria/entra comprador no tenant ativo.
+- `scope=admin` so entra se o e-mail ja existir como `admin`, `tenant_admin` ou `master_admin`.
+- `scope=seller` cria tenant e usuario `tenant_admin` quando o e-mail ainda nao existe.
+- Frontend consome `/auth/google/callback#token=...` antes de montar o `AuthProvider`.
+
+Nao retornar token Google ou segredo OAuth em respostas. O frontend so recebe JWT AZ3D.
+
 ## Segurança
 
 Ao mexer em seguranca, preservar ou melhorar:
@@ -105,6 +126,9 @@ Ao mexer em seguranca, preservar ou melhorar:
 - `TRUSTED_PROXIES`.
 - `MAX_UPLOAD_MB`.
 - `CREDENTIAL_ENCRYPTION_KEY`.
+- `GOOGLE_OAUTH_CLIENT_ID`.
+- `GOOGLE_OAUTH_CLIENT_SECRET`.
+- `GOOGLE_OAUTH_REDIRECT_URL`.
 - `CORREIOS_API_BASE_URL`.
 - `CORREIOS_TOKEN_BASE_URL`.
 - `TRACKING_SYNC_INTERVAL_MINUTES`.

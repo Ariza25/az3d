@@ -142,9 +142,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => setIsMenuOpen(!isMenuOpen)}
                   className="flex items-center space-x-2 bg-chumbo-900 hover:bg-chumbo-800 border border-chumbo-700/60 py-2 px-3.5 rounded-xl text-sm font-medium text-slate-200 transition-all"
                 >
-                  <div className="w-7 h-7 rounded-full bg-chumbo-700 flex items-center justify-center font-bold text-xs text-white">
-                    {user.name.charAt(0).toUpperCase()}
-                  </div>
+                  {user.avatar_url ? (
+                    <img src={user.avatar_url} alt={user.name} className="w-7 h-7 rounded-full object-cover border border-chumbo-700" />
+                  ) : (
+                    <div className="w-7 h-7 rounded-full bg-chumbo-700 flex items-center justify-center font-bold text-xs text-white">
+                      {user.name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
                   <span className="hidden sm:inline max-w-[100px] truncate">{user.name}</span>
                   <ChevronDown className="w-4 h-4 text-slate-400" />
                 </button>

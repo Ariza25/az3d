@@ -69,6 +69,8 @@ func main() {
 			auth.POST("/admin/login", authHandler.AdminLogin)
 			auth.POST("/register", authHandler.Register)
 			auth.POST("/login", authHandler.Login)
+			auth.GET("/google/start", authHandler.StartGoogleOAuth)
+			auth.GET("/google/callback", authHandler.CompleteGoogleOAuth)
 		}
 
 		api.GET("/categories", productHandler.GetCategories)

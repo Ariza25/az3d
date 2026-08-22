@@ -140,17 +140,20 @@ type PlatformFeePreset struct {
 }
 
 type User struct {
-	ID        uint           `gorm:"primaryKey" json:"id"`
-	TenantID  uint           `gorm:"default:1;index" json:"tenant_id"`
-	Tenant    *Tenant        `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
-	Name      string         `gorm:"size:100;not null" json:"name"`
-	Username  string         `gorm:"size:80;uniqueIndex:idx_users_username,where:username <> ''" json:"username"`
-	Email     string         `gorm:"size:100;not null;uniqueIndex" json:"email"`
-	Password  string         `gorm:"size:255;not null" json:"-"`
-	Role      string         `gorm:"size:20;default:'customer'" json:"role"` // customer, admin, tenant_admin, master_admin
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
-	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+	ID           uint           `gorm:"primaryKey" json:"id"`
+	TenantID     uint           `gorm:"default:1;index" json:"tenant_id"`
+	Tenant       *Tenant        `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+	Name         string         `gorm:"size:100;not null" json:"name"`
+	Username     string         `gorm:"size:80;uniqueIndex:idx_users_username,where:username <> ''" json:"username"`
+	Email        string         `gorm:"size:100;not null;uniqueIndex" json:"email"`
+	Password     string         `gorm:"size:255;not null" json:"-"`
+	Role         string         `gorm:"size:20;default:'customer'" json:"role"` // customer, admin, tenant_admin, master_admin
+	GoogleID     string         `gorm:"size:255;index" json:"google_id,omitempty"`
+	AvatarURL    string         `gorm:"size:500" json:"avatar_url,omitempty"`
+	AuthProvider string         `gorm:"size:30;default:'password'" json:"auth_provider"`
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
+	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
 type Category struct {

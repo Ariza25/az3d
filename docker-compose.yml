@@ -39,6 +39,12 @@ services:
       MERCADO_PAGO_API_BASE_URL: https://api.mercadopago.com
       MERCADO_PAGO_ACCESS_TOKEN: ${MERCADO_PAGO_ACCESS_TOKEN:-}
       MERCADO_PAGO_WEBHOOK_SECRET: ${MERCADO_PAGO_WEBHOOK_SECRET:-}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      GOOGLE_OAUTH_REDIRECT_URL: ${GOOGLE_OAUTH_REDIRECT_URL:-http://localhost:8080/api/auth/google/callback}
+      GOOGLE_OAUTH_AUTH_URL: ${GOOGLE_OAUTH_AUTH_URL:-https://accounts.google.com/o/oauth2/v2/auth}
+      GOOGLE_OAUTH_TOKEN_URL: ${GOOGLE_OAUTH_TOKEN_URL:-https://oauth2.googleapis.com/token}
+      GOOGLE_OAUTH_USERINFO_URL: ${GOOGLE_OAUTH_USERINFO_URL:-https://openidconnect.googleapis.com/v1/userinfo}
       CORREIOS_API_BASE_URL: ${CORREIOS_API_BASE_URL:-https://api.correios.com.br/srorastro}
       CORREIOS_TOKEN_BASE_URL: ${CORREIOS_TOKEN_BASE_URL:-https://api.correios.com.br/token}
       TRACKING_SYNC_INTERVAL_MINUTES: ${TRACKING_SYNC_INTERVAL_MINUTES:-0}

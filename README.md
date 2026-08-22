@@ -9,6 +9,8 @@ O foco atual do projeto e:
 - Tenant por loja, com slug em URL como `/loja/az3d`.
 - Store publica com identidade visual do tenant.
 - Catalogo de produtos, categorias, cores, estoque e favoritos.
+- Login por e-mail/senha ou Google para compradores.
+- Login Google para contas administrativas ja cadastradas e cadastro Google para novos tenants.
 - Carrinho e checkout com Mercado Pago Checkout Pro.
 - Painel admin para produtos, estoque, pedidos, precificacao e marketplaces.
 - Conta master para operacao multi-tenant.
@@ -72,6 +74,13 @@ MERCADO_PAGO_API_BASE_URL=https://api.mercadopago.com
 MERCADO_PAGO_ACCESS_TOKEN=
 MERCADO_PAGO_WEBHOOK_SECRET=
 
+GOOGLE_OAUTH_CLIENT_ID=
+GOOGLE_OAUTH_CLIENT_SECRET=
+GOOGLE_OAUTH_REDIRECT_URL=http://localhost:8080/api/auth/google/callback
+GOOGLE_OAUTH_AUTH_URL=https://accounts.google.com/o/oauth2/v2/auth
+GOOGLE_OAUTH_TOKEN_URL=https://oauth2.googleapis.com/token
+GOOGLE_OAUTH_USERINFO_URL=https://openidconnect.googleapis.com/v1/userinfo
+
 CORREIOS_API_BASE_URL=https://api.correios.com.br/srorastro
 CORREIOS_TOKEN_BASE_URL=https://api.correios.com.br/token
 TRACKING_SYNC_INTERVAL_MINUTES=0
@@ -87,6 +96,8 @@ Para producao, defina:
 - `API_PUBLIC_BASE_URL` com a URL publica da API, usada no webhook do Mercado Pago.
 - `MERCADO_PAGO_ACCESS_TOKEN` com token real ou sandbox.
 - `MERCADO_PAGO_WEBHOOK_SECRET` com o secret configurado no painel do Mercado Pago.
+- `GOOGLE_OAUTH_CLIENT_ID` e `GOOGLE_OAUTH_CLIENT_SECRET` com credenciais OAuth Web do Google.
+- `GOOGLE_OAUTH_REDIRECT_URL` igual ao redirect autorizado no Google Cloud Console.
 - `CORREIOS_API_BASE_URL` e `CORREIOS_TOKEN_BASE_URL` conforme ambiente Correios.
 - `TRACKING_SYNC_INTERVAL_MINUTES` maior que zero para habilitar job automatico de rastreio.
 
@@ -126,6 +137,8 @@ Servicos:
 
 ## Checkout Mercado Pago
 
+Visitantes podem navegar pela store, mas o carrinho exige conta de comprador. Ao clicar em adicionar produto sem estar autenticado, a UI abre o login/cadastro.
+
 O checkout usa Mercado Pago Checkout Pro:
 
 1. Cliente fecha o carrinho.
@@ -156,6 +169,24 @@ role: master_admin
 O `master_admin` pode alternar tenant no admin e operar usando `X-Tenant-ID`. Contas `tenant_admin` continuam presas ao tenant do proprio JWT.
 
 Troque essa senha antes de qualquer uso fora de desenvolvimento.
+
+## Login Google
+
+O login Google usa Authorization Code Flow no backend:
+
+1. Frontend chama `GET /api/auth/google/start`.
+2. Backend gera `state` assinado, monta a URL do Google e retorna `auth_url`.
+3. Google chama `GET /api/auth/google/callback`.
+4. Backend troca `code` por token, valida `id_token`, consulta UserInfo e emite JWT AZ3D.
+5. Frontend recebe o JWT no fragmento de `/auth/google/callback` e grava no storage correto.
+
+Escopos internos:
+
+- `customer`: entra ou cria comprador no tenant ativo.
+- `admin`: entra apenas se o e-mail ja existir como `admin`, `tenant_admin` ou `master_admin`.
+- `seller`: cria tenant e usuario `tenant_admin` quando o e-mail ainda nao existe.
+
+No Google Cloud Console, cadastre o redirect URI exatamente como `GOOGLE_OAUTH_REDIRECT_URL`.
 
 ## Transportadoras E Tracking
 

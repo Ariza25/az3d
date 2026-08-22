@@ -103,6 +103,7 @@ export const AdminApp: React.FC = () => {
           defaultEmail="admin"
           defaultPassword="Admin@123"
           showRegisterLink={false}
+          googleScope="admin"
         />
       </div>
     );

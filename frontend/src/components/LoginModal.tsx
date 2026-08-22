@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { X, Lock, Mail, ArrowRight, AlertCircle, Layers } from 'lucide-react';
+import { X, Lock, Mail, ArrowRight, AlertCircle, Layers, Chrome } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { api } from '../services/api';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -13,6 +14,8 @@ interface LoginModalProps {
   defaultEmail?: string;
   defaultPassword?: string;
   showRegisterLink?: boolean;
+  googleScope?: 'customer' | 'admin';
+  tenantId?: number;
 }
 
 export const LoginModal: React.FC<LoginModalProps> = ({
@@ -26,6 +29,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   defaultEmail = 'cliente@az3d.com.br',
   defaultPassword = '123456',
   showRegisterLink = true,
+  googleScope = 'customer',
+  tenantId,
 }) => {
   const { login } = useAuth();
   const [email, setEmail] = useState(defaultEmail);
@@ -46,6 +51,19 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     } catch (err: any) {
       setError(err.message || 'Erro ao realizar login');
     } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const returnTo = googleScope === 'admin' ? '/admin' : window.location.pathname + window.location.search;
+      const { auth_url } = await api.startGoogleOAuth(googleScope, { tenantId, returnTo });
+      window.location.href = auth_url;
+    } catch (err: any) {
+      setError(err.message || 'Erro ao iniciar login Google');
       setIsLoading(false);
     }
   };
@@ -78,6 +96,22 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <button
+            type="button"
+            onClick={handleGoogleLogin}
+            disabled={isLoading}
+            className="w-full py-3 rounded-xl border border-chumbo-700 bg-chumbo-900 hover:bg-chumbo-800 text-white font-bold text-sm transition-all flex items-center justify-center space-x-2 disabled:opacity-50"
+          >
+            <Chrome className="w-4 h-4" />
+            <span>Continuar com Google</span>
+          </button>
+
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-chumbo-800" />
+            <span className="text-[10px] font-mono uppercase text-slate-500">ou</span>
+            <div className="h-px flex-1 bg-chumbo-800" />
+          </div>
+
           <div>
             <label className="text-xs font-mono uppercase text-slate-400 block mb-1">
               E-mail ou usuario

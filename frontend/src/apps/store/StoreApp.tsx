@@ -63,6 +63,19 @@ export const StoreApp: React.FC = () => {
   const [isFavoritesOpen, setIsFavoritesOpen] = useState<boolean>(false);
 
   useEffect(() => {
+    const handleRequireLogin = () => setIsLoginOpen(true);
+    window.addEventListener('az3d:require-login', handleRequireLogin);
+    return () => window.removeEventListener('az3d:require-login', handleRequireLogin);
+  }, []);
+
+  useEffect(() => {
+    const authError = sessionStorage.getItem('az3d_auth_error');
+    if (!authError) return;
+    sessionStorage.removeItem('az3d_auth_error');
+    setIsLoginOpen(true);
+  }, []);
+
+  useEffect(() => {
     if (!activeTenant) return;
     api.getTenantSettings(activeTenant.id)
       .then(setTenantSettings)
@@ -263,6 +276,8 @@ export const StoreApp: React.FC = () => {
       <LoginModal
         isOpen={isLoginOpen}
         onClose={() => setIsLoginOpen(false)}
+        tenantId={activeTenant?.id}
+        googleScope="customer"
         onSwitchToRegister={() => {
           setIsLoginOpen(false);
           setIsRegisterOpen(true);

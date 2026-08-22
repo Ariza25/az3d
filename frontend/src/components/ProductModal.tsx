@@ -91,8 +91,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
   const stockStatus = getStockStatus({ ...product, color_stocks: undefined, stock_qty: stockLimit, in_stock: stockLimit > 0 && product.in_stock });
 
   const handleAddToCart = () => {
-    addToCart({ ...product, price: selectedPrice }, quantity, selectedColor);
-    onClose();
+    if (addToCart({ ...product, price: selectedPrice }, quantity, selectedColor)) {
+      onClose();
+    }
   };
 
   const toggleFavorite = async () => {

@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Product, CartItem } from '../types';
+import { useAuth } from './AuthContext';
 
 interface CartContextType {
   cart: CartItem[];
-  addToCart: (product: Product, quantity?: number, color?: string) => void;
+  addToCart: (product: Product, quantity?: number, color?: string) => boolean;
   removeFromCart: (productId: number, color: string) => void;
   updateQuantity: (productId: number, color: string, quantity: number) => void;
   clearCart: () => void;
@@ -16,6 +17,7 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAuthenticated, user } = useAuth();
   const [cart, setCart] = useState<CartItem[]>(() => {
     const saved = localStorage.getItem('az3d_cart');
     return saved ? JSON.parse(saved) : [];
@@ -28,6 +30,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [cart]);
 
   const addToCart = (product: Product, quantity = 1, color = 'Preto Slate') => {
+    if (!isAuthenticated || user?.role !== 'customer') {
+      window.dispatchEvent(new CustomEvent('az3d:require-login', { detail: { reason: 'cart' } }));
+      return false;
+    }
+
     setCart((prev) => {
       const existingIndex = prev.findIndex(
         (item) => item.product.id === product.id && item.color === color
@@ -42,6 +49,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return [...prev, { product, quantity, color }];
     });
     setIsCartOpen(true);
+    return true;
   };
 
   const removeFromCart = (productId: number, color: string) => {

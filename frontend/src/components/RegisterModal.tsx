@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { X, Lock, Mail, User as UserIcon, ArrowRight, AlertCircle, Layers } from 'lucide-react';
+import { X, Lock, Mail, User as UserIcon, ArrowRight, AlertCircle, Layers, Chrome } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { api } from '../services/api';
 
 interface RegisterModalProps {
   isOpen: boolean;
@@ -45,6 +46,28 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
     } catch (err: any) {
       setError(err.message || 'Erro ao realizar cadastro');
     } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleRegister = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      if (accountType === 'seller' && !storeName.trim()) {
+        setError('Informe o nome da loja antes de continuar com Google');
+        setIsLoading(false);
+        return;
+      }
+      const scope = accountType === 'seller' ? 'seller' : 'customer';
+      const { auth_url } = await api.startGoogleOAuth(scope, {
+        tenantId,
+        storeName: accountType === 'seller' ? storeName : undefined,
+        returnTo: accountType === 'seller' ? '/admin' : window.location.pathname + window.location.search,
+      });
+      window.location.href = auth_url;
+    } catch (err: any) {
+      setError(err.message || 'Erro ao iniciar cadastro Google');
       setIsLoading(false);
     }
   };
@@ -103,23 +126,6 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
             </button>
           </div>
 
-          <div>
-            <label className="text-xs font-mono uppercase text-slate-400 block mb-1">
-              Nome Completo
-            </label>
-            <div className="relative">
-              <input
-                type="text"
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Seu Nome"
-                className="w-full bg-chumbo-900 border border-chumbo-700/80 rounded-xl py-3 pl-11 pr-4 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-white transition-all"
-              />
-              <UserIcon className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
-            </div>
-          </div>
-
           {accountType === 'seller' && (
             <div>
               <label className="text-xs font-mono uppercase text-slate-400 block mb-1">
@@ -138,6 +144,39 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
               </div>
             </div>
           )}
+
+          <button
+            type="button"
+            onClick={handleGoogleRegister}
+            disabled={isLoading}
+            className="w-full py-3 rounded-xl border border-chumbo-700 bg-chumbo-900 hover:bg-chumbo-800 text-white font-bold text-sm transition-all flex items-center justify-center space-x-2 disabled:opacity-50"
+          >
+            <Chrome className="w-4 h-4" />
+            <span>{accountType === 'seller' ? 'Criar loja com Google' : 'Continuar com Google'}</span>
+          </button>
+
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-chumbo-800" />
+            <span className="text-[10px] font-mono uppercase text-slate-500">ou</span>
+            <div className="h-px flex-1 bg-chumbo-800" />
+          </div>
+
+          <div>
+            <label className="text-xs font-mono uppercase text-slate-400 block mb-1">
+              Nome Completo
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Seu Nome"
+                className="w-full bg-chumbo-900 border border-chumbo-700/80 rounded-xl py-3 pl-11 pr-4 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-white transition-all"
+              />
+              <UserIcon className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+            </div>
+          </div>
 
           <div>
             <label className="text-xs font-mono uppercase text-slate-400 block mb-1">

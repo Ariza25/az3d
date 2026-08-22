@@ -28,6 +28,13 @@ type Config struct {
 	CorreiosAPIBaseURL      string
 	CorreiosTokenBaseURL    string
 	TrackingSyncIntervalMin int
+	GoogleOAuthClientID     string
+	GoogleOAuthClientSecret string
+	GoogleOAuthRedirectURL  string
+	GoogleOAuthAuthURL      string
+	GoogleOAuthTokenURL     string
+	GoogleOAuthUserInfoURL  string
+	FrontendBaseURL         string
 }
 
 func LoadConfig() *Config {
@@ -64,6 +71,13 @@ func LoadConfig() *Config {
 		CorreiosAPIBaseURL:      getEnv("CORREIOS_API_BASE_URL", "https://api.correios.com.br/srorastro"),
 		CorreiosTokenBaseURL:    getEnv("CORREIOS_TOKEN_BASE_URL", "https://api.correios.com.br/token"),
 		TrackingSyncIntervalMin: getEnvIntAllowZero("TRACKING_SYNC_INTERVAL_MINUTES", 0),
+		GoogleOAuthClientID:     getEnv("GOOGLE_OAUTH_CLIENT_ID", ""),
+		GoogleOAuthClientSecret: getEnv("GOOGLE_OAUTH_CLIENT_SECRET", ""),
+		GoogleOAuthRedirectURL:  getEnv("GOOGLE_OAUTH_REDIRECT_URL", ""),
+		GoogleOAuthAuthURL:      getEnv("GOOGLE_OAUTH_AUTH_URL", "https://accounts.google.com/o/oauth2/v2/auth"),
+		GoogleOAuthTokenURL:     getEnv("GOOGLE_OAUTH_TOKEN_URL", "https://oauth2.googleapis.com/token"),
+		GoogleOAuthUserInfoURL:  getEnv("GOOGLE_OAUTH_USERINFO_URL", "https://openidconnect.googleapis.com/v1/userinfo"),
+		FrontendBaseURL:         getEnv("FRONTEND_BASE_URL", "http://localhost:5173"),
 	}
 	cfg.validate()
 	return cfg
