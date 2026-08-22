@@ -11,12 +11,14 @@ O foco atual do projeto e:
 - Catalogo de produtos, categorias, cores, estoque e favoritos.
 - Carrinho e checkout com Mercado Pago Checkout Pro.
 - Painel admin para produtos, estoque, pedidos, precificacao e marketplaces.
+- Conta master para operacao multi-tenant.
+- Base para contas de transportadora por tenant com credenciais criptografadas.
 - Importacao/sincronizacao de marketplaces como base operacional.
 - Docker Compose e CI para validar backend, frontend e imagens.
 
 Nao faz parte do escopo atual:
 
-- Rastreio de entrega.
+- Consulta real de tracking em producao.
 - Publicacao real completa para marketplaces.
 - Checkout transparente/cartao dentro da propria UI.
 
@@ -58,6 +60,7 @@ DB_SSLMODE=disable
 JWT_SECRET=troque-por-um-segredo-forte
 JWT_TTL_HOURS=168
 REQUIRE_STRONG_SECRETS=false
+CREDENTIAL_ENCRYPTION_KEY=
 
 CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 TRUSTED_PROXIES=127.0.0.1,::1
@@ -74,6 +77,7 @@ Para producao, defina:
 
 - `JWT_SECRET` com 32+ caracteres.
 - `REQUIRE_STRONG_SECRETS=true`.
+- `CREDENTIAL_ENCRYPTION_KEY` com 32+ caracteres para criptografar credenciais por tenant.
 - `CORS_ALLOWED_ORIGINS` apenas com os dominios reais.
 - `FRONTEND_BASE_URL` com a URL publica da loja.
 - `API_PUBLIC_BASE_URL` com a URL publica da API, usada no webhook do Mercado Pago.
@@ -133,7 +137,55 @@ Status internos principais:
 - `delivered`: concluido.
 - `cancelled`: cancelado.
 
-Nao ha rastreio de entrega no escopo atual.
+## Conta Master
+
+O seed cria uma conta master para operar a plataforma:
+
+```text
+usuario: admin
+senha: Admin@123
+role: master_admin
+```
+
+O `master_admin` pode alternar tenant no admin e operar usando `X-Tenant-ID`. Contas `tenant_admin` continuam presas ao tenant do proprio JWT.
+
+Troque essa senha antes de qualquer uso fora de desenvolvimento.
+
+## Transportadoras E Tracking
+
+A base para tracking por tenant ja existe, mas a consulta real aos Correios deve ser implementada em uma etapa posterior.
+
+Tabelas de base:
+
+- `tenant_carrier_accounts`: credenciais/configuracoes por tenant e provider.
+- `order_shipments`: envio vinculado ao pedido.
+- `shipment_events`: timeline de eventos do tracking.
+
+Endpoints admin:
+
+- `GET /api/admin/carrier-accounts`
+- `POST /api/admin/carrier-accounts`
+- `PATCH /api/admin/carrier-accounts/:id/toggle`
+
+Credenciais enviadas em `credentials` sao salvas criptografadas com `CREDENTIAL_ENCRYPTION_KEY` e nunca retornam descriptografadas pela API.
+
+Exemplo para futura conta Correios:
+
+```json
+{
+  "provider": "correios",
+  "account_name": "Correios Loja AZ3D",
+  "auth_type": "contract_credentials",
+  "is_active": true,
+  "sync_tracking": true,
+  "credentials": {
+    "username": "usuario",
+    "password": "senha",
+    "contract": "contrato",
+    "posting_card": "cartao"
+  }
+}
+```
 
 ## Marketplaces
 
@@ -152,6 +204,7 @@ Controles ja existentes:
 
 - JWT com TTL configuravel.
 - Trava opcional para impedir segredo JWT fraco em producao.
+- Credenciais sensiveis por tenant criptografadas com `CREDENTIAL_ENCRYPTION_KEY`.
 - CORS configuravel por env.
 - Trusted proxies configuraveis.
 - Upload de imagem com extensoes permitidas e limite de tamanho.

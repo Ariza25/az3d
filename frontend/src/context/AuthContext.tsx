@@ -21,7 +21,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const getTokenKey = (scope: AuthScope) => (scope === 'admin' ? ADMIN_TOKEN_KEY : CUSTOMER_TOKEN_KEY);
 
 const isRoleAllowed = (scope: AuthScope, role?: string) => {
-  if (scope === 'admin') return role === 'admin' || role === 'tenant_admin';
+  if (scope === 'admin') return role === 'admin' || role === 'tenant_admin' || role === 'master_admin';
   return role === 'customer';
 };
 

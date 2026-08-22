@@ -329,8 +329,19 @@ func customerPurchasedProduct(tenantID uint, userID uint, productID uint) bool {
 }
 
 func getTenantID(c *gin.Context) uint {
-	// Rotas autenticadas sempre respeitam o tenant do JWT. Neste momento nao
-	// existe admin master; admin e tenant_admin pertencem a um tenant especifico.
+	if role, exists := c.Get("userRole"); exists && role == "master_admin" {
+		if headerVal := c.GetHeader("X-Tenant-ID"); headerVal != "" {
+			if id, err := strconv.Atoi(headerVal); err == nil && id > 0 {
+				return uint(id)
+			}
+		}
+		if queryVal := c.Query("tenant_id"); queryVal != "" {
+			if id, err := strconv.Atoi(queryVal); err == nil && id > 0 {
+				return uint(id)
+			}
+		}
+	}
+
 	if ctxVal, exists := c.Get("tenantID"); exists {
 		if id, ok := ctxVal.(uint); ok && id > 0 {
 			return id

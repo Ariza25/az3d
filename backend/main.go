@@ -50,6 +50,7 @@ func main() {
 	tenantSettingsHandler := handlers.NewTenantSettingsHandler()
 	pricingHandler := handlers.NewPricingHandler()
 	marketplaceHandler := handlers.NewMarketplaceHandler()
+	carrierHandler := handlers.NewCarrierHandler(cfg)
 
 	r.Static("/uploads", "./uploads")
 
@@ -144,6 +145,10 @@ func main() {
 			admin.GET("/marketplaces/external-orders", marketplaceHandler.GetExternalOrders)
 			admin.GET("/marketplaces/webhook-events", marketplaceHandler.GetMarketplaceWebhookEvents)
 			admin.POST("/marketplaces/simulate-order", marketplaceHandler.SimulateMarketplaceOrder)
+
+			admin.GET("/carrier-accounts", carrierHandler.GetCarrierAccounts)
+			admin.POST("/carrier-accounts", carrierHandler.SaveCarrierAccount)
+			admin.PATCH("/carrier-accounts/:id/toggle", carrierHandler.ToggleCarrierAccount)
 		}
 
 		api.POST("/webhooks/marketplaces/:provider", marketplaceHandler.ReceiveMarketplaceWebhook)

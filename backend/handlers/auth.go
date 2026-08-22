@@ -145,7 +145,7 @@ func (h *AuthHandler) CustomerLogin(c *gin.Context) {
 
 // POST /api/auth/admin/login
 func (h *AuthHandler) AdminLogin(c *gin.Context) {
-	h.loginWithAllowedRoles(c, map[string]bool{"admin": true, "tenant_admin": true}, "Use uma conta administrativa para acessar o painel")
+	h.loginWithAllowedRoles(c, map[string]bool{"admin": true, "tenant_admin": true, "master_admin": true}, "Use uma conta administrativa para acessar o painel")
 }
 
 // Login keeps the old /api/auth/login route as a customer alias.
@@ -160,8 +160,9 @@ func (h *AuthHandler) loginWithAllowedRoles(c *gin.Context, allowedRoles map[str
 		return
 	}
 
+	identifier := strings.ToLower(strings.TrimSpace(input.Email))
 	var user models.User
-	if err := database.DB.Where("email = ?", input.Email).First(&user).Error; err != nil {
+	if err := database.DB.Where("LOWER(email) = ? OR LOWER(username) = ?", identifier, identifier).First(&user).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Credenciais de acesso incorretas"})
 		return
 	}

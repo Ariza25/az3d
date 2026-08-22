@@ -101,7 +101,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="flex items-center space-x-3">
             
             {/* Botão Painel Admin (Se admin) */}
-            {isAuthenticated && (user?.role === 'admin' || user?.role === 'tenant_admin') && (
+            {isAuthenticated && (user?.role === 'admin' || user?.role === 'tenant_admin' || user?.role === 'master_admin') && (
               <button
                 onClick={onOpenAdmin}
                 className="flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-laser-500/20 hover:bg-laser-500/30 text-laser-400 border border-laser-500/30 font-mono text-xs font-bold transition-all shadow-md active:scale-95"
@@ -160,7 +160,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </span>
                     </div>
 
-                    {(user.role === 'admin' || user.role === 'tenant_admin') && (
+                    {(user.role === 'admin' || user.role === 'tenant_admin' || user.role === 'master_admin') && (
                       <button
                         onClick={() => {
                           setIsMenuOpen(false);

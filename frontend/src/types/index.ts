@@ -10,6 +10,7 @@ export interface User {
   id: number;
   tenant_id?: number;
   name: string;
+  username?: string;
   email: string;
   role: string;
   created_at: string;
@@ -614,6 +615,31 @@ export interface TenantMarketplaceSettingsInput {
   new_imported_product_status: string;
   auto_create_internal_orders: boolean;
   auto_create_financial_entries: boolean;
+}
+
+export interface TenantCarrierAccount {
+  id: number;
+  tenant_id: number;
+  provider: string;
+  account_name: string;
+  auth_type: string;
+  token_expires_at?: string;
+  is_active: boolean;
+  is_connected: boolean;
+  sync_tracking: boolean;
+  last_sync_at?: string;
+  last_error?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface TenantCarrierAccountInput {
+  provider: string;
+  account_name?: string;
+  auth_type?: string;
+  is_active: boolean;
+  sync_tracking: boolean;
+  credentials?: Record<string, unknown>;
 }
 
 export interface MarketplaceOAuthStartResponse {

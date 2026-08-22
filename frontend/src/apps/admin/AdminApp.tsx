@@ -12,18 +12,19 @@ const goToStore = () => {
 
 export const AdminApp: React.FC = () => {
   const { user, isAuthenticated, isLoading } = useAuth();
+  const isMasterAdmin = user?.role === 'master_admin';
   const {
     tenants,
     activeTenant,
     categories,
     onSelectTenant,
     refreshProducts,
-  } = useTenantCatalog({ lockedTenantId: user?.tenant_id });
+  } = useTenantCatalog({ lockedTenantId: isMasterAdmin ? undefined : user?.tenant_id });
   const [isLoginOpen, setIsLoginOpen] = useState(false);
-  const scopedTenants = user?.tenant_id
+  const scopedTenants = user?.tenant_id && !isMasterAdmin
     ? tenants.filter((tenant) => tenant.id === user.tenant_id)
     : tenants;
-  const scopedActiveTenant = user?.tenant_id
+  const scopedActiveTenant = user?.tenant_id && !isMasterAdmin
     ? activeTenant?.id === user.tenant_id
       ? activeTenant
       : scopedTenants[0] || null
@@ -37,7 +38,7 @@ export const AdminApp: React.FC = () => {
     );
   }
 
-  if (!isAuthenticated || (user?.role !== 'admin' && user?.role !== 'tenant_admin')) {
+  if (!isAuthenticated || (user?.role !== 'admin' && user?.role !== 'tenant_admin' && user?.role !== 'master_admin')) {
     return (
       <div className="min-h-screen bg-chumbo-950 text-slate-100">
         <header className="border-b border-chumbo-800 bg-chumbo-950/90">
@@ -99,8 +100,8 @@ export const AdminApp: React.FC = () => {
           subtitle="Login exclusivo para lojistas e operadores do tenant"
           submitLabel="Entrar no Admin"
           loadingLabel="Validando admin..."
-          defaultEmail="admin@az3d.com.br"
-          defaultPassword="123456"
+          defaultEmail="admin"
+          defaultPassword="Admin@123"
           showRegisterLink={false}
         />
       </div>

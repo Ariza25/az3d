@@ -12,9 +12,11 @@ AZ3D e uma plataforma multi-tenant para lojas de produtos de impressao 3D. O MVP
 - carrinho e checkout Mercado Pago;
 - painel admin;
 - integracoes base com marketplaces;
+- conta master `master_admin`;
+- base para transportadoras/tracking por tenant;
 - Docker e CI.
 
-Nao adicionar rastreio de entrega. O fluxo de pedido termina como `delivered`/`Concluido`, sem codigo de rastreio.
+Tracking pode existir apenas como modulo opcional por tenant. Nao prometer rastreio na loja enquanto a consulta real aos Correios nao estiver implementada.
 
 ## Regras De Trabalho
 
@@ -61,6 +63,7 @@ Backend:
 - `backend/handlers`: HTTP handlers.
 - `backend/middleware`: auth/admin middleware.
 - `backend/internal/marketplaces`: conectores de marketplace.
+- contas de transportadora ficam em `tenant_carrier_accounts`, com credenciais criptografadas.
 
 Frontend:
 
@@ -100,8 +103,10 @@ Ao mexer em seguranca, preservar ou melhorar:
 - `CORS_ALLOWED_ORIGINS`.
 - `TRUSTED_PROXIES`.
 - `MAX_UPLOAD_MB`.
+- `CREDENTIAL_ENCRYPTION_KEY`.
 - validacao de webhook Mercado Pago.
 - protecao de rotas admin por role.
+- role `master_admin` pode selecionar tenant via `X-Tenant-ID`; `tenant_admin` nao deve escapar do tenant do JWT.
 
 Evitar:
 
@@ -109,6 +114,40 @@ Evitar:
 - token hardcoded.
 - retorno de dados sensiveis em JSON.
 - upload sem limite ou sem extensao permitida.
+- retornar credenciais descriptografadas pela API.
+
+## Admin Master E Transportadoras
+
+Conta seedada para desenvolvimento:
+
+```text
+usuario: admin
+senha: Admin@123
+role: master_admin
+```
+
+Antes de producao, trocar senha e configurar `REQUIRE_STRONG_SECRETS=true`.
+
+Transportadoras:
+
+- `GET /api/admin/carrier-accounts`
+- `POST /api/admin/carrier-accounts`
+- `PATCH /api/admin/carrier-accounts/:id/toggle`
+
+Payload esperado para salvar:
+
+```json
+{
+  "provider": "correios",
+  "account_name": "Correios",
+  "auth_type": "contract_credentials",
+  "is_active": true,
+  "sync_tracking": true,
+  "credentials": {}
+}
+```
+
+O campo `credentials` deve ser criptografado no backend e nunca deve voltar em respostas JSON.
 
 ## UX/Produto
 

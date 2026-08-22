@@ -144,9 +144,10 @@ type User struct {
 	TenantID  uint           `gorm:"default:1;index" json:"tenant_id"`
 	Tenant    *Tenant        `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
 	Name      string         `gorm:"size:100;not null" json:"name"`
+	Username  string         `gorm:"size:80;uniqueIndex:idx_users_username,where:username <> ''" json:"username"`
 	Email     string         `gorm:"size:100;not null;uniqueIndex" json:"email"`
 	Password  string         `gorm:"size:255;not null" json:"-"`
-	Role      string         `gorm:"size:20;default:'customer'" json:"role"` // customer, admin, tenant_admin
+	Role      string         `gorm:"size:20;default:'customer'" json:"role"` // customer, admin, tenant_admin, master_admin
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
@@ -256,6 +257,55 @@ type StockMovement struct {
 	QuantityAfter int       `gorm:"not null" json:"quantity_after"`
 	Reason        string    `gorm:"size:255" json:"reason"`
 	CreatedAt     time.Time `json:"created_at"`
+}
+
+type TenantCarrierAccount struct {
+	ID                   uint       `gorm:"primaryKey" json:"id"`
+	TenantID             uint       `gorm:"not null;index;uniqueIndex:idx_carrier_account_tenant_provider" json:"tenant_id"`
+	Tenant               *Tenant    `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+	Provider             string     `gorm:"size:50;not null;uniqueIndex:idx_carrier_account_tenant_provider" json:"provider"`
+	AccountName          string     `gorm:"size:120" json:"account_name"`
+	AuthType             string     `gorm:"size:40;default:'contract_credentials'" json:"auth_type"`
+	EncryptedCredentials string     `gorm:"type:text" json:"-"`
+	TokenExpiresAt       *time.Time `json:"token_expires_at,omitempty"`
+	IsActive             bool       `gorm:"default:true" json:"is_active"`
+	IsConnected          bool       `gorm:"default:false" json:"is_connected"`
+	SyncTracking         bool       `gorm:"default:true" json:"sync_tracking"`
+	LastSyncAt           *time.Time `json:"last_sync_at,omitempty"`
+	LastError            string     `gorm:"type:text" json:"last_error,omitempty"`
+	CreatedAt            time.Time  `json:"created_at"`
+	UpdatedAt            time.Time  `json:"updated_at"`
+}
+
+type OrderShipment struct {
+	ID           uint       `gorm:"primaryKey" json:"id"`
+	TenantID     uint       `gorm:"not null;index" json:"tenant_id"`
+	Tenant       *Tenant    `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+	OrderID      uint       `gorm:"not null;index" json:"order_id"`
+	Order        *Order     `gorm:"foreignKey:OrderID" json:"order,omitempty"`
+	Carrier      string     `gorm:"size:50;not null;index" json:"carrier"`
+	TrackingCode string     `gorm:"size:80;index" json:"tracking_code"`
+	Status       string     `gorm:"size:40;default:'pending'" json:"status"`
+	PostedAt     *time.Time `json:"posted_at,omitempty"`
+	DeliveredAt  *time.Time `json:"delivered_at,omitempty"`
+	LastSyncAt   *time.Time `json:"last_sync_at,omitempty"`
+	LastError    string     `gorm:"type:text" json:"last_error,omitempty"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
+}
+
+type ShipmentEvent struct {
+	ID          uint           `gorm:"primaryKey" json:"id"`
+	TenantID    uint           `gorm:"not null;index" json:"tenant_id"`
+	ShipmentID  uint           `gorm:"not null;index" json:"shipment_id"`
+	Shipment    *OrderShipment `gorm:"foreignKey:ShipmentID" json:"shipment,omitempty"`
+	OrderID     uint           `gorm:"not null;index" json:"order_id"`
+	Carrier     string         `gorm:"size:50;not null;index" json:"carrier"`
+	EventCode   string         `gorm:"size:80" json:"event_code"`
+	Description string         `gorm:"type:text" json:"description"`
+	Location    string         `gorm:"size:160" json:"location"`
+	OccurredAt  time.Time      `json:"occurred_at"`
+	CreatedAt   time.Time      `json:"created_at"`
 }
 
 type ProductReview struct {
@@ -414,7 +464,7 @@ type RegisterInput struct {
 }
 
 type LoginInput struct {
-	Email    string `json:"email" binding:"required,email"`
+	Email    string `json:"email" binding:"required"`
 	Password string `json:"password" binding:"required"`
 }
 
@@ -495,6 +545,15 @@ type StockAdjustmentInput struct {
 	ColorName string `json:"color_name"`
 	StockQty  int    `json:"stock_qty" binding:"min=0"`
 	Reason    string `json:"reason"`
+}
+
+type TenantCarrierAccountInput struct {
+	Provider     string         `json:"provider" binding:"required"`
+	AccountName  string         `json:"account_name"`
+	AuthType     string         `json:"auth_type"`
+	IsActive     bool           `json:"is_active"`
+	SyncTracking bool           `json:"sync_tracking"`
+	Credentials  map[string]any `json:"credentials"`
 }
 
 type TenantSettingsInput struct {

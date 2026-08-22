@@ -37,6 +37,8 @@ import {
   TenantMarketplaceSettingsInput,
   StockMovement,
   StockAdjustmentInput,
+  TenantCarrierAccount,
+  TenantCarrierAccountInput,
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
@@ -357,6 +359,35 @@ export const api = {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Erro ao ajustar estoque');
     return data;
+  },
+
+  getCarrierAccounts: async (tenantId?: number): Promise<TenantCarrierAccount[]> => {
+    const res = await fetch(`${API_BASE_URL}/admin/carrier-accounts`, {
+      headers: getAdminHeaders(tenantId),
+    });
+    if (!res.ok) throw new Error('Erro ao carregar contas de transportadora');
+    return res.json();
+  },
+
+  saveCarrierAccount: async (data: TenantCarrierAccountInput, tenantId?: number): Promise<TenantCarrierAccount> => {
+    const res = await fetch(`${API_BASE_URL}/admin/carrier-accounts`, {
+      method: 'POST',
+      headers: getAdminHeaders(tenantId),
+      body: JSON.stringify(data),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Erro ao salvar transportadora');
+    return body;
+  },
+
+  toggleCarrierAccount: async (id: number, tenantId?: number): Promise<TenantCarrierAccount> => {
+    const res = await fetch(`${API_BASE_URL}/admin/carrier-accounts/${id}/toggle`, {
+      method: 'PATCH',
+      headers: getAdminHeaders(tenantId),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Erro ao alternar transportadora');
+    return body;
   },
 
   getAdminTenantSettings: async (tenantId?: number): Promise<TenantSettings> => {

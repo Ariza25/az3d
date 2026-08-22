@@ -86,6 +86,9 @@ func InitDB(cfg *config.Config) *gorm.DB {
 		&models.ProductVariant{},
 		&models.ProductColorStock{},
 		&models.StockMovement{},
+		&models.TenantCarrierAccount{},
+		&models.OrderShipment{},
+		&models.ShipmentEvent{},
 		&models.ProductReview{},
 		&models.ProductFavorite{},
 		&models.ProductPricingSnapshot{},
@@ -116,7 +119,7 @@ func InitDB(cfg *config.Config) *gorm.DB {
 // cleanupOrphanedRows limpa linhas com tenant_id inválido (0 ou NULL) antes de AutoMigrate
 // para evitar erro de violação de FK constraint ao reiniciar o servidor após mudanças de schema.
 func cleanupOrphanedRows(db *gorm.DB) {
-	tables := []string{"tenant_settings", "tenant_store_settings", "tenant_pricing_settings", "tenant_fulfillment_settings", "material_presets", "printer_presets", "platform_fee_presets", "users", "categories", "products", "product_color_images", "product_variants", "product_color_stocks", "stock_movements", "product_reviews", "product_favorites", "product_pricing_snapshots", "product_actual_costs", "tenant_fixed_costs", "orders", "marketplace_integrations", "marketplace_product_mappings", "marketplace_accounts", "external_marketplace_orders", "external_marketplace_order_items"}
+	tables := []string{"tenant_settings", "tenant_store_settings", "tenant_pricing_settings", "tenant_fulfillment_settings", "material_presets", "printer_presets", "platform_fee_presets", "users", "categories", "products", "product_color_images", "product_variants", "product_color_stocks", "stock_movements", "tenant_carrier_accounts", "order_shipments", "shipment_events", "product_reviews", "product_favorites", "product_pricing_snapshots", "product_actual_costs", "tenant_fixed_costs", "orders", "marketplace_integrations", "marketplace_product_mappings", "marketplace_accounts", "external_marketplace_orders", "external_marketplace_order_items"}
 	for _, table := range tables {
 		// Verifica se a coluna tenant_id existe antes de tentar limpar
 		var colExists int64
@@ -151,6 +154,7 @@ func seedData(db *gorm.DB) {
 	}
 	ensureTenantSettings(db, tenant1)
 	ensureTenantSettings(db, tenant2)
+	ensureMasterAdmin(db, tenant1.ID)
 
 	// Verificar se já temos categorias cadastradas
 	var count int64
@@ -167,6 +171,7 @@ func seedData(db *gorm.DB) {
 	adminUser := models.User{
 		TenantID: tenant1.ID,
 		Name:     "Administrador AZ3D",
+		Username: "admin-az3d",
 		Email:    "admin@az3d.com.br",
 		Password: hashedPassword,
 		Role:     "admin",
@@ -176,6 +181,7 @@ func seedData(db *gorm.DB) {
 	demoUser := models.User{
 		TenantID: tenant1.ID,
 		Name:     "Cliente AZ3D",
+		Username: "cliente-az3d",
 		Email:    "cliente@az3d.com.br",
 		Password: hashedPassword,
 		Role:     "customer",
@@ -612,4 +618,39 @@ func ensureTenantSettings(db *gorm.DB, tenant models.Tenant) {
 	for _, account := range accounts {
 		db.Where("tenant_id = ? AND provider = ?", tenant.ID, account.Provider).FirstOrCreate(&account)
 	}
+}
+
+func ensureMasterAdmin(db *gorm.DB, tenantID uint) {
+	password, err := utils.HashPassword("Admin@123")
+	if err != nil {
+		log.Printf("Erro ao gerar senha do admin master: %v", err)
+		return
+	}
+
+	user := models.User{
+		TenantID: tenantID,
+		Name:     "Admin Master",
+		Username: "admin",
+		Email:    "admin@az3d.local",
+		Password: password,
+		Role:     "master_admin",
+	}
+
+	var existing models.User
+	err = db.Where("username = ? OR email = ?", user.Username, user.Email).First(&existing).Error
+	if err == nil {
+		updates := map[string]any{
+			"tenant_id": tenantID,
+			"name":      user.Name,
+			"username":  user.Username,
+			"role":      user.Role,
+		}
+		if existing.Email == "" {
+			updates["email"] = user.Email
+		}
+		db.Model(&existing).Updates(updates)
+		return
+	}
+
+	db.Create(&user)
 }

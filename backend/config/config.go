@@ -10,20 +10,21 @@ import (
 )
 
 type Config struct {
-	Port                 string
-	Env                  string
-	DBHost               string
-	DBUser               string
-	DBPassword           string
-	DBName               string
-	DBPort               string
-	DBSSLMode            string
-	JWTSecret            string
-	JWTTTLHours          int
-	CORSOrigins          []string
-	TrustedProxies       []string
-	MaxUploadBytes       int64
-	RequireStrongSecrets bool
+	Port                    string
+	Env                     string
+	DBHost                  string
+	DBUser                  string
+	DBPassword              string
+	DBName                  string
+	DBPort                  string
+	DBSSLMode               string
+	JWTSecret               string
+	JWTTTLHours             int
+	CORSOrigins             []string
+	TrustedProxies          []string
+	MaxUploadBytes          int64
+	RequireStrongSecrets    bool
+	CredentialEncryptionKey string
 }
 
 func LoadConfig() *Config {
@@ -53,9 +54,10 @@ func LoadConfig() *Config {
 			"http://127.0.0.1:5174",
 			"http://127.0.0.1:5181",
 		}),
-		TrustedProxies:       getEnvList("TRUSTED_PROXIES", []string{"127.0.0.1", "::1"}),
-		MaxUploadBytes:       int64(getEnvInt("MAX_UPLOAD_MB", 5)) * 1024 * 1024,
-		RequireStrongSecrets: getEnvBool("REQUIRE_STRONG_SECRETS", false),
+		TrustedProxies:          getEnvList("TRUSTED_PROXIES", []string{"127.0.0.1", "::1"}),
+		MaxUploadBytes:          int64(getEnvInt("MAX_UPLOAD_MB", 5)) * 1024 * 1024,
+		RequireStrongSecrets:    getEnvBool("REQUIRE_STRONG_SECRETS", false),
+		CredentialEncryptionKey: getEnv("CREDENTIAL_ENCRYPTION_KEY", ""),
 	}
 	cfg.validate()
 	return cfg
@@ -121,5 +123,8 @@ func (cfg *Config) validate() {
 	}
 	if len(cfg.JWTSecret) < 32 || weakSecrets[cfg.JWTSecret] {
 		log.Fatal("JWT_SECRET fraco. Defina um segredo forte com pelo menos 32 caracteres.")
+	}
+	if len(cfg.CredentialEncryptionKey) < 32 {
+		log.Fatal("CREDENTIAL_ENCRYPTION_KEY fraca. Defina uma chave forte com pelo menos 32 caracteres.")
 	}
 }
