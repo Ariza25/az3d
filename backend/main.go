@@ -51,6 +51,8 @@ func main() {
 	pricingHandler := handlers.NewPricingHandler()
 	marketplaceHandler := handlers.NewMarketplaceHandler()
 	carrierHandler := handlers.NewCarrierHandler(cfg)
+	shipmentHandler := handlers.NewShipmentHandler(cfg)
+	handlers.StartTrackingSyncJob(cfg)
 
 	r.Static("/uploads", "./uploads")
 
@@ -149,6 +151,11 @@ func main() {
 			admin.GET("/carrier-accounts", carrierHandler.GetCarrierAccounts)
 			admin.POST("/carrier-accounts", carrierHandler.SaveCarrierAccount)
 			admin.PATCH("/carrier-accounts/:id/toggle", carrierHandler.ToggleCarrierAccount)
+			admin.GET("/carrier-health", shipmentHandler.GetCarrierHealth)
+			admin.GET("/shipments", shipmentHandler.GetShipments)
+			admin.POST("/shipments", shipmentHandler.SaveShipment)
+			admin.POST("/shipments/:id/sync", shipmentHandler.SyncShipment)
+			admin.POST("/shipments/sync", shipmentHandler.SyncTracking)
 		}
 
 		api.POST("/webhooks/marketplaces/:provider", marketplaceHandler.ReceiveMarketplaceWebhook)

@@ -25,6 +25,9 @@ type Config struct {
 	MaxUploadBytes          int64
 	RequireStrongSecrets    bool
 	CredentialEncryptionKey string
+	CorreiosAPIBaseURL      string
+	CorreiosTokenBaseURL    string
+	TrackingSyncIntervalMin int
 }
 
 func LoadConfig() *Config {
@@ -58,6 +61,9 @@ func LoadConfig() *Config {
 		MaxUploadBytes:          int64(getEnvInt("MAX_UPLOAD_MB", 5)) * 1024 * 1024,
 		RequireStrongSecrets:    getEnvBool("REQUIRE_STRONG_SECRETS", false),
 		CredentialEncryptionKey: getEnv("CREDENTIAL_ENCRYPTION_KEY", ""),
+		CorreiosAPIBaseURL:      getEnv("CORREIOS_API_BASE_URL", "https://api.correios.com.br/srorastro"),
+		CorreiosTokenBaseURL:    getEnv("CORREIOS_TOKEN_BASE_URL", "https://api.correios.com.br/token"),
+		TrackingSyncIntervalMin: getEnvIntAllowZero("TRACKING_SYNC_INTERVAL_MINUTES", 0),
 	}
 	cfg.validate()
 	return cfg
@@ -77,6 +83,19 @@ func getEnvInt(key string, fallback int) int {
 	}
 	parsed, err := strconv.Atoi(value)
 	if err != nil || parsed <= 0 {
+		log.Printf("Aviso: %s invalido, usando %d", key, fallback)
+		return fallback
+	}
+	return parsed
+}
+
+func getEnvIntAllowZero(key string, fallback int) int {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed < 0 {
 		log.Printf("Aviso: %s invalido, usando %d", key, fallback)
 		return fallback
 	}

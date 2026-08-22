@@ -12,13 +12,12 @@ O foco atual do projeto e:
 - Carrinho e checkout com Mercado Pago Checkout Pro.
 - Painel admin para produtos, estoque, pedidos, precificacao e marketplaces.
 - Conta master para operacao multi-tenant.
-- Base para contas de transportadora por tenant com credenciais criptografadas.
+- Transportadoras por tenant com credenciais criptografadas e tracking Correios.
 - Importacao/sincronizacao de marketplaces como base operacional.
 - Docker Compose e CI para validar backend, frontend e imagens.
 
 Nao faz parte do escopo atual:
 
-- Consulta real de tracking em producao.
 - Publicacao real completa para marketplaces.
 - Checkout transparente/cartao dentro da propria UI.
 
@@ -27,6 +26,7 @@ Nao faz parte do escopo atual:
 - Backend: Go 1.22, Gin, GORM, PostgreSQL.
 - Frontend: React 18, Vite, TypeScript, Tailwind CSS.
 - Pagamento: Mercado Pago Checkout Pro via Preferences API.
+- Tracking: Correios API Rastro via credenciais do tenant.
 - Infra local: Docker Compose com PostgreSQL, backend e frontend Nginx.
 - CI: GitHub Actions com build/test do backend, build do frontend e build das imagens Docker.
 
@@ -71,6 +71,10 @@ API_PUBLIC_BASE_URL=http://localhost:8080
 MERCADO_PAGO_API_BASE_URL=https://api.mercadopago.com
 MERCADO_PAGO_ACCESS_TOKEN=
 MERCADO_PAGO_WEBHOOK_SECRET=
+
+CORREIOS_API_BASE_URL=https://api.correios.com.br/srorastro
+CORREIOS_TOKEN_BASE_URL=https://api.correios.com.br/token
+TRACKING_SYNC_INTERVAL_MINUTES=0
 ```
 
 Para producao, defina:
@@ -83,6 +87,8 @@ Para producao, defina:
 - `API_PUBLIC_BASE_URL` com a URL publica da API, usada no webhook do Mercado Pago.
 - `MERCADO_PAGO_ACCESS_TOKEN` com token real ou sandbox.
 - `MERCADO_PAGO_WEBHOOK_SECRET` com o secret configurado no painel do Mercado Pago.
+- `CORREIOS_API_BASE_URL` e `CORREIOS_TOKEN_BASE_URL` conforme ambiente Correios.
+- `TRACKING_SYNC_INTERVAL_MINUTES` maior que zero para habilitar job automatico de rastreio.
 
 ## Rodando Localmente
 
@@ -153,7 +159,7 @@ Troque essa senha antes de qualquer uso fora de desenvolvimento.
 
 ## Transportadoras E Tracking
 
-A base para tracking por tenant ja existe, mas a consulta real aos Correios deve ser implementada em uma etapa posterior.
+O admin permite cadastrar Correios por tenant, criar envios nos pedidos e sincronizar a timeline de rastreio.
 
 Tabelas de base:
 
@@ -166,10 +172,30 @@ Endpoints admin:
 - `GET /api/admin/carrier-accounts`
 - `POST /api/admin/carrier-accounts`
 - `PATCH /api/admin/carrier-accounts/:id/toggle`
+- `GET /api/admin/carrier-health`
+- `GET /api/admin/shipments`
+- `POST /api/admin/shipments`
+- `POST /api/admin/shipments/:id/sync`
+- `POST /api/admin/shipments/sync`
 
 Credenciais enviadas em `credentials` sao salvas criptografadas com `CREDENTIAL_ENCRYPTION_KEY` e nunca retornam descriptografadas pela API.
 
-Exemplo para futura conta Correios:
+Exemplo de conta Correios com token pronto:
+
+```json
+{
+  "provider": "correios",
+  "account_name": "Correios Loja AZ3D",
+  "auth_type": "bearer_token",
+  "is_active": true,
+  "sync_tracking": true,
+  "credentials": {
+    "access_token": "token-gerado-no-cws"
+  }
+}
+```
+
+Exemplo de conta Correios usando API Token por contrato:
 
 ```json
 {
@@ -179,13 +205,15 @@ Exemplo para futura conta Correios:
   "is_active": true,
   "sync_tracking": true,
   "credentials": {
-    "username": "usuario",
-    "password": "senha",
-    "contract": "contrato",
-    "posting_card": "cartao"
+    "token_username": "idCorreios",
+    "token_password": "codigo-de-acesso-api",
+    "contract_number": "contrato",
+    "contract_dr": "10"
   }
 }
 ```
+
+O conector chama a API Token dos Correios quando nao houver `access_token` salvo e consulta `GET /srorastro/v1/objetos/{codigo}?resultado=T`. A API Rastro dos Correios restringe consultas a objetos vinculados ao contrato/remetente do tenant; cada tenant deve usar suas proprias credenciais autorizadas no CWS.
 
 ## Marketplaces
 

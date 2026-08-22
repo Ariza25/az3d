@@ -39,6 +39,11 @@ import {
   StockAdjustmentInput,
   TenantCarrierAccount,
   TenantCarrierAccountInput,
+  OrderShipment,
+  OrderShipmentInput,
+  CarrierHealthItem,
+  TrackingSyncEntry,
+  TrackingSyncSummary,
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
@@ -387,6 +392,55 @@ export const api = {
     });
     const body = await res.json();
     if (!res.ok) throw new Error(body.error || 'Erro ao alternar transportadora');
+    return body;
+  },
+
+  getCarrierHealth: async (tenantId?: number): Promise<CarrierHealthItem[]> => {
+    const res = await fetch(`${API_BASE_URL}/admin/carrier-health`, {
+      headers: getAdminHeaders(tenantId),
+    });
+    if (!res.ok) throw new Error('Erro ao carregar saude das transportadoras');
+    return res.json();
+  },
+
+  getShipments: async (tenantId?: number, orderId?: number): Promise<OrderShipment[]> => {
+    const params = new URLSearchParams();
+    if (orderId) params.append('order_id', String(orderId));
+    const res = await fetch(`${API_BASE_URL}/admin/shipments?${params.toString()}`, {
+      headers: getAdminHeaders(tenantId),
+    });
+    if (!res.ok) throw new Error('Erro ao carregar envios');
+    return res.json();
+  },
+
+  saveShipment: async (data: OrderShipmentInput, tenantId?: number): Promise<OrderShipment> => {
+    const res = await fetch(`${API_BASE_URL}/admin/shipments`, {
+      method: 'POST',
+      headers: getAdminHeaders(tenantId),
+      body: JSON.stringify(data),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Erro ao salvar envio');
+    return body;
+  },
+
+  syncShipment: async (id: number, tenantId?: number): Promise<TrackingSyncEntry> => {
+    const res = await fetch(`${API_BASE_URL}/admin/shipments/${id}/sync`, {
+      method: 'POST',
+      headers: getAdminHeaders(tenantId),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Erro ao sincronizar envio');
+    return body;
+  },
+
+  syncTracking: async (tenantId?: number): Promise<TrackingSyncSummary> => {
+    const res = await fetch(`${API_BASE_URL}/admin/shipments/sync`, {
+      method: 'POST',
+      headers: getAdminHeaders(tenantId),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Erro ao sincronizar rastreios');
     return body;
   },
 

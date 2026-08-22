@@ -13,10 +13,10 @@ AZ3D e uma plataforma multi-tenant para lojas de produtos de impressao 3D. O MVP
 - painel admin;
 - integracoes base com marketplaces;
 - conta master `master_admin`;
-- base para transportadoras/tracking por tenant;
+- transportadoras/tracking Correios por tenant;
 - Docker e CI.
 
-Tracking pode existir apenas como modulo opcional por tenant. Nao prometer rastreio na loja enquanto a consulta real aos Correios nao estiver implementada.
+Tracking e modulo opcional por tenant. A consulta Correios exige credenciais validas do tenant no CWS e objetos vinculados ao contrato/remetente.
 
 ## Regras De Trabalho
 
@@ -63,6 +63,7 @@ Backend:
 - `backend/handlers`: HTTP handlers.
 - `backend/middleware`: auth/admin middleware.
 - `backend/internal/marketplaces`: conectores de marketplace.
+- `backend/internal/carriers`: contratos e conectores de transportadora.
 - contas de transportadora ficam em `tenant_carrier_accounts`, com credenciais criptografadas.
 
 Frontend:
@@ -104,6 +105,9 @@ Ao mexer em seguranca, preservar ou melhorar:
 - `TRUSTED_PROXIES`.
 - `MAX_UPLOAD_MB`.
 - `CREDENTIAL_ENCRYPTION_KEY`.
+- `CORREIOS_API_BASE_URL`.
+- `CORREIOS_TOKEN_BASE_URL`.
+- `TRACKING_SYNC_INTERVAL_MINUTES`.
 - validacao de webhook Mercado Pago.
 - protecao de rotas admin por role.
 - role `master_admin` pode selecionar tenant via `X-Tenant-ID`; `tenant_admin` nao deve escapar do tenant do JWT.
@@ -133,6 +137,11 @@ Transportadoras:
 - `GET /api/admin/carrier-accounts`
 - `POST /api/admin/carrier-accounts`
 - `PATCH /api/admin/carrier-accounts/:id/toggle`
+- `GET /api/admin/carrier-health`
+- `GET /api/admin/shipments`
+- `POST /api/admin/shipments`
+- `POST /api/admin/shipments/:id/sync`
+- `POST /api/admin/shipments/sync`
 
 Payload esperado para salvar:
 
@@ -148,6 +157,15 @@ Payload esperado para salvar:
 ```
 
 O campo `credentials` deve ser criptografado no backend e nunca deve voltar em respostas JSON.
+
+Correios:
+
+- Conector em `backend/internal/carriers/correios`.
+- Aceita `access_token` pronto ou gera token pela API Token com `token_username` e `token_password`.
+- `auth_type=contract_credentials` usa `/v1/autentica/contrato`.
+- `auth_type=posting_card` usa `/v1/autentica/cartaopostagem`.
+- O sync salva novos `shipment_events`, atualiza `order_shipments` e marca o pedido como `delivered` quando o envio for entregue.
+- Job automatico so roda quando `TRACKING_SYNC_INTERVAL_MINUTES > 0`.
 
 ## UX/Produto
 
@@ -166,6 +184,8 @@ Admin deve ser operacional e direto:
 - pedidos;
 - precificacao;
 - marketplaces.
+- transportadoras;
+- rastreio por pedido quando houver envio vinculado.
 
 ## Graphify
 

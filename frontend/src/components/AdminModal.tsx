@@ -1,6 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { Product, Category, Order, Tenant, ProductInput, MarketplaceIntegration, MarketplaceProductMapping, TenantSettings, StockMovement } from '../types';
+import {
+  Product,
+  Category,
+  Order,
+  Tenant,
+  ProductInput,
+  MarketplaceIntegration,
+  MarketplaceProductMapping,
+  TenantSettings,
+  StockMovement,
+  TenantCarrierAccount,
+  OrderShipment,
+  CarrierHealthItem,
+} from '../types';
 import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { ProductFormModal } from './ProductFormModal';
 import { PricingCalculator } from './PricingCalculator';
 import { PricingManagementPanel } from './PricingManagementPanel';
@@ -26,6 +40,10 @@ import {
   Settings,
   BarChart3,
   TrendingUp,
+  Truck,
+  ShieldCheck,
+  Activity,
+  Clock,
 } from 'lucide-react';
 
 // Mapa de metadados visuais dos marketplaces
@@ -88,7 +106,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   categories,
   onRefreshProducts,
 }) => {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'categories' | 'orders' | 'inventory' | 'finance' | 'pricing' | 'settings' | 'tenants' | 'marketplaces'>('dashboard');
+  const { user } = useAuth();
+  const isMasterAdmin = user?.role === 'master_admin';
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'master' | 'products' | 'categories' | 'orders' | 'inventory' | 'finance' | 'pricing' | 'settings' | 'tenants' | 'marketplaces' | 'carriers'>('dashboard');
   
   // Estados para Produtos
   const [products, setProducts] = useState<Product[]>([]);
@@ -106,6 +126,26 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [tenantSettings, setTenantSettings] = useState<TenantSettings | null>(null);
   const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
   const [stockAdjustment, setStockAdjustment] = useState({ product_id: 0, color_name: '', stock_qty: 0, reason: '' });
+  const [carrierAccounts, setCarrierAccounts] = useState<TenantCarrierAccount[]>([]);
+  const [shipments, setShipments] = useState<OrderShipment[]>([]);
+  const [carrierHealth, setCarrierHealth] = useState<CarrierHealthItem[]>([]);
+  const [carrierForm, setCarrierForm] = useState({
+    provider: 'correios',
+    account_name: 'Correios',
+    auth_type: 'bearer_token',
+    is_active: true,
+    sync_tracking: true,
+    access_token: '',
+    api_base_url: '',
+    token_base_url: '',
+    token_username: '',
+    token_password: '',
+    contract_number: '',
+    contract_dr: '',
+    posting_card_number: '',
+  });
+  const [shipmentForm, setShipmentForm] = useState({ order_id: 0, carrier: 'correios', tracking_code: '' });
+  const [syncingShipmentId, setSyncingShipmentId] = useState<number | 'all' | null>(null);
 
   // Estados para Marketplaces
   const [marketplaces, setMarketplaces] = useState<MarketplaceIntegration[]>([]);
@@ -145,13 +185,16 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const loadTenantData = async () => {
     if (!activeTenant) return;
     try {
-      const [prods, ords, mkts, maps, settings, movements] = await Promise.all([
+      const [prods, ords, mkts, maps, settings, movements, carriers, loadedShipments, health] = await Promise.all([
         api.getAdminProducts(activeTenant.id),
         api.getAdminOrders(activeTenant.id).catch(() => []),
         api.getMarketplaces(activeTenant.id).catch(() => []),
         api.getProductMappings(activeTenant.id).catch(() => []),
         api.getAdminTenantSettings(activeTenant.id).catch(() => null),
         api.getStockMovements(activeTenant.id).catch(() => []),
+        api.getCarrierAccounts(activeTenant.id).catch(() => []),
+        api.getShipments(activeTenant.id).catch(() => []),
+        api.getCarrierHealth(activeTenant.id).catch(() => []),
       ]);
       setProducts(prods);
       setOrders(ords);
@@ -159,6 +202,10 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       setMappings(maps);
       setTenantSettings(settings);
       setStockMovements(movements);
+      setCarrierAccounts(carriers);
+      setShipments(loadedShipments);
+      setCarrierHealth(health);
+      setShipmentForm((prev) => ({ ...prev, order_id: prev.order_id || ords[0]?.id || 0 }));
     } catch (err: any) {
       console.error('Erro ao carregar dados do admin:', err);
     }
@@ -283,6 +330,96 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     }
   };
 
+  const handleSaveCarrierAccount = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!activeTenant) return;
+    const credentials = Object.fromEntries(
+      Object.entries({
+        access_token: carrierForm.access_token,
+        api_base_url: carrierForm.api_base_url,
+        token_base_url: carrierForm.token_base_url,
+        token_username: carrierForm.token_username,
+        token_password: carrierForm.token_password,
+        contract_number: carrierForm.contract_number,
+        contract_dr: carrierForm.contract_dr,
+        posting_card_number: carrierForm.posting_card_number,
+        token_scope: carrierForm.auth_type === 'contract_credentials' ? 'contract' : carrierForm.auth_type === 'posting_card' ? 'posting_card' : 'user',
+      }).filter(([, value]) => String(value || '').trim() !== '')
+    );
+    try {
+      await api.saveCarrierAccount({
+        provider: carrierForm.provider,
+        account_name: carrierForm.account_name,
+        auth_type: carrierForm.auth_type,
+        is_active: carrierForm.is_active,
+        sync_tracking: carrierForm.sync_tracking,
+        credentials,
+      }, activeTenant.id);
+      setCarrierForm((prev) => ({ ...prev, access_token: '', token_password: '' }));
+      setMessage({ type: 'success', text: 'Transportadora salva com sucesso.' });
+      await loadTenantData();
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Erro ao salvar transportadora' });
+    }
+  };
+
+  const handleToggleCarrier = async (id: number) => {
+    if (!activeTenant) return;
+    try {
+      const updated = await api.toggleCarrierAccount(id, activeTenant.id);
+      setCarrierAccounts((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      setMessage({ type: 'success', text: `Transportadora ${updated.is_active ? 'ativada' : 'desativada'}.` });
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Erro ao alternar transportadora' });
+    }
+  };
+
+  const handleSaveShipment = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!activeTenant || !shipmentForm.order_id || !shipmentForm.tracking_code.trim()) return;
+    try {
+      await api.saveShipment({
+        order_id: shipmentForm.order_id,
+        carrier: shipmentForm.carrier,
+        tracking_code: shipmentForm.tracking_code,
+        status: 'pending',
+      }, activeTenant.id);
+      setShipmentForm((prev) => ({ ...prev, tracking_code: '' }));
+      setMessage({ type: 'success', text: 'Rastreio vinculado ao pedido.' });
+      await loadTenantData();
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Erro ao salvar rastreio' });
+    }
+  };
+
+  const handleSyncShipment = async (shipmentId: number) => {
+    if (!activeTenant) return;
+    setSyncingShipmentId(shipmentId);
+    try {
+      const result = await api.syncShipment(shipmentId, activeTenant.id);
+      setMessage({ type: 'success', text: `Rastreio sincronizado: ${result.events_created} evento(s) novo(s).` });
+      await loadTenantData();
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Erro ao sincronizar rastreio' });
+    } finally {
+      setSyncingShipmentId(null);
+    }
+  };
+
+  const handleSyncAllTracking = async () => {
+    if (!activeTenant) return;
+    setSyncingShipmentId('all');
+    try {
+      const result = await api.syncTracking(activeTenant.id);
+      setMessage({ type: result.failed ? 'error' : 'success', text: `Sync concluido: ${result.synced}/${result.processed} envio(s), ${result.failed} falha(s).` });
+      await loadTenantData();
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Erro ao sincronizar rastreios' });
+    } finally {
+      setSyncingShipmentId(null);
+    }
+  };
+
   const updateTenantSetting = (field: keyof TenantSettings, value: string | number | boolean) => {
     setTenantSettings((prev) => (prev ? { ...prev, [field]: value } : prev));
   };
@@ -305,6 +442,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     return colorRows.filter((item) => item.qty <= 3);
   });
   const stockAdjustmentProduct = products.find((product) => product.id === stockAdjustment.product_id) || products[0];
+  const connectedCarriers = carrierAccounts.filter((account) => account.is_connected && account.is_active).length;
+  const activeShipments = shipments.filter((shipment) => !['delivered', 'cancelled'].includes(shipment.status)).length;
+  const integrationProblems = carrierHealth.filter((item) => item.last_error || !item.is_connected || !item.is_active).length;
 
   return (
     <div className={variant === 'page'
@@ -382,6 +522,20 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             <span>Dashboard</span>
           </button>
 
+          {isMasterAdmin && (
+          <button
+            onClick={() => setActiveTab('master')}
+            className={`py-3 px-4 border-b-2 flex items-center space-x-2 font-bold transition-all ${
+              activeTab === 'master'
+                ? 'border-laser-400 text-laser-400'
+                : 'border-transparent text-slate-400 hover:text-white'
+            }`}
+          >
+            <ShieldCheck className="w-4 h-4" />
+            <span>Master</span>
+          </button>
+          )}
+
           <button
             onClick={() => setActiveTab('products')}
             className={`py-3 px-4 border-b-2 flex items-center space-x-2 font-bold transition-all ${
@@ -452,6 +606,18 @@ export const AdminModal: React.FC<AdminModalProps> = ({
           >
             <TrendingUp className="w-4 h-4" />
             <span>Financeiro</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('carriers')}
+            className={`py-3 px-4 border-b-2 flex items-center space-x-2 font-bold transition-all ${
+              activeTab === 'carriers'
+                ? 'border-laser-400 text-laser-400'
+                : 'border-transparent text-slate-400 hover:text-white'
+            }`}
+          >
+            <Truck className="w-4 h-4" />
+            <span>Transportadoras ({carrierAccounts.length})</span>
           </button>
 
           <button
@@ -556,6 +722,98 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                       </div>
                     ))}
                     {products.every((product) => product.status === 'active' && product.stock_qty > 3) && <p className="text-xs text-slate-500">Sem alertas de produto.</p>}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'master' && isMasterAdmin && (
+            <div className="space-y-5">
+              <div>
+                <h3 className="text-sm font-bold text-white">Visao plataforma</h3>
+                <p className="text-xs text-slate-400">Tenants, contas conectadas e pontos operacionais do tenant selecionado.</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/70 p-4">
+                  <span className="block text-[10px] font-mono uppercase text-slate-500">Tenants</span>
+                  <strong className="mt-1 block text-xl text-white">{tenants.length}</strong>
+                </div>
+                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/70 p-4">
+                  <span className="block text-[10px] font-mono uppercase text-slate-500">Marketplaces</span>
+                  <strong className="mt-1 block text-xl text-white">{marketplaces.filter((item) => item.is_active).length}</strong>
+                </div>
+                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/70 p-4">
+                  <span className="block text-[10px] font-mono uppercase text-slate-500">Transportadoras</span>
+                  <strong className="mt-1 block text-xl text-white">{connectedCarriers}</strong>
+                </div>
+                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/70 p-4">
+                  <span className="block text-[10px] font-mono uppercase text-slate-500">Alertas integracao</span>
+                  <strong className="mt-1 block text-xl text-white">{integrationProblems}</strong>
+                </div>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-3">
+                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
+                  <h4 className="text-sm font-bold text-white">Tenants</h4>
+                  <div className="mt-3 space-y-2">
+                    {tenants.map((tenant) => (
+                      <button
+                        key={tenant.id}
+                        onClick={() => onSelectTenant(tenant)}
+                        className={`w-full rounded-xl border p-3 text-left text-xs transition-colors ${
+                          activeTenant?.id === tenant.id ? 'border-laser-500/40 bg-laser-500/10 text-white' : 'border-chumbo-800 bg-chumbo-900/60 text-slate-300 hover:border-chumbo-700'
+                        }`}
+                      >
+                        <strong className="block">{tenant.name}</strong>
+                        <span className="font-mono text-slate-500">/{tenant.slug} - #{tenant.id}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
+                  <h4 className="text-sm font-bold text-white">Contas conectadas</h4>
+                  <div className="mt-3 space-y-2 text-xs">
+                    {marketplaces.map((item) => (
+                      <div key={item.id} className="flex items-center justify-between rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3">
+                        <span className="font-semibold text-white">{MARKETPLACE_META[item.provider]?.label || item.provider}</span>
+                        <span className={item.is_active ? 'text-emerald-300' : 'text-slate-500'}>{item.is_active ? 'ativo' : 'inativo'}</span>
+                      </div>
+                    ))}
+                    {carrierAccounts.map((item) => (
+                      <div key={`carrier-${item.id}`} className="flex items-center justify-between rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3">
+                        <span className="font-semibold text-white">{item.account_name || item.provider}</span>
+                        <span className={item.is_connected ? 'text-emerald-300' : 'text-amber-300'}>{item.is_connected ? 'conectado' : 'credencial pendente'}</span>
+                      </div>
+                    ))}
+                    {marketplaces.length === 0 && carrierAccounts.length === 0 && (
+                      <p className="py-6 text-center text-xs text-slate-500">Nenhuma conta conectada neste tenant.</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
+                  <h4 className="text-sm font-bold text-white">Saude operacional</h4>
+                  <div className="mt-3 space-y-2 text-xs">
+                    <div className="flex items-center justify-between rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3">
+                      <span>Pagamentos Mercado Pago</span>
+                      <span className="text-slate-300">webhook configuravel</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3">
+                      <span>Pedidos com envio ativo</span>
+                      <span className="font-mono text-white">{activeShipments}</span>
+                    </div>
+                    {carrierHealth.map((item) => (
+                      <div key={item.provider} className="rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-white">{item.account_name || item.provider}</span>
+                          <span className={item.last_error ? 'text-rose-300' : 'text-emerald-300'}>{item.last_error ? 'erro' : 'ok'}</span>
+                        </div>
+                        {item.last_error && <p className="mt-1 text-slate-500">{item.last_error}</p>}
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -744,6 +1002,54 @@ export const AdminModal: React.FC<AdminModalProps> = ({
           {activeTab === 'orders' && (
             <div className="space-y-4">
               <h3 className="text-sm font-bold text-white">Gerenciamento de vendas e pedidos</h3>
+              <form onSubmit={handleSaveShipment} className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+                  <div className="flex-1 space-y-1.5">
+                    <label className="text-xs font-mono uppercase text-slate-400">Pedido</label>
+                    <select
+                      value={shipmentForm.order_id || ''}
+                      onChange={(event) => setShipmentForm((prev) => ({ ...prev, order_id: Number(event.target.value) || 0 }))}
+                      className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
+                    >
+                      <option value="">Selecione</option>
+                      {orders.map((order) => (
+                        <option key={order.id} value={order.id}>Pedido #{order.id} - R$ {order.total_amount.toFixed(2).replace('.', ',')}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-mono uppercase text-slate-400">Transportadora</label>
+                    <select
+                      value={shipmentForm.carrier}
+                      onChange={(event) => setShipmentForm((prev) => ({ ...prev, carrier: event.target.value }))}
+                      className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
+                    >
+                      <option value="correios">Correios</option>
+                    </select>
+                  </div>
+                  <div className="flex-1 space-y-1.5">
+                    <label className="text-xs font-mono uppercase text-slate-400">Codigo de rastreio</label>
+                    <input
+                      value={shipmentForm.tracking_code}
+                      onChange={(event) => setShipmentForm((prev) => ({ ...prev, tracking_code: event.target.value.toUpperCase() }))}
+                      placeholder="AA123456789BR"
+                      className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
+                    />
+                  </div>
+                  <button type="submit" className="rounded-xl bg-white px-4 py-2 text-xs font-bold text-chumbo-950 hover:bg-slate-200">
+                    Vincular envio
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSyncAllTracking}
+                    disabled={syncingShipmentId === 'all' || shipments.length === 0}
+                    className="flex items-center justify-center gap-2 rounded-xl border border-chumbo-700 bg-chumbo-900 px-4 py-2 text-xs font-bold text-slate-200 hover:bg-chumbo-800 disabled:opacity-50"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${syncingShipmentId === 'all' ? 'animate-spin' : ''}`} />
+                    Sincronizar
+                  </button>
+                </div>
+              </form>
               <div className="rounded-2xl border border-chumbo-800 overflow-hidden bg-chumbo-950/60">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-chumbo-950 text-slate-400 font-mono uppercase text-[10px]">
@@ -807,6 +1113,52 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     )}
                   </tbody>
                 </table>
+              </div>
+              <div className="grid gap-3 lg:grid-cols-2">
+                {shipments.map((shipment) => (
+                  <div key={shipment.id} className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h4 className="text-sm font-bold text-white">Pedido #{shipment.order_id}</h4>
+                        <p className="font-mono text-xs text-slate-400">{shipment.carrier.toUpperCase()} - {shipment.tracking_code}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${
+                          shipment.status === 'delivered' ? 'bg-emerald-500/20 text-emerald-300' : shipment.last_error ? 'bg-rose-500/20 text-rose-300' : 'bg-amber-500/20 text-amber-300'
+                        }`}>
+                          {shipment.status}
+                        </span>
+                        <button
+                          onClick={() => handleSyncShipment(shipment.id)}
+                          disabled={syncingShipmentId === shipment.id}
+                          className="rounded-lg border border-chumbo-700 bg-chumbo-900 p-2 text-slate-300 hover:text-white disabled:opacity-50"
+                          title="Sincronizar rastreio"
+                        >
+                          <RefreshCw className={`h-4 w-4 ${syncingShipmentId === shipment.id ? 'animate-spin' : ''}`} />
+                        </button>
+                      </div>
+                    </div>
+                    {shipment.last_sync_at && (
+                      <p className="mt-2 flex items-center gap-1 text-[10px] text-slate-500">
+                        <Clock className="h-3 w-3" />
+                        Ultimo sync: {new Date(shipment.last_sync_at).toLocaleString('pt-BR')}
+                      </p>
+                    )}
+                    {shipment.last_error && <p className="mt-2 rounded-lg bg-rose-500/10 p-2 text-xs text-rose-300">{shipment.last_error}</p>}
+                    <div className="mt-3 space-y-2">
+                      {(shipment.events || []).slice(0, 5).map((event) => (
+                        <div key={event.id} className="border-l-2 border-laser-500/40 pl-3 text-xs">
+                          <strong className="block text-white">{event.description || event.event_code || 'Evento recebido'}</strong>
+                          <span className="text-slate-400">{event.location || 'Local nao informado'}</span>
+                          <span className="block font-mono text-[10px] text-slate-500">{new Date(event.occurred_at).toLocaleString('pt-BR')}</span>
+                        </div>
+                      ))}
+                      {(!shipment.events || shipment.events.length === 0) && (
+                        <p className="py-3 text-xs text-slate-500">Sem eventos sincronizados ainda.</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -939,6 +1291,190 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
           {activeTab === 'finance' && (
             <FinancePanel tenantId={activeTenant?.id} products={products} />
+          )}
+
+          {activeTab === 'carriers' && (
+            <div className="space-y-6">
+              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-white">Transportadoras e rastreamento</h3>
+                  <p className="text-xs text-slate-400">Credenciais por tenant, sync de tracking e saude da integracao.</p>
+                </div>
+                <button
+                  onClick={handleSyncAllTracking}
+                  disabled={syncingShipmentId === 'all' || shipments.length === 0}
+                  className="flex items-center justify-center gap-2 rounded-xl border border-chumbo-700 bg-chumbo-950 px-4 py-2 text-xs font-bold text-slate-200 hover:bg-chumbo-800 disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-4 w-4 ${syncingShipmentId === 'all' ? 'animate-spin' : ''}`} />
+                  Sincronizar rastreios
+                </button>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+                <form onSubmit={handleSaveCarrierAccount} className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
+                  <h4 className="flex items-center gap-2 text-sm font-bold text-white">
+                    <Truck className="h-4 w-4 text-laser-400" />
+                    Conta Correios
+                  </h4>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-mono uppercase text-slate-400">Provider</label>
+                      <select
+                        value={carrierForm.provider}
+                        onChange={(event) => setCarrierForm((prev) => ({ ...prev, provider: event.target.value }))}
+                        className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
+                      >
+                        <option value="correios">Correios</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-mono uppercase text-slate-400">Nome da conta</label>
+                      <input
+                        value={carrierForm.account_name}
+                        onChange={(event) => setCarrierForm((prev) => ({ ...prev, account_name: event.target.value }))}
+                        className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-mono uppercase text-slate-400">Tipo de autenticacao</label>
+                      <select
+                        value={carrierForm.auth_type}
+                        onChange={(event) => setCarrierForm((prev) => ({ ...prev, auth_type: event.target.value }))}
+                        className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
+                      >
+                        <option value="bearer_token">Bearer token pronto</option>
+                        <option value="user">API Token por usuario</option>
+                        <option value="contract_credentials">API Token por contrato</option>
+                        <option value="posting_card">API Token por cartao postagem</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-mono uppercase text-slate-400">Access token</label>
+                      <input
+                        type="password"
+                        value={carrierForm.access_token}
+                        onChange={(event) => setCarrierForm((prev) => ({ ...prev, access_token: event.target.value }))}
+                        placeholder="Opcional se usar API Token"
+                        className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-mono uppercase text-slate-400">Usuario/token login</label>
+                      <input
+                        value={carrierForm.token_username}
+                        onChange={(event) => setCarrierForm((prev) => ({ ...prev, token_username: event.target.value }))}
+                        placeholder="idCorreios"
+                        className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-mono uppercase text-slate-400">Senha/codigo API</label>
+                      <input
+                        type="password"
+                        value={carrierForm.token_password}
+                        onChange={(event) => setCarrierForm((prev) => ({ ...prev, token_password: event.target.value }))}
+                        className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-mono uppercase text-slate-400">Contrato</label>
+                      <input
+                        value={carrierForm.contract_number}
+                        onChange={(event) => setCarrierForm((prev) => ({ ...prev, contract_number: event.target.value }))}
+                        className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-mono uppercase text-slate-400">DR</label>
+                      <input
+                        value={carrierForm.contract_dr}
+                        onChange={(event) => setCarrierForm((prev) => ({ ...prev, contract_dr: event.target.value }))}
+                        className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-mono uppercase text-slate-400">Cartao postagem</label>
+                      <input
+                        value={carrierForm.posting_card_number}
+                        onChange={(event) => setCarrierForm((prev) => ({ ...prev, posting_card_number: event.target.value }))}
+                        className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-mono uppercase text-slate-400">Rastro base URL</label>
+                      <input
+                        value={carrierForm.api_base_url}
+                        onChange={(event) => setCarrierForm((prev) => ({ ...prev, api_base_url: event.target.value }))}
+                        placeholder="usa env do backend se vazio"
+                        className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-mono uppercase text-slate-400">Token base URL</label>
+                      <input
+                        value={carrierForm.token_base_url}
+                        onChange={(event) => setCarrierForm((prev) => ({ ...prev, token_base_url: event.target.value }))}
+                        placeholder="usa env do backend se vazio"
+                        className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <label className="flex items-center gap-2 rounded-xl border border-chumbo-800 bg-chumbo-900 px-4 py-2 text-xs text-slate-300">
+                      <input type="checkbox" checked={carrierForm.is_active} onChange={(event) => setCarrierForm((prev) => ({ ...prev, is_active: event.target.checked }))} />
+                      Ativa
+                    </label>
+                    <label className="flex items-center gap-2 rounded-xl border border-chumbo-800 bg-chumbo-900 px-4 py-2 text-xs text-slate-300">
+                      <input type="checkbox" checked={carrierForm.sync_tracking} onChange={(event) => setCarrierForm((prev) => ({ ...prev, sync_tracking: event.target.checked }))} />
+                      Sync tracking
+                    </label>
+                    <button type="submit" className="rounded-xl bg-white px-5 py-2 text-xs font-bold text-chumbo-950 hover:bg-slate-200">
+                      Salvar Correios
+                    </button>
+                  </div>
+                </form>
+
+                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
+                  <h4 className="flex items-center gap-2 text-sm font-bold text-white">
+                    <Activity className="h-4 w-4 text-laser-400" />
+                    Saude e contas
+                  </h4>
+                  <div className="mt-4 space-y-3">
+                    {carrierAccounts.map((account) => (
+                      <div key={account.id} className="rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3 text-xs">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <strong className="block text-white">{account.account_name || account.provider}</strong>
+                            <span className="font-mono text-slate-500">{account.provider} - {account.auth_type}</span>
+                          </div>
+                          <button
+                            onClick={() => handleToggleCarrier(account.id)}
+                            title={account.is_active ? 'Desativar' : 'Ativar'}
+                            className="text-slate-400 hover:text-white"
+                          >
+                            {account.is_active ? <ToggleRight className="h-8 w-8 text-emerald-400" /> : <ToggleLeft className="h-8 w-8 text-slate-500" />}
+                          </button>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <span className={account.is_connected ? 'rounded-full bg-emerald-500/20 px-2 py-1 text-emerald-300' : 'rounded-full bg-amber-500/20 px-2 py-1 text-amber-300'}>
+                            {account.is_connected ? 'conectada' : 'credencial pendente'}
+                          </span>
+                          <span className={account.sync_tracking ? 'rounded-full bg-laser-500/20 px-2 py-1 text-laser-400' : 'rounded-full bg-chumbo-800 px-2 py-1 text-slate-500'}>
+                            sync {account.sync_tracking ? 'ligado' : 'desligado'}
+                          </span>
+                        </div>
+                        {account.last_sync_at && <p className="mt-2 text-[10px] text-slate-500">Ultimo sync: {new Date(account.last_sync_at).toLocaleString('pt-BR')}</p>}
+                        {account.last_error && <p className="mt-2 rounded-lg bg-rose-500/10 p-2 text-rose-300">{account.last_error}</p>}
+                      </div>
+                    ))}
+                    {carrierAccounts.length === 0 && (
+                      <p className="py-8 text-center text-xs text-slate-500">Nenhuma transportadora cadastrada para este tenant.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
 
           {activeTab === 'settings' && tenantSettings && (

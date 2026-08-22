@@ -278,20 +278,21 @@ type TenantCarrierAccount struct {
 }
 
 type OrderShipment struct {
-	ID           uint       `gorm:"primaryKey" json:"id"`
-	TenantID     uint       `gorm:"not null;index" json:"tenant_id"`
-	Tenant       *Tenant    `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
-	OrderID      uint       `gorm:"not null;index" json:"order_id"`
-	Order        *Order     `gorm:"foreignKey:OrderID" json:"order,omitempty"`
-	Carrier      string     `gorm:"size:50;not null;index" json:"carrier"`
-	TrackingCode string     `gorm:"size:80;index" json:"tracking_code"`
-	Status       string     `gorm:"size:40;default:'pending'" json:"status"`
-	PostedAt     *time.Time `json:"posted_at,omitempty"`
-	DeliveredAt  *time.Time `json:"delivered_at,omitempty"`
-	LastSyncAt   *time.Time `json:"last_sync_at,omitempty"`
-	LastError    string     `gorm:"type:text" json:"last_error,omitempty"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
+	ID           uint            `gorm:"primaryKey" json:"id"`
+	TenantID     uint            `gorm:"not null;index" json:"tenant_id"`
+	Tenant       *Tenant         `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+	OrderID      uint            `gorm:"not null;index" json:"order_id"`
+	Order        *Order          `gorm:"foreignKey:OrderID" json:"order,omitempty"`
+	Carrier      string          `gorm:"size:50;not null;index" json:"carrier"`
+	TrackingCode string          `gorm:"size:80;index" json:"tracking_code"`
+	Status       string          `gorm:"size:40;default:'pending'" json:"status"`
+	PostedAt     *time.Time      `json:"posted_at,omitempty"`
+	DeliveredAt  *time.Time      `json:"delivered_at,omitempty"`
+	LastSyncAt   *time.Time      `json:"last_sync_at,omitempty"`
+	LastError    string          `gorm:"type:text" json:"last_error,omitempty"`
+	Events       []ShipmentEvent `gorm:"foreignKey:ShipmentID" json:"events,omitempty"`
+	CreatedAt    time.Time       `json:"created_at"`
+	UpdatedAt    time.Time       `json:"updated_at"`
 }
 
 type ShipmentEvent struct {
@@ -554,6 +555,13 @@ type TenantCarrierAccountInput struct {
 	IsActive     bool           `json:"is_active"`
 	SyncTracking bool           `json:"sync_tracking"`
 	Credentials  map[string]any `json:"credentials"`
+}
+
+type OrderShipmentInput struct {
+	OrderID      uint   `json:"order_id" binding:"required"`
+	Carrier      string `json:"carrier"`
+	TrackingCode string `json:"tracking_code" binding:"required"`
+	Status       string `json:"status"`
 }
 
 type TenantSettingsInput struct {
