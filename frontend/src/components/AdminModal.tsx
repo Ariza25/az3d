@@ -12,6 +12,10 @@ import {
   TenantCarrierAccount,
   OrderShipment,
   CarrierHealthItem,
+  StockAlert,
+  PlatformOverview,
+  WebhookLogItem,
+  ObservabilityHealth,
 } from '../types';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -44,6 +48,7 @@ import {
   ShieldCheck,
   Activity,
   Clock,
+  AlertTriangle,
 } from 'lucide-react';
 
 // Mapa de metadados visuais dos marketplaces
@@ -108,7 +113,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 }) => {
   const { user } = useAuth();
   const isMasterAdmin = user?.role === 'master_admin';
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'master' | 'products' | 'categories' | 'orders' | 'inventory' | 'finance' | 'pricing' | 'settings' | 'tenants' | 'marketplaces' | 'carriers'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'master' | 'observability' | 'products' | 'categories' | 'orders' | 'inventory' | 'finance' | 'pricing' | 'settings' | 'tenants' | 'marketplaces' | 'carriers'>('dashboard');
   
   // Estados para Produtos
   const [products, setProducts] = useState<Product[]>([]);
@@ -125,6 +130,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [orders, setOrders] = useState<Order[]>([]);
   const [tenantSettings, setTenantSettings] = useState<TenantSettings | null>(null);
   const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
+  const [stockAlerts, setStockAlerts] = useState<StockAlert[]>([]);
+  const [stockMovementProductId, setStockMovementProductId] = useState<number | ''>('');
   const [stockAdjustment, setStockAdjustment] = useState({ product_id: 0, color_name: '', stock_qty: 0, reason: '' });
   const [carrierAccounts, setCarrierAccounts] = useState<TenantCarrierAccount[]>([]);
   const [shipments, setShipments] = useState<OrderShipment[]>([]);
@@ -152,6 +159,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [mappings, setMappings] = useState<MarketplaceProductMapping[]>([]);
   const [simulatingProvider, setSimulatingProvider] = useState<string | null>(null);
   const [syncingProduct, setSyncingProduct] = useState<{ productId: number; provider: string } | null>(null);
+  const [platformOverview, setPlatformOverview] = useState<PlatformOverview | null>(null);
+  const [webhookLogs, setWebhookLogs] = useState<WebhookLogItem[]>([]);
+  const [observabilityHealth, setObservabilityHealth] = useState<ObservabilityHealth | null>(null);
 
   // Estados gerais
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -185,16 +195,20 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const loadTenantData = async () => {
     if (!activeTenant) return;
     try {
-      const [prods, ords, mkts, maps, settings, movements, carriers, loadedShipments, health] = await Promise.all([
+      const [prods, ords, mkts, maps, settings, movements, alerts, carriers, loadedShipments, health, platform, obsHealth, webhooks] = await Promise.all([
         api.getAdminProducts(activeTenant.id),
         api.getAdminOrders(activeTenant.id).catch(() => []),
         api.getMarketplaces(activeTenant.id).catch(() => []),
         api.getProductMappings(activeTenant.id).catch(() => []),
         api.getAdminTenantSettings(activeTenant.id).catch(() => null),
         api.getStockMovements(activeTenant.id).catch(() => []),
+        api.getStockAlerts(activeTenant.id).catch(() => []),
         api.getCarrierAccounts(activeTenant.id).catch(() => []),
         api.getShipments(activeTenant.id).catch(() => []),
         api.getCarrierHealth(activeTenant.id).catch(() => []),
+        isMasterAdmin ? api.getPlatformOverview().catch(() => null) : Promise.resolve(null),
+        api.getObservabilityHealth(isMasterAdmin ? undefined : activeTenant.id).catch(() => null),
+        api.getWebhookLogs(isMasterAdmin ? undefined : activeTenant.id, 80).catch(() => []),
       ]);
       setProducts(prods);
       setOrders(ords);
@@ -202,9 +216,13 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       setMappings(maps);
       setTenantSettings(settings);
       setStockMovements(movements);
+      setStockAlerts(alerts);
       setCarrierAccounts(carriers);
       setShipments(loadedShipments);
       setCarrierHealth(health);
+      setPlatformOverview(platform);
+      setObservabilityHealth(obsHealth);
+      setWebhookLogs(webhooks);
       setShipmentForm((prev) => ({ ...prev, order_id: prev.order_id || ords[0]?.id || 0 }));
     } catch (err: any) {
       console.error('Erro ao carregar dados do admin:', err);
@@ -330,6 +348,16 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     }
   };
 
+  const handlePrepareRestock = (alert: StockAlert, targetQty = 10) => {
+    setStockAdjustment({
+      product_id: alert.product_id,
+      color_name: alert.color_name || '',
+      stock_qty: targetQty,
+      reason: `Reposicao de estoque (${alert.stock_qty} -> ${targetQty})`,
+    });
+    setActiveTab('inventory');
+  };
+
   const handleSaveCarrierAccount = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!activeTenant) return;
@@ -435,15 +463,22 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const lowStockProducts = products.filter((product) =>
     product.stock_qty <= 3 || product.color_stocks?.some((stock) => stock.stock_qty <= 3)
   ).length;
-  const lowStockItems = products.flatMap((product) => {
+  const lowStockItems = stockAlerts.length ? stockAlerts.map((alert) => ({
+    product: alert.product,
+    color: alert.color_name || '',
+    qty: alert.stock_qty,
+    severity: alert.severity,
+    alert,
+  })) : products.flatMap((product) => {
     const colorRows = product.color_stocks?.length
       ? product.color_stocks.map((stock) => ({ product, color: stock.color_name, qty: stock.stock_qty }))
       : [{ product, color: '', qty: product.stock_qty }];
-    return colorRows.filter((item) => item.qty <= 3);
+    return colorRows.filter((item) => item.qty <= 3).map((item) => ({ ...item, severity: item.qty <= 0 ? 'out' : item.qty <= 2 ? 'critical' : 'low', alert: null }));
   });
+  const filteredStockMovements = stockMovementProductId
+    ? stockMovements.filter((movement) => movement.product_id === stockMovementProductId)
+    : stockMovements;
   const stockAdjustmentProduct = products.find((product) => product.id === stockAdjustment.product_id) || products[0];
-  const connectedCarriers = carrierAccounts.filter((account) => account.is_connected && account.is_active).length;
-  const activeShipments = shipments.filter((shipment) => !['delivered', 'cancelled'].includes(shipment.status)).length;
   const integrationProblems = carrierHealth.filter((item) => item.last_error || !item.is_connected || !item.is_active).length;
 
   return (
@@ -535,6 +570,18 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             <span>Master</span>
           </button>
           )}
+
+          <button
+            onClick={() => setActiveTab('observability')}
+            className={`py-3 px-4 border-b-2 flex items-center space-x-2 font-bold transition-all ${
+              activeTab === 'observability'
+                ? 'border-laser-400 text-laser-400'
+                : 'border-transparent text-slate-400 hover:text-white'
+            }`}
+          >
+            <Activity className="w-4 h-4" />
+            <span>Observabilidade</span>
+          </button>
 
           <button
             onClick={() => setActiveTab('products')}
@@ -732,86 +779,226 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             <div className="space-y-5">
               <div>
                 <h3 className="text-sm font-bold text-white">Visao plataforma</h3>
-                <p className="text-xs text-slate-400">Tenants, contas conectadas e pontos operacionais do tenant selecionado.</p>
+                <p className="text-xs text-slate-400">Operacao multi-tenant, integracoes e pontos de atencao globais.</p>
               </div>
 
               <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                 <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/70 p-4">
                   <span className="block text-[10px] font-mono uppercase text-slate-500">Tenants</span>
-                  <strong className="mt-1 block text-xl text-white">{tenants.length}</strong>
+                  <strong className="mt-1 block text-xl text-white">{platformOverview?.tenants_count ?? tenants.length}</strong>
                 </div>
                 <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/70 p-4">
-                  <span className="block text-[10px] font-mono uppercase text-slate-500">Marketplaces</span>
-                  <strong className="mt-1 block text-xl text-white">{marketplaces.filter((item) => item.is_active).length}</strong>
+                  <span className="block text-[10px] font-mono uppercase text-slate-500">Pedidos abertos</span>
+                  <strong className="mt-1 block text-xl text-white">{platformOverview?.open_orders_count ?? pendingOrders}</strong>
                 </div>
                 <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/70 p-4">
-                  <span className="block text-[10px] font-mono uppercase text-slate-500">Transportadoras</span>
-                  <strong className="mt-1 block text-xl text-white">{connectedCarriers}</strong>
+                  <span className="block text-[10px] font-mono uppercase text-slate-500">Baixo estoque</span>
+                  <strong className="mt-1 block text-xl text-white">{platformOverview?.low_stock_count ?? lowStockItems.length}</strong>
                 </div>
                 <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/70 p-4">
-                  <span className="block text-[10px] font-mono uppercase text-slate-500">Alertas integracao</span>
-                  <strong className="mt-1 block text-xl text-white">{integrationProblems}</strong>
+                  <span className="block text-[10px] font-mono uppercase text-slate-500">Contas integradas</span>
+                  <strong className="mt-1 block text-xl text-white">
+                    {(platformOverview?.marketplace_accounts_count ?? marketplaces.length) + (platformOverview?.carrier_accounts_count ?? carrierAccounts.length)}
+                  </strong>
                 </div>
               </div>
 
-              <div className="grid gap-4 lg:grid-cols-3">
-                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
-                  <h4 className="text-sm font-bold text-white">Tenants</h4>
-                  <div className="mt-3 space-y-2">
-                    {tenants.map((tenant) => (
-                      <button
-                        key={tenant.id}
-                        onClick={() => onSelectTenant(tenant)}
-                        className={`w-full rounded-xl border p-3 text-left text-xs transition-colors ${
-                          activeTenant?.id === tenant.id ? 'border-laser-500/40 bg-laser-500/10 text-white' : 'border-chumbo-800 bg-chumbo-900/60 text-slate-300 hover:border-chumbo-700'
-                        }`}
-                      >
-                        <strong className="block">{tenant.name}</strong>
-                        <span className="font-mono text-slate-500">/{tenant.slug} - #{tenant.id}</span>
-                      </button>
-                    ))}
+              <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4 overflow-hidden">
+                  <div className="flex items-center justify-between gap-3">
+                    <h4 className="text-sm font-bold text-white">Tenants</h4>
+                    <span className="text-[10px] font-mono text-slate-500">produtos / pedidos / integracoes</span>
+                  </div>
+                  <div className="mt-3 overflow-x-auto">
+                    <table className="w-full min-w-[760px] text-left text-xs">
+                      <thead className="text-[10px] uppercase text-slate-500">
+                        <tr>
+                          <th className="py-2 pr-3">Loja</th>
+                          <th className="py-2 pr-3">Produtos</th>
+                          <th className="py-2 pr-3">Pedidos</th>
+                          <th className="py-2 pr-3">Estoque</th>
+                          <th className="py-2 pr-3">Marketplace</th>
+                          <th className="py-2 pr-3">Correios</th>
+                          <th className="py-2 pr-3">Ultima venda</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-chumbo-800 text-slate-300">
+                        {(platformOverview?.tenants || []).map((tenant) => {
+                          const tenantRef = tenants.find((item) => item.id === tenant.tenant_id);
+                          return (
+                            <tr key={tenant.tenant_id} className={activeTenant?.id === tenant.tenant_id ? 'bg-laser-500/5' : ''}>
+                              <td className="py-3 pr-3">
+                                <button onClick={() => tenantRef && onSelectTenant(tenantRef)} className="text-left">
+                                  <strong className="block text-white">{tenant.tenant_name}</strong>
+                                  <span className="font-mono text-slate-500">/{tenant.tenant_slug} - #{tenant.tenant_id}</span>
+                                </button>
+                              </td>
+                              <td className="py-3 pr-3 font-mono">{tenant.active_products_count}/{tenant.products_count}</td>
+                              <td className="py-3 pr-3 font-mono">{tenant.open_orders_count}/{tenant.orders_count}</td>
+                              <td className="py-3 pr-3">
+                                <span className={tenant.low_stock_count > 0 ? 'text-amber-300 font-bold' : 'text-emerald-300'}>{tenant.low_stock_count} alerta(s)</span>
+                              </td>
+                              <td className="py-3 pr-3">
+                                <span className={tenant.marketplace_errors_count > 0 ? 'text-rose-300' : 'text-slate-300'}>
+                                  {tenant.active_marketplace_count}/{tenant.marketplace_accounts}
+                                </span>
+                              </td>
+                              <td className="py-3 pr-3">
+                                <span className={tenant.carrier_errors_count > 0 ? 'text-rose-300' : 'text-slate-300'}>
+                                  {tenant.connected_carrier_count}/{tenant.carrier_accounts}
+                                </span>
+                              </td>
+                              <td className="py-3 pr-3 text-slate-500">
+                                {tenant.last_order_at ? new Date(tenant.last_order_at).toLocaleDateString('pt-BR') : '-'}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {!platformOverview && (
+                          <tr>
+                            <td className="py-6 text-center text-slate-500" colSpan={7}>Carregando visao de plataforma...</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
 
                 <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
-                  <h4 className="text-sm font-bold text-white">Contas conectadas</h4>
+                  <h4 className="text-sm font-bold text-white">Status global</h4>
                   <div className="mt-3 space-y-2 text-xs">
-                    {marketplaces.map((item) => (
-                      <div key={item.id} className="flex items-center justify-between rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3">
-                        <span className="font-semibold text-white">{MARKETPLACE_META[item.provider]?.label || item.provider}</span>
-                        <span className={item.is_active ? 'text-emerald-300' : 'text-slate-500'}>{item.is_active ? 'ativo' : 'inativo'}</span>
-                      </div>
-                    ))}
-                    {carrierAccounts.map((item) => (
-                      <div key={`carrier-${item.id}`} className="flex items-center justify-between rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3">
-                        <span className="font-semibold text-white">{item.account_name || item.provider}</span>
-                        <span className={item.is_connected ? 'text-emerald-300' : 'text-amber-300'}>{item.is_connected ? 'conectado' : 'credencial pendente'}</span>
-                      </div>
-                    ))}
-                    {marketplaces.length === 0 && carrierAccounts.length === 0 && (
-                      <p className="py-6 text-center text-xs text-slate-500">Nenhuma conta conectada neste tenant.</p>
-                    )}
+                    <div className="flex items-center justify-between rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3">
+                      <span>Mercado Pago</span>
+                      <span className={platformOverview?.payment_gateway_configured ? 'text-emerald-300' : 'text-amber-300'}>
+                        {platformOverview?.payment_gateway_configured ? 'configurado' : 'pendente'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3">
+                      <span>Webhook secreto</span>
+                      <span className={platformOverview?.webhook_secret_configured ? 'text-emerald-300' : 'text-amber-300'}>
+                        {platformOverview?.webhook_secret_configured ? 'ativo' : 'recomendado'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3">
+                      <span>Erros de integracao</span>
+                      <span className={integrationProblems > 0 ? 'text-rose-300 font-bold' : 'text-emerald-300'}>{integrationProblems}</span>
+                    </div>
+                    <div className="rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3">
+                      <strong className="block text-white">Permissoes por tenant</strong>
+                      <span className="text-slate-500">Estrutura preparada para evoluir usuarios e perfis por loja.</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'observability' && (
+            <div className="space-y-5">
+              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-white">Observabilidade</h3>
+                  <p className="text-xs text-slate-400">Healthcheck administrativo, webhooks recebidos e erros de integracao.</p>
+                </div>
+                <button
+                  onClick={loadTenantData}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-chumbo-700 bg-chumbo-950 px-3 py-2 text-xs font-bold text-slate-200 hover:border-laser-500/40"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Atualizar
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/70 p-4">
+                  <span className="block text-[10px] font-mono uppercase text-slate-500">API</span>
+                  <strong className={observabilityHealth?.status === 'ok' ? 'mt-1 block text-xl text-emerald-300' : 'mt-1 block text-xl text-amber-300'}>
+                    {observabilityHealth?.status || '...'}
+                  </strong>
+                </div>
+                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/70 p-4">
+                  <span className="block text-[10px] font-mono uppercase text-slate-500">Banco</span>
+                  <strong className={observabilityHealth?.database === 'online' ? 'mt-1 block text-xl text-emerald-300' : 'mt-1 block text-xl text-rose-300'}>
+                    {observabilityHealth?.database || '...'}
+                  </strong>
+                </div>
+                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/70 p-4">
+                  <span className="block text-[10px] font-mono uppercase text-slate-500">Webhooks falhos 24h</span>
+                  <strong className="mt-1 block text-xl text-white">
+                    {(observabilityHealth?.failed_payment_webhooks_24h || 0) + (observabilityHealth?.failed_marketplace_webhooks_24h || 0)}
+                  </strong>
+                </div>
+                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/70 p-4">
+                  <span className="block text-[10px] font-mono uppercase text-slate-500">Erros integracao</span>
+                  <strong className="mt-1 block text-xl text-white">
+                    {(observabilityHealth?.marketplace_errors || 0) + (observabilityHealth?.carrier_errors || 0)}
+                  </strong>
+                </div>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <h4 className="text-sm font-bold text-white">Webhooks recentes</h4>
+                    <span className="text-[10px] font-mono text-slate-500">{webhookLogs.length} evento(s)</span>
+                  </div>
+                  <div className="mt-3 max-h-96 overflow-y-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="text-[10px] uppercase text-slate-500">
+                        <tr>
+                          <th className="py-2 pr-3">Origem</th>
+                          <th className="py-2 pr-3">Evento</th>
+                          <th className="py-2 pr-3">Status</th>
+                          <th className="py-2 pr-3">Recebido</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-chumbo-800 text-slate-300">
+                        {webhookLogs.map((event) => (
+                          <tr key={`${event.source}-${event.id}`}>
+                            <td className="py-3 pr-3">
+                              <strong className="block text-white">{event.provider}</strong>
+                              <span className="font-mono text-slate-500">tenant #{event.tenant_id || '-'}</span>
+                            </td>
+                            <td className="py-3 pr-3">
+                              <span className="block">{event.event_type || '-'}</span>
+                              <span className="font-mono text-slate-500">{event.external_id || '-'}</span>
+                              {event.error && <span className="mt-1 block text-rose-300">{event.error}</span>}
+                            </td>
+                            <td className="py-3 pr-3">
+                              <span className={event.status === 'failed' ? 'text-rose-300' : event.status === 'processed' ? 'text-emerald-300' : 'text-amber-300'}>
+                                {event.status}
+                              </span>
+                            </td>
+                            <td className="py-3 pr-3 text-slate-500">{new Date(event.received_at).toLocaleString('pt-BR')}</td>
+                          </tr>
+                        ))}
+                        {webhookLogs.length === 0 && (
+                          <tr>
+                            <td colSpan={4} className="py-8 text-center text-slate-500">Nenhum webhook recebido ainda.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
 
                 <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
-                  <h4 className="text-sm font-bold text-white">Saude operacional</h4>
+                  <h4 className="text-sm font-bold text-white">Configuracoes criticas</h4>
                   <div className="mt-3 space-y-2 text-xs">
-                    <div className="flex items-center justify-between rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3">
-                      <span>Pagamentos Mercado Pago</span>
-                      <span className="text-slate-300">webhook configuravel</span>
-                    </div>
-                    <div className="flex items-center justify-between rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3">
-                      <span>Pedidos com envio ativo</span>
-                      <span className="font-mono text-white">{activeShipments}</span>
-                    </div>
-                    {carrierHealth.map((item) => (
-                      <div key={item.provider} className="rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3">
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-white">{item.account_name || item.provider}</span>
-                          <span className={item.last_error ? 'text-rose-300' : 'text-emerald-300'}>{item.last_error ? 'erro' : 'ok'}</span>
-                        </div>
-                        {item.last_error && <p className="mt-1 text-slate-500">{item.last_error}</p>}
+                    {[
+                      ['Mercado Pago token', observabilityHealth?.mercado_pago_configured],
+                      ['Mercado Pago webhook secret', observabilityHealth?.mercado_pago_webhook_secret],
+                      ['Correios API base', observabilityHealth?.correios_base_configured],
+                    ].map(([label, ok]) => (
+                      <div key={String(label)} className="flex items-center justify-between rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3">
+                        <span>{label}</span>
+                        <span className={ok ? 'text-emerald-300' : 'text-amber-300'}>{ok ? 'ok' : 'pendente'}</span>
+                      </div>
+                    ))}
+                    {carrierHealth.filter((item) => item.last_error).map((item) => (
+                      <div key={item.provider} className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3">
+                        <strong className="text-rose-200">{item.account_name || item.provider}</strong>
+                        <p className="mt-1 text-slate-400">{item.last_error}</p>
                       </div>
                     ))}
                   </div>
@@ -1231,15 +1418,36 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
               <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
                 <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
-                  <h4 className="text-sm font-bold text-white">Alertas</h4>
+                  <div className="flex items-center justify-between gap-3">
+                    <h4 className="text-sm font-bold text-white">Alertas</h4>
+                    <AlertTriangle className={lowStockItems.length ? 'h-4 w-4 text-amber-300' : 'h-4 w-4 text-slate-600'} />
+                  </div>
                   <div className="mt-3 space-y-2">
-                    {lowStockItems.map(({ product, color, qty }) => (
-                      <div key={`${product.id}-${color || 'base'}`} className="flex items-center justify-between rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-xs">
+                    {lowStockItems.map(({ product, color, qty, severity, alert }) => (
+                      <div
+                        key={`${product.id}-${color || 'base'}`}
+                        className={`flex items-center justify-between gap-3 rounded-xl border p-3 text-xs ${
+                          severity === 'out' ? 'border-rose-500/30 bg-rose-500/10' : 'border-amber-500/20 bg-amber-500/10'
+                        }`}
+                      >
                         <div className="min-w-0">
                           <strong className="block truncate text-white">{product.title}</strong>
-                          <span className="text-slate-400">{color || 'Estoque geral'}</span>
+                          <span className="text-slate-400">{color || 'Estoque geral'} - SKU {product.sku || '-'}</span>
                         </div>
-                        <span className="rounded-lg bg-amber-400 px-2 py-1 font-mono font-bold text-chumbo-950">{qty} un</span>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <span className={severity === 'out' ? 'rounded-lg bg-rose-400 px-2 py-1 font-mono font-bold text-chumbo-950' : 'rounded-lg bg-amber-400 px-2 py-1 font-mono font-bold text-chumbo-950'}>
+                            {qty} un
+                          </span>
+                          {alert && (
+                            <button
+                              type="button"
+                              onClick={() => handlePrepareRestock(alert)}
+                              className="rounded-lg border border-chumbo-700 bg-chumbo-950 px-2 py-1 font-bold text-slate-200 hover:border-laser-500/40"
+                            >
+                              Repor
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ))}
                     {lowStockItems.length === 0 && (
@@ -1249,9 +1457,21 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                 </div>
 
                 <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
-                  <h4 className="text-sm font-bold text-white">Ultimas movimentacoes</h4>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <h4 className="text-sm font-bold text-white">Ultimas movimentacoes</h4>
+                    <select
+                      value={stockMovementProductId}
+                      onChange={(event) => setStockMovementProductId(event.target.value ? Number(event.target.value) : '')}
+                      className="rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
+                    >
+                      <option value="">Todos os produtos</option>
+                      {products.map((product) => (
+                        <option key={product.id} value={product.id}>{product.title}</option>
+                      ))}
+                    </select>
+                  </div>
                   <div className="mt-3 max-h-80 space-y-2 overflow-y-auto">
-                    {stockMovements.map((movement) => (
+                    {filteredStockMovements.map((movement) => (
                       <div key={movement.id} className="rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3 text-xs">
                         <div className="flex items-center justify-between gap-3">
                           <strong className="min-w-0 truncate text-white">{movement.product?.title || `Produto #${movement.product_id}`}</strong>
@@ -1267,7 +1487,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         {movement.reason && <p className="mt-1 text-slate-500">{movement.reason}</p>}
                       </div>
                     ))}
-                    {stockMovements.length === 0 && (
+                    {filteredStockMovements.length === 0 && (
                       <p className="py-6 text-center text-xs text-slate-500">Nenhuma movimentacao registrada ainda.</p>
                     )}
                   </div>

@@ -233,6 +233,63 @@ func (h *ProductHandler) GetStockMovements(c *gin.Context) {
 	c.JSON(http.StatusOK, movements)
 }
 
+func (h *ProductHandler) GetStockAlerts(c *gin.Context) {
+	tenantID := getTenantID(c)
+	threshold := 3
+	if raw := strings.TrimSpace(c.Query("threshold")); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed >= 0 {
+			threshold = parsed
+		}
+	}
+
+	var products []models.Product
+	if err := withProductRelations(database.DB).Where("tenant_id = ?", tenantID).Order("stock_qty asc, title asc").Find(&products).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao carregar alertas de estoque"})
+		return
+	}
+
+	alerts := make([]gin.H, 0)
+	for _, product := range products {
+		if len(product.ColorStocks) > 0 {
+			for _, stock := range product.ColorStocks {
+				if stock.StockQty <= threshold {
+					alerts = append(alerts, gin.H{
+						"product_id": product.ID,
+						"product":    product,
+						"color_name": stock.ColorName,
+						"stock_qty":  stock.StockQty,
+						"threshold":  threshold,
+						"severity":   stockAlertSeverity(stock.StockQty),
+					})
+				}
+			}
+			continue
+		}
+		if product.StockQty <= threshold {
+			alerts = append(alerts, gin.H{
+				"product_id": product.ID,
+				"product":    product,
+				"color_name": "",
+				"stock_qty":  product.StockQty,
+				"threshold":  threshold,
+				"severity":   stockAlertSeverity(product.StockQty),
+			})
+		}
+	}
+
+	c.JSON(http.StatusOK, alerts)
+}
+
+func stockAlertSeverity(qty int) string {
+	if qty <= 0 {
+		return "out"
+	}
+	if qty <= 2 {
+		return "critical"
+	}
+	return "low"
+}
+
 func (h *ProductHandler) AdjustStock(c *gin.Context) {
 	tenantID := getTenantID(c)
 

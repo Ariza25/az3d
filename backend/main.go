@@ -23,7 +23,8 @@ func main() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	r := gin.Default()
+	r := gin.New()
+	r.Use(gin.Recovery(), middleware.StructuredLogger())
 	r.MaxMultipartMemory = cfg.MaxUploadBytes
 
 	if err := r.SetTrustedProxies(cfg.TrustedProxies); err != nil {
@@ -52,6 +53,7 @@ func main() {
 	marketplaceHandler := handlers.NewMarketplaceHandler()
 	carrierHandler := handlers.NewCarrierHandler(cfg)
 	shipmentHandler := handlers.NewShipmentHandler(cfg)
+	platformHandler := handlers.NewPlatformHandler()
 	handlers.StartTrackingSyncJob(cfg)
 
 	r.Static("/uploads", "./uploads")
@@ -98,8 +100,12 @@ func main() {
 			admin.POST("/products", productHandler.CreateProduct)
 			admin.PUT("/products/:id", productHandler.UpdateProduct)
 			admin.DELETE("/products/:id", productHandler.DeleteProduct)
+			admin.GET("/stock-alerts", productHandler.GetStockAlerts)
 			admin.GET("/stock-movements", productHandler.GetStockMovements)
 			admin.POST("/stock-adjustments", productHandler.AdjustStock)
+			admin.GET("/platform/overview", platformHandler.GetPlatformOverview)
+			admin.GET("/observability/health", platformHandler.GetObservabilityHealth)
+			admin.GET("/observability/webhooks", platformHandler.GetWebhookLogs)
 			admin.POST("/uploads/products", productHandler.UploadProductImage)
 			admin.POST("/categories", productHandler.CreateCategory)
 			admin.GET("/tenant/settings", tenantSettingsHandler.GetTenantSettings)
@@ -164,13 +170,7 @@ func main() {
 		api.POST("/webhooks/payments/mercadopago", orderHandler.ReceiveMercadoPagoWebhook)
 	}
 
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"status":  "online",
-			"service": "AZ3D Printing API Engine",
-			"version": "1.0.0",
-		})
-	})
+	r.GET("/health", platformHandler.PublicHealth)
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	log.Printf("Servidor Go AZ3D escutando na porta %s (http://localhost:%s)", cfg.Port, cfg.Port)

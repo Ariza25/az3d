@@ -392,6 +392,20 @@ export const MarketplaceConnectionsPanel: React.FC<MarketplaceConnectionsPanelPr
 
   return (
     <div className="space-y-6">
+      <div className="rounded-2xl border border-laser-500/30 bg-laser-500/10 p-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h4 className="text-sm font-bold text-white">MVP focado em importacao e sync</h4>
+            <p className="text-xs text-slate-300">Prioridade atual: trazer catalogo e pedidos dos marketplaces para a store/admin. Publicacao externa fica como mapeamento preparado.</p>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-center text-[10px] font-mono uppercase text-slate-300">
+            <span className="rounded-xl border border-laser-500/20 bg-chumbo-950/70 px-3 py-2">1. Contas</span>
+            <span className="rounded-xl border border-laser-500/20 bg-chumbo-950/70 px-3 py-2">2. Importar</span>
+            <span className="rounded-xl border border-laser-500/20 bg-chumbo-950/70 px-3 py-2">3. Pedidos</span>
+          </div>
+        </div>
+      </div>
+
       <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>

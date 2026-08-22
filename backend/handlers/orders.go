@@ -469,42 +469,94 @@ func createMercadoPagoPreference(ctx context.Context, order models.Order) (*merc
 }
 
 func (h *OrderHandler) ReceiveMercadoPagoWebhook(c *gin.Context) {
+	body, err := c.GetRawData()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Payload Mercado Pago invalido"})
+		return
+	}
+
 	var payload mercadoPagoWebhookPayload
-	if err := c.ShouldBindJSON(&payload); err != nil {
+	if err := json.Unmarshal(body, &payload); err != nil {
+		savePaymentWebhookEvent(c, 0, nil, "mercadopago", "", "", "failed", body, "payload invalido")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Webhook Mercado Pago invalido"})
 		return
 	}
 
 	paymentID := firstNonEmpty(payload.Data.ID, c.Query("data.id"), c.Query("id"))
 	eventType := firstNonEmpty(payload.Type, c.Query("type"), c.Query("topic"))
+	event := savePaymentWebhookEvent(c, 0, nil, "mercadopago", eventType, paymentID, "received", body, "")
 	if paymentID == "" || eventType != "payment" {
+		markPaymentWebhookEvent(event, "ignored", nil, "")
 		c.Status(http.StatusOK)
 		return
 	}
 
 	if err := validateMercadoPagoWebhookSignature(c, paymentID); err != nil {
+		markPaymentWebhookEvent(event, "failed", nil, err.Error())
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
 
 	payment, err := getMercadoPagoPayment(c.Request.Context(), paymentID)
 	if err != nil {
+		markPaymentWebhookEvent(event, "failed", nil, err.Error())
 		c.JSON(http.StatusBadGateway, gin.H{"error": "Nao foi possivel consultar pagamento no Mercado Pago"})
 		return
 	}
 
 	orderID, err := orderIDFromMercadoPagoReference(payment.ExternalReference)
 	if err != nil {
+		markPaymentWebhookEvent(event, "ignored", nil, "referencia externa sem pedido AZ3D")
 		c.Status(http.StatusOK)
 		return
 	}
 
 	if err := applyMercadoPagoPaymentToOrder(orderID, payment); err != nil {
+		markPaymentWebhookEvent(event, "failed", &orderID, err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Nao foi possivel atualizar pedido"})
 		return
 	}
 
+	var order models.Order
+	if err := database.DB.Select("tenant_id").First(&order, orderID).Error; err == nil {
+		database.DB.Model(&models.PaymentWebhookEvent{}).Where("id = ?", event.ID).Updates(map[string]any{"tenant_id": order.TenantID})
+	}
+	markPaymentWebhookEvent(event, "processed", &orderID, "")
 	c.Status(http.StatusOK)
+}
+
+func savePaymentWebhookEvent(c *gin.Context, tenantID uint, orderID *uint, provider string, eventType string, externalID string, status string, body []byte, errorMessage string) models.PaymentWebhookEvent {
+	headersPayload, _ := json.Marshal(webhookHeaders(c))
+	event := models.PaymentWebhookEvent{
+		TenantID:     tenantID,
+		Provider:     provider,
+		EventType:    eventType,
+		ExternalID:   externalID,
+		OrderID:      orderID,
+		Status:       status,
+		Payload:      string(body),
+		Headers:      string(headersPayload),
+		ErrorMessage: errorMessage,
+		ReceivedAt:   time.Now(),
+	}
+	_ = database.DB.Create(&event).Error
+	return event
+}
+
+func markPaymentWebhookEvent(event models.PaymentWebhookEvent, status string, orderID *uint, errorMessage string) {
+	if event.ID == 0 {
+		return
+	}
+	now := time.Now()
+	updates := map[string]any{
+		"status":        status,
+		"processed_at":  &now,
+		"error_message": errorMessage,
+	}
+	if orderID != nil {
+		updates["order_id"] = *orderID
+	}
+	_ = database.DB.Model(&models.PaymentWebhookEvent{}).Where("id = ?", event.ID).Updates(updates).Error
 }
 
 func getMercadoPagoPayment(ctx context.Context, paymentID string) (*mercadoPagoPaymentResponse, error) {

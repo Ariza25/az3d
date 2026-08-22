@@ -871,6 +871,24 @@ type MarketplaceWebhookEvent struct {
 	UpdatedAt        time.Time  `json:"updated_at"`
 }
 
+type PaymentWebhookEvent struct {
+	ID           uint       `gorm:"primaryKey" json:"id"`
+	TenantID     uint       `gorm:"index" json:"tenant_id"`
+	Tenant       *Tenant    `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+	Provider     string     `gorm:"size:50;not null;index" json:"provider"`
+	EventType    string     `gorm:"size:100;index" json:"event_type"`
+	ExternalID   string     `gorm:"size:160;index" json:"external_id"`
+	OrderID      *uint      `gorm:"index" json:"order_id,omitempty"`
+	Status       string     `gorm:"size:30;default:'received'" json:"status"`
+	Payload      string     `gorm:"type:text" json:"payload"`
+	Headers      string     `gorm:"type:text" json:"headers,omitempty"`
+	ErrorMessage string     `gorm:"type:text" json:"error_message,omitempty"`
+	ReceivedAt   time.Time  `json:"received_at"`
+	ProcessedAt  *time.Time `json:"processed_at,omitempty"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
+}
+
 type MarketplaceIntegrationInput struct {
 	Provider   string `json:"provider" binding:"required"`
 	SellerID   string `json:"seller_id"`

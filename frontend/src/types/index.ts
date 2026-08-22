@@ -60,6 +60,15 @@ export interface Product {
   updated_at?: string;
 }
 
+export interface StockAlert {
+  product_id: number;
+  product: Product;
+  color_name?: string;
+  stock_qty: number;
+  threshold: number;
+  severity: 'out' | 'critical' | 'low' | string;
+}
+
 export interface ProductColorImage {
   id?: number;
   tenant_id?: number;
@@ -709,6 +718,69 @@ export interface TrackingSyncSummary {
   synced: number;
   failed: number;
   results: TrackingSyncEntry[];
+}
+
+export interface PlatformTenantOverview {
+  tenant_id: number;
+  tenant_name: string;
+  tenant_slug: string;
+  products_count: number;
+  active_products_count: number;
+  orders_count: number;
+  open_orders_count: number;
+  low_stock_count: number;
+  marketplace_accounts: number;
+  active_marketplace_count: number;
+  carrier_accounts: number;
+  active_carrier_count: number;
+  connected_carrier_count: number;
+  external_orders_count: number;
+  marketplace_errors_count: number;
+  carrier_errors_count: number;
+  last_order_at?: string;
+  last_marketplace_sync_at?: string;
+  last_carrier_sync_at?: string;
+}
+
+export interface PlatformOverview {
+  tenants_count: number;
+  products_count: number;
+  orders_count: number;
+  open_orders_count: number;
+  low_stock_count: number;
+  marketplace_accounts_count: number;
+  carrier_accounts_count: number;
+  payment_gateway_configured: boolean;
+  webhook_secret_configured: boolean;
+  generated_at: string;
+  tenants: PlatformTenantOverview[];
+}
+
+export interface WebhookLogItem {
+  id: number;
+  tenant_id: number;
+  provider: string;
+  source: 'payment' | 'marketplace' | string;
+  event_type: string;
+  external_id: string;
+  status: string;
+  error?: string;
+  received_at: string;
+  processed_at?: string;
+}
+
+export interface ObservabilityHealth {
+  status: string;
+  database: string;
+  scope: { all_tenants: boolean; tenant_id: number };
+  failed_payment_webhooks_24h: number;
+  failed_marketplace_webhooks_24h: number;
+  marketplace_errors: number;
+  carrier_errors: number;
+  mercado_pago_configured: boolean;
+  mercado_pago_webhook_secret: boolean;
+  correios_base_configured: boolean;
+  checked_at: string;
 }
 
 export interface MarketplaceOAuthStartResponse {

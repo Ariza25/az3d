@@ -44,6 +44,10 @@ import {
   CarrierHealthItem,
   TrackingSyncEntry,
   TrackingSyncSummary,
+  StockAlert,
+  PlatformOverview,
+  WebhookLogItem,
+  ObservabilityHealth,
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
@@ -373,6 +377,16 @@ export const api = {
     return res.json();
   },
 
+  getStockAlerts: async (tenantId?: number, threshold = 3): Promise<StockAlert[]> => {
+    const params = new URLSearchParams();
+    params.append('threshold', String(threshold));
+    const res = await fetch(`${API_BASE_URL}/admin/stock-alerts?${params.toString()}`, {
+      headers: getAdminHeaders(tenantId),
+    });
+    if (!res.ok) throw new Error('Erro ao carregar alertas de estoque');
+    return res.json();
+  },
+
   adjustStock: async (input: StockAdjustmentInput, tenantId?: number): Promise<Product> => {
     const res = await fetch(`${API_BASE_URL}/admin/stock-adjustments`, {
       method: 'POST',
@@ -459,6 +473,38 @@ export const api = {
     });
     const body = await res.json();
     if (!res.ok) throw new Error(body.error || 'Erro ao sincronizar rastreios');
+    return body;
+  },
+
+  getPlatformOverview: async (): Promise<PlatformOverview> => {
+    const res = await fetch(`${API_BASE_URL}/admin/platform/overview`, {
+      headers: getAdminHeaders(),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Erro ao carregar visao de plataforma');
+    return body;
+  },
+
+  getObservabilityHealth: async (tenantId?: number): Promise<ObservabilityHealth> => {
+    const params = new URLSearchParams();
+    if (tenantId) params.append('tenant_id', String(tenantId));
+    const res = await fetch(`${API_BASE_URL}/admin/observability/health?${params.toString()}`, {
+      headers: getAdminHeaders(tenantId),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Erro ao carregar saude operacional');
+    return body;
+  },
+
+  getWebhookLogs: async (tenantId?: number, limit = 100): Promise<WebhookLogItem[]> => {
+    const params = new URLSearchParams();
+    params.append('limit', String(limit));
+    if (tenantId) params.append('tenant_id', String(tenantId));
+    const res = await fetch(`${API_BASE_URL}/admin/observability/webhooks?${params.toString()}`, {
+      headers: getAdminHeaders(tenantId),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Erro ao carregar webhooks');
     return body;
   },
 

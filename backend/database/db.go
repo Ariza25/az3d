@@ -102,6 +102,7 @@ func InitDB(cfg *config.Config) *gorm.DB {
 		&models.ExternalMarketplaceOrder{},
 		&models.ExternalMarketplaceOrderItem{},
 		&models.MarketplaceWebhookEvent{},
+		&models.PaymentWebhookEvent{},
 	)
 
 	if err != nil {
@@ -119,7 +120,7 @@ func InitDB(cfg *config.Config) *gorm.DB {
 // cleanupOrphanedRows limpa linhas com tenant_id inválido (0 ou NULL) antes de AutoMigrate
 // para evitar erro de violação de FK constraint ao reiniciar o servidor após mudanças de schema.
 func cleanupOrphanedRows(db *gorm.DB) {
-	tables := []string{"tenant_settings", "tenant_store_settings", "tenant_pricing_settings", "tenant_fulfillment_settings", "material_presets", "printer_presets", "platform_fee_presets", "users", "categories", "products", "product_color_images", "product_variants", "product_color_stocks", "stock_movements", "tenant_carrier_accounts", "order_shipments", "shipment_events", "product_reviews", "product_favorites", "product_pricing_snapshots", "product_actual_costs", "tenant_fixed_costs", "orders", "marketplace_integrations", "marketplace_product_mappings", "marketplace_accounts", "external_marketplace_orders", "external_marketplace_order_items"}
+	tables := []string{"tenant_settings", "tenant_store_settings", "tenant_pricing_settings", "tenant_fulfillment_settings", "material_presets", "printer_presets", "platform_fee_presets", "users", "categories", "products", "product_color_images", "product_variants", "product_color_stocks", "stock_movements", "tenant_carrier_accounts", "order_shipments", "shipment_events", "product_reviews", "product_favorites", "product_pricing_snapshots", "product_actual_costs", "tenant_fixed_costs", "orders", "marketplace_integrations", "marketplace_product_mappings", "marketplace_accounts", "external_marketplace_orders", "external_marketplace_order_items", "marketplace_webhook_events", "payment_webhook_events"}
 	for _, table := range tables {
 		// Verifica se a coluna tenant_id existe antes de tentar limpar
 		var colExists int64

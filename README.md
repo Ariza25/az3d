@@ -257,6 +257,20 @@ O painel possui base para Mercado Livre, Shopee e Amazon:
 
 Para o MVP atual, a prioridade e usar os marketplaces como origem/sincronizacao e manter a store propria operando com compra via Mercado Pago.
 
+## Admin Master, Estoque E Observabilidade
+
+O painel admin possui uma visao de plataforma para `master_admin`, com tenants, pedidos abertos, alertas de estoque e status de contas Mercado Pago/marketplaces/Correios.
+
+Endpoints adicionados para operacao:
+
+- `GET /api/admin/platform/overview`: visao multi-tenant para `master_admin`.
+- `GET /api/admin/stock-alerts`: produtos/cores abaixo do limite de reposicao.
+- `GET /api/admin/observability/health`: healthcheck administrativo com banco, webhooks e integracoes.
+- `GET /api/admin/observability/webhooks`: webhooks recentes de pagamentos e marketplaces.
+- `GET /health`: healthcheck publico enxuto com status da API e banco.
+
+Webhooks do Mercado Pago agora sao registrados em `payment_webhook_events`; webhooks de marketplaces continuam em `marketplace_webhook_events`. Logs HTTP saem em JSON para facilitar leitura em Docker, CI e agregadores de log.
+
 ## Segurança
 
 Controles ja existentes:
