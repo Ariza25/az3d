@@ -26,8 +26,11 @@ func CheckPasswordHash(password, hash string) bool {
 	return err == nil
 }
 
-func GenerateJWT(userID uint, email, role string, tenantID uint, secret string) (string, error) {
-	expirationTime := time.Now().Add(24 * 7 * time.Hour) // Válido por 7 dias
+func GenerateJWT(userID uint, email, role string, tenantID uint, secret string, ttlHours int) (string, error) {
+	if ttlHours <= 0 {
+		ttlHours = 168
+	}
+	expirationTime := time.Now().Add(time.Duration(ttlHours) * time.Hour)
 	claims := &JWTClaims{
 		UserID:   userID,
 		Email:    email,
@@ -47,13 +50,13 @@ func ValidateJWT(tokenString, secret string) (*JWTClaims, error) {
 	claims := &JWTClaims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.New("método de assinatura inválido")
+			return nil, errors.New("metodo de assinatura invalido")
 		}
 		return []byte(secret), nil
 	})
 
 	if err != nil || !token.Valid {
-		return nil, errors.New("token inválido ou expirado")
+		return nil, errors.New("token invalido ou expirado")
 	}
 
 	return claims, nil

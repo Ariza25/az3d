@@ -61,8 +61,7 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
   pending_payment: 'Aguardando pagamento',
   paid: 'Pago',
   preparing: 'Em preparo',
-  shipped: 'Enviado',
-  delivered: 'Entregue',
+  delivered: 'Concluido',
   cancelled: 'Cancelado',
   pending: 'Pendente',
   printing: 'Em preparo',
@@ -783,15 +782,14 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                             value={o.status}
                             onChange={(e) => handleStatusChange(o.id, e.target.value)}
                             className={`bg-chumbo-950 border border-chumbo-700 text-xs font-mono font-bold rounded-lg px-2 py-1 focus:outline-none ${
-                              o.status === 'preparing' || o.status === 'paid' ? 'text-amber-400' : o.status === 'shipped' ? 'text-cyan-400' : o.status === 'delivered' ? 'text-emerald-400' : 'text-slate-300'
+                              o.status === 'preparing' || o.status === 'paid' ? 'text-amber-400' : o.status === 'delivered' ? 'text-emerald-400' : 'text-slate-300'
                             }`}
                           >
                             <option value="pending_confirmation">Aguardando confirmacao</option>
                             <option value="pending_payment">Aguardando pagamento</option>
                             <option value="paid">Pago</option>
                             <option value="preparing">Em preparo</option>
-                            <option value="shipped">Enviado</option>
-                            <option value="delivered">Entregue</option>
+                            <option value="delivered">Concluido</option>
                             <option value="cancelled">Cancelado</option>
                           </select>
                         </td>

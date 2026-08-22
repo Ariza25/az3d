@@ -4,6 +4,7 @@ import { X, Layers, Clock, Ruler, Weight, ShoppingBag, Check, Heart, Star } from
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
+import { getStockStatus, money } from '../shared/storePresentation';
 
 interface ProductModalProps {
   product: Product | null;
@@ -87,6 +88,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
   const selectedPrintTime = selectedVariant?.print_time || product.print_time;
   const stockLimit = selectedStock?.stock_qty ?? product.stock_qty;
   const hasRealReviews = Boolean(product.review_summary?.review_count);
+  const stockStatus = getStockStatus({ ...product, color_stocks: undefined, stock_qty: stockLimit, in_stock: stockLimit > 0 && product.in_stock });
 
   const handleAddToCart = () => {
     addToCart({ ...product, price: selectedPrice }, quantity, selectedColor);
@@ -149,7 +151,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center space-x-2 text-xs font-mono text-laser-400">
                   <Layers className="w-4 h-4" />
-                  <span className="uppercase tracking-widest font-bold">Especificacao de Producao 3D</span>
+                  <span className="uppercase tracking-widest font-bold">Detalhes do produto</span>
                 </div>
                 <button type="button" onClick={toggleFavorite} className={`rounded-xl border px-3 py-2 text-xs font-bold transition-colors ${isFavorite ? 'border-rose-400/50 bg-rose-500/10 text-rose-300' : 'border-chumbo-700 bg-chumbo-950 text-slate-300 hover:text-white'}`}>
                   <Heart className={`inline h-4 w-4 ${isFavorite ? 'fill-rose-300' : ''}`} />
@@ -172,14 +174,14 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
 
               <div className="grid grid-cols-2 gap-3 pt-2">
                 <Spec icon={<Layers className="w-4 h-4 text-slate-400" />} label="Material" value={selectedMaterial} />
-                <Spec icon={<Clock className="w-4 h-4 text-slate-400" />} label="Tempo Impressao" value={selectedPrintTime} />
+                <Spec icon={<Clock className="w-4 h-4 text-slate-400" />} label="Prazo estimado" value={selectedPrintTime} />
                 <Spec icon={<Ruler className="w-4 h-4 text-slate-400" />} label="Dimensoes (XYZ)" value={product.dimensions} />
-                <Spec icon={<Weight className="w-4 h-4 text-slate-400" />} label="Resolucao / Peso" value={selectedLayerHeight} />
+                <Spec icon={<Weight className="w-4 h-4 text-slate-400" />} label="Acabamento / Peso" value={selectedLayerHeight} />
               </div>
 
               <div className="space-y-2 pt-2">
                 <label className="text-xs font-mono text-slate-400 uppercase tracking-wider block">
-                  Cor do Filamento / Acabamento: <span className="text-white font-bold">{selectedColor}</span>
+                  Cor selecionada: <span className="text-white font-bold">{selectedColor}</span>
                 </label>
                 <div className="flex items-center space-x-3">
                   {availableColors.map((col) => (
@@ -194,7 +196,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
                     </button>
                   ))}
                 </div>
-                <span className="block text-[11px] font-mono text-slate-500">Estoque desta opcao: {stockLimit}</span>
+                <div className={`rounded-xl border px-3 py-2 text-xs ${stockStatus.tone}`}>
+                  {stockLimit > 0
+                    ? `${stockLimit} unidade${stockLimit === 1 ? '' : 's'} disponivel${stockLimit === 1 ? '' : 's'} nesta cor.`
+                    : 'Esta cor esta sem estoque no momento.'}
+                </div>
               </div>
 
               <div className="rounded-xl border border-chumbo-800 bg-chumbo-950/70 p-3">
@@ -222,8 +228,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
 
             <div className="pt-4 border-t border-chumbo-800 flex items-center justify-between">
               <div>
-                <span className="text-xs font-mono text-slate-400 block">Total Unitario</span>
-                <span className="text-2xl font-extrabold text-white">R$ {selectedPrice.toFixed(2).replace('.', ',')}</span>
+                <span className="text-xs font-mono text-slate-400 block">Preco unitario</span>
+                <span className="text-2xl font-extrabold text-white">{money(selectedPrice)}</span>
               </div>
 
               <div className="flex items-center space-x-3">
@@ -233,9 +239,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
                   <button onClick={() => setQuantity(Math.min(stockLimit || 1, quantity + 1))} className="w-8 h-8 rounded-lg text-slate-400 hover:text-white flex items-center justify-center hover:bg-chumbo-800">+</button>
                 </div>
 
-                <button onClick={handleAddToCart} disabled={stockLimit <= 0} className="flex items-center space-x-2 px-6 py-3 rounded-xl bg-white hover:bg-slate-200 text-chumbo-950 font-extrabold text-sm transition-all shadow-xl active:scale-95 disabled:opacity-50">
+                <button onClick={handleAddToCart} disabled={stockLimit <= 0} className="flex items-center space-x-2 px-6 py-3 rounded-xl bg-white hover:bg-slate-200 text-chumbo-950 font-extrabold text-sm transition-all shadow-xl active:scale-95 disabled:cursor-not-allowed disabled:opacity-50">
                   <ShoppingBag className="w-4 h-4" />
-                  <span>Adicionar ao Carrinho</span>
+                  <span>{stockLimit > 0 ? 'Adicionar ao carrinho' : 'Sem estoque'}</span>
                 </button>
               </div>
             </div>

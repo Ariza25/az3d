@@ -15,34 +15,23 @@ import (
 )
 
 func main() {
-	// 1. Carregar Configurações das Variáveis de Ambiente (.env)
 	cfg := config.LoadConfig()
 
-	// 2. Inicializar Conexão PostgreSQL (GORM)
 	database.InitDB(cfg)
 
-	// 3. Configurar Gin Router
 	if cfg.Env == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
 	r := gin.Default()
+	r.MaxMultipartMemory = cfg.MaxUploadBytes
 
-	// Configurar proxies confiáveis (localhost IPv4 e IPv6) para evitar 403 em desenvolvimento
-	if err := r.SetTrustedProxies([]string{"127.0.0.1", "::1", "localhost"}); err != nil {
-		log.Printf("Aviso: não foi possível configurar trusted proxies: %v", err)
+	if err := r.SetTrustedProxies(cfg.TrustedProxies); err != nil {
+		log.Printf("Aviso: nao foi possivel configurar trusted proxies: %v", err)
 	}
 
-	// Configuração do CORS para permitir requisições do frontend React
 	r.Use(cors.New(cors.Config{
-		AllowOrigins: []string{
-			"http://localhost:3000",
-			"http://localhost:5173",
-			"http://localhost:5181",
-			"http://127.0.0.1:3000",
-			"http://127.0.0.1:5173",
-			"http://127.0.0.1:5181",
-		},
+		AllowOrigins:     cfg.CORSOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Tenant-ID"},
 		ExposeHeaders:    []string{"Content-Length"},
@@ -50,14 +39,12 @@ func main() {
 		MaxAge:           12 * time.Hour,
 	}))
 
-	// Handler global para preflight OPTIONS (necessário para CORS com credenciais)
 	r.OPTIONS("/*path", func(c *gin.Context) {
 		c.Status(204)
 	})
 
-	// Instanciar Handlers
 	authHandler := handlers.NewAuthHandler(cfg)
-	productHandler := handlers.NewProductHandler()
+	productHandler := handlers.NewProductHandler(cfg)
 	orderHandler := handlers.NewOrderHandler()
 	tenantHandler := handlers.NewTenantHandler()
 	tenantSettingsHandler := handlers.NewTenantSettingsHandler()
@@ -66,14 +53,11 @@ func main() {
 
 	r.Static("/uploads", "./uploads")
 
-	// 4. Definir Rotas API
 	api := r.Group("/api")
 	{
-		// Rotas Públicas
 		api.GET("/tenants", tenantHandler.GetTenants)
 		api.GET("/tenants/:identifier", tenantHandler.GetTenantByIdentifier)
 
-		// Rotas Públicas de Autenticação
 		auth := api.Group("/auth")
 		{
 			auth.POST("/customer/register", authHandler.CustomerRegister)
@@ -84,14 +68,12 @@ func main() {
 			auth.POST("/login", authHandler.Login)
 		}
 
-		// Rotas Públicas do Catálogo 3D
 		api.GET("/categories", productHandler.GetCategories)
 		api.GET("/products", productHandler.GetProducts)
 		api.GET("/products/:id", productHandler.GetProductByID)
 		api.GET("/products/:id/reviews", productHandler.GetProductReviews)
 		api.GET("/tenant/settings", tenantSettingsHandler.GetTenantSettings)
 
-		// Rotas Protegidas (JWT obrigatório)
 		protected := api.Group("")
 		protected.Use(middleware.AuthMiddleware(cfg.JWTSecret))
 		{
@@ -104,7 +86,6 @@ func main() {
 			protected.DELETE("/products/:id/favorite", productHandler.RemoveProductFavorite)
 		}
 
-		// Rotas Administrativas (JWT + Admin Role obrigatórios)
 		admin := api.Group("/admin")
 		admin.Use(middleware.AuthMiddleware(cfg.JWTSecret), middleware.AdminMiddleware())
 		{
@@ -143,7 +124,6 @@ func main() {
 			admin.GET("/orders", orderHandler.GetAllOrders)
 			admin.PATCH("/orders/:id/status", orderHandler.UpdateOrderStatus)
 
-			// Marketplaces (Mercado Livre, Shopee, Amazon)
 			admin.GET("/marketplaces", marketplaceHandler.GetMarketplaceIntegrations)
 			admin.POST("/marketplaces", marketplaceHandler.SaveMarketplaceIntegration)
 			admin.PATCH("/marketplaces/:id/toggle", marketplaceHandler.ToggleMarketplaceStatus)
@@ -167,9 +147,9 @@ func main() {
 		}
 
 		api.POST("/webhooks/marketplaces/:provider", marketplaceHandler.ReceiveMarketplaceWebhook)
+		api.POST("/webhooks/payments/mercadopago", orderHandler.ReceiveMercadoPagoWebhook)
 	}
 
-	// Endpoint de verificação de status (Healthcheck)
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"status":  "online",
@@ -178,9 +158,8 @@ func main() {
 		})
 	})
 
-	// 5. Iniciar Servidor Go
 	addr := fmt.Sprintf(":%s", cfg.Port)
-	log.Printf(" Servidor Go AZ3D escutando na porta %s (http://localhost:%s)", cfg.Port, cfg.Port)
+	log.Printf("Servidor Go AZ3D escutando na porta %s (http://localhost:%s)", cfg.Port, cfg.Port)
 	if err := r.Run(addr); err != nil {
 		log.Fatalf("Erro ao iniciar servidor HTTP Go: %v", err)
 	}

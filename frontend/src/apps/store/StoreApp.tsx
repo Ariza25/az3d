@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Navbar } from '../../components/Navbar';
 import { Hero } from '../../components/Hero';
 import { CategoryFilter } from '../../components/CategoryFilter';
@@ -9,8 +9,28 @@ import { LoginModal } from '../../components/LoginModal';
 import { RegisterModal } from '../../components/RegisterModal';
 import { Footer } from '../../components/Footer';
 import { FavoritesModal } from '../../components/FavoritesModal';
-import { Product } from '../../types';
+import { Product, TenantSettings } from '../../types';
 import { useTenantCatalog } from '../../shared/hooks/useTenantCatalog';
+import { api } from '../../services/api';
+import { StoreFilters, AvailabilityFilter, StoreSort } from '../../components/StoreFilters';
+import { getStockStatus, getTotalStock } from '../../shared/storePresentation';
+import { AlertCircle, CheckCircle2, Clock3, X } from 'lucide-react';
+
+const getProductSlugFromLocation = () => {
+  const [, first, , third, fourth] = window.location.pathname.split('/');
+  if (first === 'loja' && third === 'produto' && fourth) return decodeURIComponent(fourth);
+  return '';
+};
+
+const upsertMetaDescription = (content: string) => {
+  let meta = document.querySelector('meta[name="description"]') as HTMLMetaElement | null;
+  if (!meta) {
+    meta = document.createElement('meta');
+    meta.name = 'description';
+    document.head.appendChild(meta);
+  }
+  meta.content = content;
+};
 
 export const StoreApp: React.FC = () => {
   const {
@@ -27,17 +47,139 @@ export const StoreApp: React.FC = () => {
   } = useTenantCatalog();
 
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [tenantSettings, setTenantSettings] = useState<TenantSettings | null>(null);
+  const [sortBy, setSortBy] = useState<StoreSort>('featured');
+  const [materialFilter, setMaterialFilter] = useState('todos');
+  const [availabilityFilter, setAvailabilityFilter] = useState<AvailabilityFilter>('all');
+  const [maxPrice, setMaxPrice] = useState(0);
+  const [paymentReturn, setPaymentReturn] = useState<{ status: string; orderId: string } | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get('payment');
+    if (!status) return null;
+    return { status, orderId: params.get('order_id') || '' };
+  });
   const [isLoginOpen, setIsLoginOpen] = useState<boolean>(false);
   const [isRegisterOpen, setIsRegisterOpen] = useState<boolean>(false);
   const [isFavoritesOpen, setIsFavoritesOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!activeTenant) return;
+    api.getTenantSettings(activeTenant.id)
+      .then(setTenantSettings)
+      .catch(() => setTenantSettings(null));
+  }, [activeTenant]);
+
+  const priceCeiling = useMemo(() => {
+    const highest = products.reduce((max, product) => Math.max(max, product.price), 0);
+    return Math.ceil(highest || 0);
+  }, [products]);
+
+  useEffect(() => {
+    if (priceCeiling > 0) setMaxPrice(priceCeiling);
+  }, [priceCeiling, activeTenant?.id]);
+
+  const featuredProduct = useMemo(() => {
+    return [...products]
+      .filter((product) => getStockStatus(product).canBuy)
+      .sort((a, b) => {
+        const bReviews = b.review_summary?.review_count || b.review_count || 0;
+        const aReviews = a.review_summary?.review_count || a.review_count || 0;
+        return bReviews - aReviews || b.price - a.price;
+      })[0] || products[0];
+  }, [products]);
+
+  const visibleProducts = useMemo(() => {
+    const filtered = products.filter((product) => {
+      const status = getStockStatus(product);
+      const stock = getTotalStock(product);
+      const matchesMaterial = materialFilter === 'todos' || product.material.toLowerCase().includes(materialFilter.toLowerCase());
+      const matchesAvailability =
+        availabilityFilter === 'all' ||
+        (availabilityFilter === 'available' && status.canBuy) ||
+        (availabilityFilter === 'low_stock' && status.canBuy && stock <= 3) ||
+        (availabilityFilter === 'out' && !status.canBuy);
+      const matchesPrice = maxPrice <= 0 || product.price <= maxPrice;
+      return matchesMaterial && matchesAvailability && matchesPrice;
+    });
+
+    return filtered.sort((a, b) => {
+      if (sortBy === 'price_asc') return a.price - b.price;
+      if (sortBy === 'price_desc') return b.price - a.price;
+      if (sortBy === 'recent') {
+        const bTime = b.created_at ? new Date(b.created_at).getTime() : b.id;
+        const aTime = a.created_at ? new Date(a.created_at).getTime() : a.id;
+        return bTime - aTime;
+      }
+      const bScore = (b.review_summary?.review_count || b.review_count || 0) + (getStockStatus(b).canBuy ? 10 : 0);
+      const aScore = (a.review_summary?.review_count || a.review_count || 0) + (getStockStatus(a).canBuy ? 10 : 0);
+      return bScore - aScore;
+    });
+  }, [products, materialFilter, availabilityFilter, maxPrice, sortBy]);
+
+  const materialOptions = useMemo(() => {
+    return Array.from(new Set(products.map((product) => product.material).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  }, [products]);
+
+  useEffect(() => {
+    const productSlug = getProductSlugFromLocation();
+    if (!productSlug || products.length === 0) {
+      if (!productSlug) setSelectedProduct(null);
+      return;
+    }
+    const product = products.find((item) => item.slug === productSlug || String(item.id) === productSlug);
+    if (product) setSelectedProduct(product);
+  }, [products]);
+
+  useEffect(() => {
+    const handleRouteChange = () => {
+      const productSlug = getProductSlugFromLocation();
+      if (!productSlug) {
+        setSelectedProduct(null);
+        return;
+      }
+      const product = products.find((item) => item.slug === productSlug || String(item.id) === productSlug);
+      if (product) setSelectedProduct(product);
+    };
+
+    window.addEventListener('popstate', handleRouteChange);
+    return () => window.removeEventListener('popstate', handleRouteChange);
+  }, [products]);
+
+  useEffect(() => {
+    const storeName = tenantSettings?.store_name || activeTenant?.name || 'AZ3D Store';
+    if (selectedProduct) {
+      document.title = `${selectedProduct.title} | ${storeName}`;
+      upsertMetaDescription(selectedProduct.description || `${selectedProduct.title} em ${storeName}`);
+      return;
+    }
+    document.title = `${storeName} | Loja`;
+    upsertMetaDescription(`Compre produtos selecionados da loja ${storeName}.`);
+  }, [activeTenant, tenantSettings, selectedProduct]);
 
   const openAdmin = () => {
     window.history.pushState({}, '', '/admin');
     window.dispatchEvent(new PopStateEvent('popstate'));
   };
 
+  const openProduct = (product: Product) => {
+    setSelectedProduct(product);
+    if (activeTenant?.slug) {
+      window.history.pushState({}, '', `/loja/${activeTenant.slug}/produto/${product.slug || product.id}`);
+    }
+  };
+
+  const closeProduct = () => {
+    setSelectedProduct(null);
+    if (activeTenant?.slug && window.location.pathname.includes('/produto/')) {
+      window.history.pushState({}, '', `/loja/${activeTenant.slug}`);
+    }
+  };
+
   return (
-    <div className="min-h-screen flex flex-col bg-chumbo-950 text-slate-100 font-sans">
+    <div
+      className="min-h-screen flex flex-col bg-chumbo-950 text-slate-100 font-sans"
+      style={{ '--tenant-primary': tenantSettings?.primary_color || '#22d3ee' } as React.CSSProperties}
+    >
       <Navbar
         onOpenLogin={() => setIsLoginOpen(true)}
         onOpenRegister={() => setIsRegisterOpen(true)}
@@ -48,10 +190,28 @@ export const StoreApp: React.FC = () => {
         onSelectTenant={onSelectTenant}
         onOpenAdmin={openAdmin}
         onOpenFavorites={() => setIsFavoritesOpen(true)}
+        tenantSettings={tenantSettings}
       />
 
       <main className="flex-1">
-        <Hero />
+        {paymentReturn && (
+          <PaymentReturnBanner
+            status={paymentReturn.status}
+            orderId={paymentReturn.orderId}
+            onClose={() => {
+              setPaymentReturn(null);
+              if (activeTenant?.slug) window.history.replaceState({}, '', `/loja/${activeTenant.slug}`);
+            }}
+          />
+        )}
+
+        <Hero
+          tenant={activeTenant}
+          settings={tenantSettings}
+          featuredProduct={featuredProduct}
+          categories={categories}
+          onSelectCategory={setActiveCategory}
+        />
 
         <CategoryFilter
           categories={categories}
@@ -59,10 +219,23 @@ export const StoreApp: React.FC = () => {
           onSelectCategory={setActiveCategory}
         />
 
+        <StoreFilters
+          sortBy={sortBy}
+          onSortChange={setSortBy}
+          materialOptions={materialOptions}
+          materialFilter={materialFilter}
+          onMaterialChange={setMaterialFilter}
+          availabilityFilter={availabilityFilter}
+          onAvailabilityChange={setAvailabilityFilter}
+          maxPrice={maxPrice}
+          priceCeiling={priceCeiling}
+          onMaxPriceChange={setMaxPrice}
+        />
+
         <ProductGrid
-          products={products}
+          products={visibleProducts}
           isLoading={isLoading}
-          onOpenModal={(product) => setSelectedProduct(product)}
+          onOpenModal={openProduct}
         />
       </main>
 
@@ -70,11 +243,12 @@ export const StoreApp: React.FC = () => {
 
       <ProductModal
         product={selectedProduct}
-        onClose={() => setSelectedProduct(null)}
+        onClose={closeProduct}
       />
 
       <CartDrawer
         onOpenLogin={() => setIsLoginOpen(true)}
+        tenantSettings={tenantSettings}
       />
 
       <FavoritesModal
@@ -104,6 +278,54 @@ export const StoreApp: React.FC = () => {
           setIsLoginOpen(true);
         }}
       />
+    </div>
+  );
+};
+
+const PaymentReturnBanner = ({
+  status,
+  orderId,
+  onClose,
+}: {
+  status: string;
+  orderId: string;
+  onClose: () => void;
+}) => {
+  const content = status === 'success'
+    ? {
+        icon: <CheckCircle2 className="h-5 w-5 text-emerald-300" />,
+        title: 'Pagamento aprovado',
+        text: 'Recebemos a confirmacao do Mercado Pago. O pedido ja pode seguir para preparacao.',
+        tone: 'border-emerald-500/40 bg-emerald-500/10',
+      }
+    : status === 'pending'
+      ? {
+          icon: <Clock3 className="h-5 w-5 text-amber-300" />,
+          title: 'Pagamento pendente',
+          text: 'O Mercado Pago ainda esta processando o pagamento. O pedido sera atualizado quando houver confirmacao.',
+          tone: 'border-amber-500/40 bg-amber-500/10',
+        }
+      : {
+          icon: <AlertCircle className="h-5 w-5 text-red-300" />,
+          title: 'Pagamento nao concluido',
+          text: 'O pagamento nao foi aprovado ou foi cancelado. Voce pode tentar novamente pelo carrinho.',
+          tone: 'border-red-500/40 bg-red-500/10',
+        };
+
+  return (
+    <div className={`border-b ${content.tone}`}>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          {content.icon}
+          <div>
+            <p className="text-sm font-bold text-white">{content.title}{orderId ? ` - Pedido #${orderId}` : ''}</p>
+            <p className="text-xs text-slate-300">{content.text}</p>
+          </div>
+        </div>
+        <button type="button" onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-chumbo-900 hover:text-white">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
     </div>
   );
 };

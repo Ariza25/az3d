@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ShoppingBag, LogOut, Search, Layers, ChevronDown, Store, ShieldAlert, Heart } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
-import { Tenant } from '../types';
+import { Tenant, TenantSettings } from '../types';
 
 interface NavbarProps {
   onOpenLogin: () => void;
@@ -14,6 +14,7 @@ interface NavbarProps {
   onSelectTenant: (tenant: Tenant) => void;
   onOpenAdmin: () => void;
   onOpenFavorites: () => void;
+  tenantSettings?: TenantSettings | null;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -26,10 +27,14 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSelectTenant,
   onOpenAdmin,
   onOpenFavorites,
+  tenantSettings,
 }) => {
   const { user, isAuthenticated, logout } = useAuth();
   const { totalItems, setIsCartOpen } = useCart();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const storeName = tenantSettings?.store_name || activeTenant?.name || 'AZ3D';
+  const logoUrl = tenantSettings?.logo_url || activeTenant?.logo_url;
+  const primaryColor = tenantSettings?.primary_color || '#22d3ee';
 
   return (
     <header className="sticky top-0 z-40 w-full glass-panel border-b border-chumbo-800 bg-chumbo-950/80 backdrop-blur-md">
@@ -39,15 +44,19 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Logo AZ3D & Seletor Multi-Tenant */}
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-3 cursor-pointer group">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-slate-100 to-chumbo-600 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform duration-300">
-                <Layers className="w-6 h-6 text-chumbo-950 stroke-[2.5]" />
-              </div>
+              {logoUrl ? (
+                <img src={logoUrl} alt={storeName} className="w-10 h-10 rounded-lg object-cover border border-chumbo-700 bg-chumbo-900 shadow-lg group-hover:scale-105 transition-transform duration-300" />
+              ) : (
+                <div className="w-10 h-10 rounded-lg bg-chumbo-900 border border-chumbo-700 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform duration-300" style={{ color: primaryColor }}>
+                  <Layers className="w-6 h-6 stroke-[2.5]" />
+                </div>
+              )}
               <div>
                 <span className="text-2xl font-extrabold tracking-wider text-white flex items-center gap-1">
-                  AZ<span className="text-laser-400 font-mono">3D</span>
+                  {storeName}
                 </span>
                 <span className="text-[10px] uppercase tracking-widest text-slate-400 font-medium block -mt-1">
-                  {activeTenant?.name || 'Additive Studio'}
+                  {activeTenant?.slug || 'store'}
                 </span>
               </div>
             </div>

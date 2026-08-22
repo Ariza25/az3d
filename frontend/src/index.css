@@ -45,3 +45,18 @@
   transform: translateY(-3px);
   box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.7);
 }
+
+.filter-input {
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid #2a303f;
+  background: #111318;
+  color: #f8fafc;
+  padding: 0.625rem 0.75rem;
+  font-size: 0.8125rem;
+  outline: none;
+}
+
+.filter-input:focus {
+  border-color: #94a3b8;
+}

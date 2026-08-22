@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"az3d-backend/config"
 	"az3d-backend/database"
 	"az3d-backend/models"
 
@@ -19,10 +20,12 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-type ProductHandler struct{}
+type ProductHandler struct {
+	cfg *config.Config
+}
 
-func NewProductHandler() *ProductHandler {
-	return &ProductHandler{}
+func NewProductHandler(cfg *config.Config) *ProductHandler {
+	return &ProductHandler{cfg: cfg}
 }
 
 func withProductRelations(db *gorm.DB) *gorm.DB {
@@ -779,6 +782,10 @@ func (h *ProductHandler) UploadProductImage(c *gin.Context) {
 	file, err := c.FormFile("image")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Imagem nao enviada"})
+		return
+	}
+	if h.cfg != nil && h.cfg.MaxUploadBytes > 0 && file.Size > h.cfg.MaxUploadBytes {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Imagem acima do tamanho maximo permitido"})
 		return
 	}
 

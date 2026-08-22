@@ -52,6 +52,8 @@ export interface Product {
   source_provider?: string;
   source_external_id?: string;
   source_synced_at?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface ProductColorImage {
@@ -210,7 +212,27 @@ export interface Order {
   city?: string;
   state?: string;
   notes?: string;
+  payment_provider?: string;
+  payment_status?: string;
+  payment_id?: string;
+  payment_detail?: string;
+  mp_preference_id?: string;
+  mp_init_point?: string;
+  mp_sandbox_init_point?: string;
+  paid_at?: string;
   created_at: string;
+}
+
+export interface CreateOrderResponse {
+  message: string;
+  order: Order;
+  payment?: {
+    provider: string;
+    preference_id: string;
+    checkout_url: string;
+    sandbox_checkout_url?: string;
+    status: string;
+  };
 }
 
 export interface TenantSettings {

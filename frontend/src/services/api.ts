@@ -4,6 +4,7 @@ import {
   AuthResponse,
   User,
   CreateOrderPayload,
+  CreateOrderResponse,
   Order,
   Tenant,
   ProductInput,
@@ -237,7 +238,7 @@ export const api = {
   },
 
   // Pedidos Cliente
-  createOrder: async (payload: CreateOrderPayload, tenantId?: number): Promise<{ message: string; order: Order }> => {
+  createOrder: async (payload: CreateOrderPayload, tenantId?: number): Promise<CreateOrderResponse> => {
     const res = await fetch(`${API_BASE_URL}/orders`, {
       method: 'POST',
       headers: getHeaders(tenantId),

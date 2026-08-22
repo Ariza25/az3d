@@ -60,7 +60,7 @@ func (h *AuthHandler) CustomerRegister(c *gin.Context) {
 		return
 	}
 
-	token, err := utils.GenerateJWT(user.ID, user.Email, user.Role, user.TenantID, h.cfg.JWTSecret)
+	token, err := utils.GenerateJWT(user.ID, user.Email, user.Role, user.TenantID, h.cfg.JWTSecret, h.cfg.JWTTTLHours)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao gerar token de acesso"})
 		return
@@ -121,7 +121,7 @@ func (h *AuthHandler) SellerRegister(c *gin.Context) {
 		return
 	}
 
-	token, err := utils.GenerateJWT(user.ID, user.Email, user.Role, user.TenantID, h.cfg.JWTSecret)
+	token, err := utils.GenerateJWT(user.ID, user.Email, user.Role, user.TenantID, h.cfg.JWTSecret, h.cfg.JWTTTLHours)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao gerar token de acesso"})
 		return
@@ -176,7 +176,7 @@ func (h *AuthHandler) loginWithAllowedRoles(c *gin.Context, allowedRoles map[str
 		return
 	}
 
-	token, err := utils.GenerateJWT(user.ID, user.Email, user.Role, user.TenantID, h.cfg.JWTSecret)
+	token, err := utils.GenerateJWT(user.ID, user.Email, user.Role, user.TenantID, h.cfg.JWTSecret, h.cfg.JWTTTLHours)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao gerar token de acesso"})
 		return

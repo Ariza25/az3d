@@ -46,7 +46,7 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
             }`}
           >
             <Grid className="w-4 h-4" />
-            <span>Todos os Modelos</span>
+            <span>Todos os Produtos</span>
           </button>
 
           {/* Categorias Dinâmicas do Backend */}

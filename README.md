@@ -1,0 +1,195 @@
+# AZ3D
+
+Plataforma multi-tenant para lojas/oficinas venderem produtos de impressao 3D em loja propria, com catalogo, estoque, checkout via Mercado Pago e base para integracoes com marketplaces.
+
+## Escopo Do MVP
+
+O foco atual do projeto e:
+
+- Tenant por loja, com slug em URL como `/loja/az3d`.
+- Store publica com identidade visual do tenant.
+- Catalogo de produtos, categorias, cores, estoque e favoritos.
+- Carrinho e checkout com Mercado Pago Checkout Pro.
+- Painel admin para produtos, estoque, pedidos, precificacao e marketplaces.
+- Importacao/sincronizacao de marketplaces como base operacional.
+- Docker Compose e CI para validar backend, frontend e imagens.
+
+Nao faz parte do escopo atual:
+
+- Rastreio de entrega.
+- Publicacao real completa para marketplaces.
+- Checkout transparente/cartao dentro da propria UI.
+
+## Stack
+
+- Backend: Go 1.22, Gin, GORM, PostgreSQL.
+- Frontend: React 18, Vite, TypeScript, Tailwind CSS.
+- Pagamento: Mercado Pago Checkout Pro via Preferences API.
+- Infra local: Docker Compose com PostgreSQL, backend e frontend Nginx.
+- CI: GitHub Actions com build/test do backend, build do frontend e build das imagens Docker.
+
+## Estrutura
+
+```text
+backend/              API Go, banco, handlers, middlewares e integracoes
+frontend/             Store/admin React
+.github/workflows/    CI
+docker-compose.yml    Stack local/producao simples
+graphify-out/         Grafo local do codigo gerado pelo graphify
+```
+
+## Variaveis De Ambiente
+
+Use `backend/.env.example` como base para desenvolvimento local.
+
+Principais variaveis:
+
+```env
+PORT=8080
+ENV=development
+
+DB_HOST=localhost
+DB_USER=postgres
+DB_PASSWORD=postgres
+DB_NAME=az3d_db
+DB_PORT=5432
+DB_SSLMODE=disable
+
+JWT_SECRET=troque-por-um-segredo-forte
+JWT_TTL_HOURS=168
+REQUIRE_STRONG_SECRETS=false
+
+CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+TRUSTED_PROXIES=127.0.0.1,::1
+MAX_UPLOAD_MB=5
+
+FRONTEND_BASE_URL=http://localhost:5173
+API_PUBLIC_BASE_URL=http://localhost:8080
+MERCADO_PAGO_API_BASE_URL=https://api.mercadopago.com
+MERCADO_PAGO_ACCESS_TOKEN=
+MERCADO_PAGO_WEBHOOK_SECRET=
+```
+
+Para producao, defina:
+
+- `JWT_SECRET` com 32+ caracteres.
+- `REQUIRE_STRONG_SECRETS=true`.
+- `CORS_ALLOWED_ORIGINS` apenas com os dominios reais.
+- `FRONTEND_BASE_URL` com a URL publica da loja.
+- `API_PUBLIC_BASE_URL` com a URL publica da API, usada no webhook do Mercado Pago.
+- `MERCADO_PAGO_ACCESS_TOKEN` com token real ou sandbox.
+- `MERCADO_PAGO_WEBHOOK_SECRET` com o secret configurado no painel do Mercado Pago.
+
+## Rodando Localmente
+
+### Backend
+
+```bash
+cd backend
+go mod download
+go run .
+```
+
+A API fica em `http://localhost:8080`.
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+A store/admin ficam em `http://localhost:5173`.
+
+### Docker Compose
+
+```bash
+docker compose up --build
+```
+
+Servicos:
+
+- Frontend: `http://localhost`
+- Backend: `http://localhost:8080`
+- PostgreSQL: `localhost:5432`
+
+## Checkout Mercado Pago
+
+O checkout usa Mercado Pago Checkout Pro:
+
+1. Cliente fecha o carrinho.
+2. Backend cria pedido com status `pending_payment`.
+3. Backend cria uma preference no Mercado Pago.
+4. Frontend redireciona para `checkout_url`.
+5. Mercado Pago chama `POST /api/webhooks/payments/mercadopago`.
+6. Backend consulta o pagamento em `/v1/payments/{id}` e atualiza o pedido.
+
+Status internos principais:
+
+- `pending_payment`: aguardando pagamento.
+- `paid`: pagamento aprovado.
+- `preparing`: em preparo.
+- `delivered`: concluido.
+- `cancelled`: cancelado.
+
+Nao ha rastreio de entrega no escopo atual.
+
+## Marketplaces
+
+O painel possui base para Mercado Livre, Shopee e Amazon:
+
+- contas/configuracoes por tenant;
+- importacao/sync de produtos;
+- sync de pedidos externos;
+- mapeamento entre SKU/produto interno e item externo.
+
+Para o MVP atual, a prioridade e usar os marketplaces como origem/sincronizacao e manter a store propria operando com compra via Mercado Pago.
+
+## Segurança
+
+Controles ja existentes:
+
+- JWT com TTL configuravel.
+- Trava opcional para impedir segredo JWT fraco em producao.
+- CORS configuravel por env.
+- Trusted proxies configuraveis.
+- Upload de imagem com extensoes permitidas e limite de tamanho.
+- Webhook Mercado Pago com validacao opcional de assinatura via `MERCADO_PAGO_WEBHOOK_SECRET`.
+- Rotas admin protegidas por JWT e role `admin`/`tenant_admin`.
+
+Recomendacoes antes de publicar:
+
+- Nunca versionar `backend/.env`.
+- Usar secrets do GitHub/servidor para tokens e senhas.
+- Usar HTTPS no frontend e na API.
+- Configurar `API_PUBLIC_BASE_URL` com dominio publico acessivel pelo Mercado Pago.
+- Trocar `JWT_SECRET`, `DB_PASSWORD` e tokens de marketplace/pagamento.
+
+## CI
+
+O workflow `.github/workflows/ci.yml` roda:
+
+- `go test ./...`
+- `go build ./...`
+- `npm ci`
+- `npm run build`
+- `docker build` do backend e frontend
+
+## Comandos De Validação
+
+```bash
+cd backend
+go test ./...
+go build ./...
+
+cd ../frontend
+npm run build
+
+cd ..
+docker compose config
+```
+
+## Dados Demo
+
+O backend faz seed inicial quando o banco esta vazio, criando tenants como `az3d` e `makerlab`, categorias, produtos e usuarios demo. Verifique `backend/database/db.go` para os dados de bootstrap.
