@@ -26,10 +26,16 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-type OrderHandler struct{}
+type OrderHandler struct {
+	payments *MercadoPagoHandler
+}
 
-func NewOrderHandler() *OrderHandler {
-	return &OrderHandler{}
+func NewOrderHandler(payments ...*MercadoPagoHandler) *OrderHandler {
+	handler := &OrderHandler{}
+	if len(payments) > 0 {
+		handler.payments = payments[0]
+	}
+	return handler
 }
 
 func (h *OrderHandler) CreateOrder(c *gin.Context) {
@@ -52,8 +58,13 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 		return
 	}
 
-	if strings.TrimSpace(os.Getenv("MERCADO_PAGO_ACCESS_TOKEN")) == "" {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Mercado Pago nao configurado. Defina MERCADO_PAGO_ACCESS_TOKEN no backend."})
+	if h.payments == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Mercado Pago indisponivel"})
+		return
+	}
+	paymentAccessToken, err := h.payments.AccessTokenForTenant(c.Request.Context(), tenantID)
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "A loja ainda nao conectou a conta Mercado Pago"})
 		return
 	}
 
@@ -191,7 +202,7 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 
 	database.DB.Preload("Items.Product").First(&order, order.ID)
 
-	paymentPreference, err := createMercadoPagoPreference(c.Request.Context(), order)
+	paymentPreference, err := createMercadoPagoPreference(c.Request.Context(), order, paymentAccessToken)
 	if err != nil {
 		_ = cancelOrderAndReleaseStock(order.ID, "Falha ao criar preferencia Mercado Pago")
 		c.JSON(http.StatusBadGateway, gin.H{"error": "Nao foi possivel iniciar pagamento no Mercado Pago: " + err.Error()})
@@ -377,10 +388,10 @@ type mercadoPagoWebhookPayload struct {
 	} `json:"data"`
 }
 
-func createMercadoPagoPreference(ctx context.Context, order models.Order) (*mercadoPagoPreferenceResponse, error) {
-	accessToken := strings.TrimSpace(os.Getenv("MERCADO_PAGO_ACCESS_TOKEN"))
+func createMercadoPagoPreference(ctx context.Context, order models.Order, sellerAccessToken string) (*mercadoPagoPreferenceResponse, error) {
+	accessToken := strings.TrimSpace(sellerAccessToken)
 	if accessToken == "" {
-		return nil, fmt.Errorf("access token nao configurado")
+		return nil, fmt.Errorf("access token OAuth do tenant nao configurado")
 	}
 
 	var user models.User
@@ -417,7 +428,7 @@ func createMercadoPagoPreference(ctx context.Context, order models.Order) (*merc
 	}
 
 	if apiPublicBaseURL != "" {
-		requestPayload.NotificationURL = apiPublicBaseURL + "/api/webhooks/payments/mercadopago"
+		requestPayload.NotificationURL = fmt.Sprintf("%s/api/webhooks/payments/mercadopago/%d", apiPublicBaseURL, order.TenantID)
 	}
 
 	for _, item := range order.Items {
@@ -469,6 +480,12 @@ func createMercadoPagoPreference(ctx context.Context, order models.Order) (*merc
 }
 
 func (h *OrderHandler) ReceiveMercadoPagoWebhook(c *gin.Context) {
+	tenantIDValue, err := strconv.ParseUint(strings.TrimSpace(c.Param("tenant_id")), 10, 64)
+	if err != nil || tenantIDValue == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Webhook Mercado Pago sem tenant"})
+		return
+	}
+	tenantID := uint(tenantIDValue)
 	body, err := c.GetRawData()
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Payload Mercado Pago invalido"})
@@ -477,27 +494,44 @@ func (h *OrderHandler) ReceiveMercadoPagoWebhook(c *gin.Context) {
 
 	var payload mercadoPagoWebhookPayload
 	if err := json.Unmarshal(body, &payload); err != nil {
-		savePaymentWebhookEvent(c, 0, nil, "mercadopago", "", "", "failed", body, "payload invalido")
+		savePaymentWebhookEvent(c, tenantID, nil, "mercadopago", "", "", "failed", body, "payload invalido")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Webhook Mercado Pago invalido"})
 		return
 	}
 
 	paymentID := firstNonEmpty(payload.Data.ID, c.Query("data.id"), c.Query("id"))
 	eventType := firstNonEmpty(payload.Type, c.Query("type"), c.Query("topic"))
-	event := savePaymentWebhookEvent(c, 0, nil, "mercadopago", eventType, paymentID, "received", body, "")
+	event := savePaymentWebhookEvent(c, tenantID, nil, "mercadopago", eventType, paymentID, "received", body, "")
 	if paymentID == "" || eventType != "payment" {
 		markPaymentWebhookEvent(event, "ignored", nil, "")
 		c.Status(http.StatusOK)
 		return
 	}
 
-	if err := validateMercadoPagoWebhookSignature(c, paymentID); err != nil {
+	if h.payments == nil {
+		markPaymentWebhookEvent(event, "failed", nil, "integracao Mercado Pago indisponivel")
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Integracao Mercado Pago indisponivel"})
+		return
+	}
+	webhookSecret, err := h.payments.WebhookSecret()
+	if err != nil {
+		markPaymentWebhookEvent(event, "failed", nil, "segredo do webhook indisponivel")
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Webhook Mercado Pago nao configurado"})
+		return
+	}
+	if err := validateMercadoPagoWebhookSignature(c, paymentID, webhookSecret); err != nil {
 		markPaymentWebhookEvent(event, "failed", nil, err.Error())
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
 
-	payment, err := getMercadoPagoPayment(c.Request.Context(), paymentID)
+	accessToken, err := h.payments.AccessTokenForTenant(c.Request.Context(), tenantID)
+	if err != nil {
+		markPaymentWebhookEvent(event, "failed", nil, "credencial OAuth do tenant indisponivel")
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Conta Mercado Pago do tenant indisponivel"})
+		return
+	}
+	payment, err := getMercadoPagoPayment(c.Request.Context(), paymentID, accessToken)
 	if err != nil {
 		markPaymentWebhookEvent(event, "failed", nil, err.Error())
 		c.JSON(http.StatusBadGateway, gin.H{"error": "Nao foi possivel consultar pagamento no Mercado Pago"})
@@ -508,6 +542,12 @@ func (h *OrderHandler) ReceiveMercadoPagoWebhook(c *gin.Context) {
 	if err != nil {
 		markPaymentWebhookEvent(event, "ignored", nil, "referencia externa sem pedido AZ3D")
 		c.Status(http.StatusOK)
+		return
+	}
+	var referencedOrder models.Order
+	if err := database.DB.Select("tenant_id").First(&referencedOrder, orderID).Error; err != nil || referencedOrder.TenantID != tenantID {
+		markPaymentWebhookEvent(event, "failed", &orderID, "pedido nao pertence ao tenant do webhook")
+		c.JSON(http.StatusForbidden, gin.H{"error": "Pagamento nao pertence a este tenant"})
 		return
 	}
 
@@ -559,10 +599,10 @@ func markPaymentWebhookEvent(event models.PaymentWebhookEvent, status string, or
 	_ = database.DB.Model(&models.PaymentWebhookEvent{}).Where("id = ?", event.ID).Updates(updates).Error
 }
 
-func getMercadoPagoPayment(ctx context.Context, paymentID string) (*mercadoPagoPaymentResponse, error) {
-	accessToken := strings.TrimSpace(os.Getenv("MERCADO_PAGO_ACCESS_TOKEN"))
+func getMercadoPagoPayment(ctx context.Context, paymentID string, sellerAccessToken string) (*mercadoPagoPaymentResponse, error) {
+	accessToken := strings.TrimSpace(sellerAccessToken)
 	if accessToken == "" {
-		return nil, fmt.Errorf("access token nao configurado")
+		return nil, fmt.Errorf("access token OAuth do tenant nao configurado")
 	}
 
 	mpBaseURL := strings.TrimRight(getEnv("MERCADO_PAGO_API_BASE_URL", "https://api.mercadopago.com"), "/")
@@ -697,8 +737,8 @@ func releaseOrderStock(tx *gorm.DB, order models.Order, reason string) error {
 	return nil
 }
 
-func validateMercadoPagoWebhookSignature(c *gin.Context, paymentID string) error {
-	secret := strings.TrimSpace(os.Getenv("MERCADO_PAGO_WEBHOOK_SECRET"))
+func validateMercadoPagoWebhookSignature(c *gin.Context, paymentID string, webhookSecret string) error {
+	secret := strings.TrimSpace(webhookSecret)
 	if secret == "" {
 		return nil
 	}

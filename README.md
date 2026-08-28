@@ -71,8 +71,6 @@ MAX_UPLOAD_MB=5
 FRONTEND_BASE_URL=http://localhost:5173
 API_PUBLIC_BASE_URL=http://localhost:8080
 MERCADO_PAGO_API_BASE_URL=https://api.mercadopago.com
-MERCADO_PAGO_ACCESS_TOKEN=
-MERCADO_PAGO_WEBHOOK_SECRET=
 
 GOOGLE_OAUTH_CLIENT_ID=
 GOOGLE_OAUTH_CLIENT_SECRET=
@@ -94,8 +92,7 @@ Para producao, defina:
 - `CORS_ALLOWED_ORIGINS` apenas com os dominios reais.
 - `FRONTEND_BASE_URL` com a URL publica da loja.
 - `API_PUBLIC_BASE_URL` com a URL publica da API, usada no webhook do Mercado Pago.
-- `MERCADO_PAGO_ACCESS_TOKEN` com token real ou sandbox.
-- `MERCADO_PAGO_WEBHOOK_SECRET` com o secret configurado no painel do Mercado Pago.
+- Configurar Client ID, Client Secret, Redirect URI e secret do webhook do Mercado Pago no painel master. Os tokens dos lojistas sao obtidos por OAuth e armazenados criptografados no banco.
 - `GOOGLE_OAUTH_CLIENT_ID` e `GOOGLE_OAUTH_CLIENT_SECRET` com credenciais OAuth Web do Google.
 - `GOOGLE_OAUTH_REDIRECT_URL` igual ao redirect autorizado no Google Cloud Console.
 - `CORREIOS_API_BASE_URL` e `CORREIOS_TOKEN_BASE_URL` conforme ambiente Correios.
@@ -141,12 +138,15 @@ Visitantes podem navegar pela store, mas o carrinho exige conta de comprador. Ao
 
 O checkout usa Mercado Pago Checkout Pro:
 
-1. Cliente fecha o carrinho.
-2. Backend cria pedido com status `pending_payment`.
-3. Backend cria uma preference no Mercado Pago.
-4. Frontend redireciona para `checkout_url`.
-5. Mercado Pago chama `POST /api/webhooks/payments/mercadopago`.
-6. Backend consulta o pagamento em `/v1/payments/{id}` e atualiza o pedido.
+1. O `master_admin` configura a aplicacao Mercado Pago em **Configuracoes**, sem access token global em env.
+2. Cada tenant conecta a propria conta Mercado Pago por OAuth com `state` e PKCE.
+3. Cliente fecha o carrinho e o backend cria o pedido como `pending_payment`.
+4. O backend cria a preference usando exclusivamente o access token daquele tenant.
+5. O frontend redireciona para o Checkout Pro, onde ficam disponiveis Pix e cartao conforme a conta do vendedor.
+6. Mercado Pago chama `POST /api/webhooks/payments/mercadopago/{tenant_id}`.
+7. O backend valida a assinatura, consulta o pagamento com a credencial do mesmo tenant e atualiza o pedido.
+
+O Redirect URI cadastrado na aplicacao Mercado Pago deve ser exatamente `https://SEU-DOMINIO-DA-API/api/payments/mercadopago/oauth/callback`. O valor da venda e processado na conta Mercado Pago conectada pelo tenant; o AZ3D nao aplica comissao de marketplace no MVP.
 
 Status internos principais:
 
@@ -318,7 +318,7 @@ Controles ja existentes:
 - CORS configuravel por env.
 - Trusted proxies configuraveis.
 - Upload de imagem com extensoes permitidas e limite de tamanho.
-- Webhook Mercado Pago com validacao opcional de assinatura via `MERCADO_PAGO_WEBHOOK_SECRET`.
+- Webhook Mercado Pago com assinatura validada pelo secret criptografado configurado no painel master.
 - Rotas admin protegidas por JWT e role `admin`/`tenant_admin`.
 
 Recomendacoes antes de publicar:
@@ -327,7 +327,7 @@ Recomendacoes antes de publicar:
 - Usar secrets do GitHub/servidor para tokens e senhas.
 - Usar HTTPS no frontend e na API.
 - Configurar `API_PUBLIC_BASE_URL` com dominio publico acessivel pelo Mercado Pago.
-- Trocar `JWT_SECRET`, `DB_PASSWORD` e tokens de marketplace/pagamento.
+- Trocar `JWT_SECRET`, `DB_PASSWORD` e tokens de marketplace.
 
 ## CI
 

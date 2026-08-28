@@ -46,7 +46,8 @@ func main() {
 
 	authHandler := handlers.NewAuthHandler(cfg)
 	productHandler := handlers.NewProductHandler(cfg)
-	orderHandler := handlers.NewOrderHandler()
+	mercadoPagoHandler := handlers.NewMercadoPagoHandler(cfg)
+	orderHandler := handlers.NewOrderHandler(mercadoPagoHandler)
 	tenantHandler := handlers.NewTenantHandler()
 	tenantSettingsHandler := handlers.NewTenantSettingsHandler()
 	pricingHandler := handlers.NewPricingHandler()
@@ -80,6 +81,7 @@ func main() {
 		api.GET("/products/:id", productHandler.GetProductByID)
 		api.GET("/products/:id/reviews", productHandler.GetProductReviews)
 		api.GET("/tenant/settings", tenantSettingsHandler.GetTenantSettings)
+		api.GET("/payments/mercadopago/oauth/callback", mercadoPagoHandler.OAuthCallback)
 
 		protected := api.Group("")
 		protected.Use(middleware.AuthMiddleware(cfg.JWTSecret))
@@ -134,6 +136,12 @@ func main() {
 			admin.GET("/products/:id/financials", pricingHandler.GetProductFinancials)
 			admin.GET("/orders", orderHandler.GetAllOrders)
 			admin.PATCH("/orders/:id/status", orderHandler.UpdateOrderStatus)
+			admin.GET("/payments/mercadopago/status", mercadoPagoHandler.GetTenantStatus)
+			admin.POST("/payments/mercadopago/oauth/start", mercadoPagoHandler.StartOAuth)
+			admin.POST("/payments/mercadopago/oauth/refresh", mercadoPagoHandler.RefreshOAuth)
+			admin.DELETE("/payments/mercadopago/oauth", mercadoPagoHandler.DisconnectOAuth)
+			admin.GET("/platform/payments/mercadopago", mercadoPagoHandler.GetPlatformConfig)
+			admin.PUT("/platform/payments/mercadopago", mercadoPagoHandler.SavePlatformConfig)
 
 			admin.GET("/marketplaces", marketplaceHandler.GetMarketplaceIntegrations)
 			admin.POST("/marketplaces", marketplaceHandler.SaveMarketplaceIntegration)
@@ -166,7 +174,7 @@ func main() {
 		}
 
 		api.POST("/webhooks/marketplaces/:provider", marketplaceHandler.ReceiveMarketplaceWebhook)
-		api.POST("/webhooks/payments/mercadopago", orderHandler.ReceiveMercadoPagoWebhook)
+		api.POST("/webhooks/payments/mercadopago/:tenant_id", orderHandler.ReceiveMercadoPagoWebhook)
 	}
 
 	r.GET("/health", platformHandler.PublicHealth)

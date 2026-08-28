@@ -28,6 +28,7 @@ import { AdminDashboard } from '../features/admin/components/AdminDashboard';
 import { AdminMasterOverview } from '../features/admin/components/AdminMasterOverview';
 import { AdminObservability } from '../features/admin/components/AdminObservability';
 import { AdminInventory } from '../features/admin/components/AdminInventory';
+import { MercadoPagoSettings } from '../features/admin/components/MercadoPagoSettings';
 import { Button, SearchInput } from './ui';
 import {
   X,
@@ -1309,6 +1310,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                 <h3 className="text-sm font-bold text-white">Configuracoes da loja</h3>
                 <p className="mt-1 text-xs text-slate-400">Identidade da vitrine, formas de entrega e presets usados como base para precificacao.</p>
               </div>
+
+              {activeTenant && <MercadoPagoSettings tenantId={activeTenant.id} isMasterAdmin={isMasterAdmin} />}
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-1.5">

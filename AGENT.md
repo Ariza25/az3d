@@ -83,19 +83,21 @@ Visitante pode navegar na store, mas adicionar ao carrinho exige `customer` aute
 Checkout usa Mercado Pago Checkout Pro:
 
 - Pedido nasce como `pending_payment`.
-- Backend cria preference no Mercado Pago.
+- Cada tenant conecta sua conta Mercado Pago por OAuth; tokens ficam criptografados no banco.
+- Backend cria preference com o access token do tenant do pedido.
 - Frontend redireciona para `checkout_url`.
-- Webhook `POST /api/webhooks/payments/mercadopago` atualiza status.
+- Webhook `POST /api/webhooks/payments/mercadopago/{tenant_id}` atualiza status usando a credencial do mesmo tenant.
 - Pagamento aprovado vira `paid`.
 - Pagamento rejeitado/cancelado vira `cancelled` e libera estoque.
 
 Env relevante:
 
-- `MERCADO_PAGO_ACCESS_TOKEN`
-- `MERCADO_PAGO_WEBHOOK_SECRET`
 - `MERCADO_PAGO_API_BASE_URL`
 - `FRONTEND_BASE_URL`
 - `API_PUBLIC_BASE_URL`
+- `CREDENTIAL_ENCRYPTION_KEY`
+
+Client ID, Client Secret, Redirect URI e secret do webhook Mercado Pago sao configurados pelo `master_admin` e persistidos criptografados; nao ficam em env.
 
 ## Login Google
 

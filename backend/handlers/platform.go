@@ -82,10 +82,14 @@ func (h *PlatformHandler) GetPlatformOverview(c *gin.Context) {
 		return
 	}
 
+	var connectedPaymentAccounts int64
+	var mercadoPagoConfig models.MercadoPagoPlatformConfig
+	database.DB.Model(&models.TenantPaymentAccount{}).Where("provider = ? AND status = ?", mercadoPagoProvider, mercadoPagoConnectedState).Count(&connectedPaymentAccounts)
+	_ = database.DB.First(&mercadoPagoConfig, 1).Error
 	overview := PlatformOverview{
 		TenantsCount:             int64(len(tenants)),
-		PaymentGatewayConfigured: strings.TrimSpace(os.Getenv("MERCADO_PAGO_ACCESS_TOKEN")) != "",
-		WebhookSecretConfigured:  strings.TrimSpace(os.Getenv("MERCADO_PAGO_WEBHOOK_SECRET")) != "",
+		PaymentGatewayConfigured: connectedPaymentAccounts > 0,
+		WebhookSecretConfigured:  strings.TrimSpace(mercadoPagoConfig.EncryptedWebhookSecret) != "",
 		GeneratedAt:              time.Now(),
 		Tenants:                  make([]PlatformTenantOverview, 0, len(tenants)),
 	}
@@ -211,6 +215,10 @@ func (h *PlatformHandler) GetObservabilityHealth(c *gin.Context) {
 		status = "attention"
 	}
 
+	var connectedPaymentAccounts int64
+	var mercadoPagoConfig models.MercadoPagoPlatformConfig
+	database.DB.Model(&models.TenantPaymentAccount{}).Where("provider = ? AND status = ?", mercadoPagoProvider, mercadoPagoConnectedState).Count(&connectedPaymentAccounts)
+	_ = database.DB.First(&mercadoPagoConfig, 1).Error
 	c.JSON(http.StatusOK, gin.H{
 		"status":                          status,
 		"database":                        dbStatus,
@@ -219,8 +227,8 @@ func (h *PlatformHandler) GetObservabilityHealth(c *gin.Context) {
 		"failed_marketplace_webhooks_24h": failedMarketplaceWebhooks,
 		"marketplace_errors":              marketplaceErrors,
 		"carrier_errors":                  carrierErrors,
-		"mercado_pago_configured":         strings.TrimSpace(os.Getenv("MERCADO_PAGO_ACCESS_TOKEN")) != "",
-		"mercado_pago_webhook_secret":     strings.TrimSpace(os.Getenv("MERCADO_PAGO_WEBHOOK_SECRET")) != "",
+		"mercado_pago_configured":         connectedPaymentAccounts > 0,
+		"mercado_pago_webhook_secret":     strings.TrimSpace(mercadoPagoConfig.EncryptedWebhookSecret) != "",
 		"correios_base_configured":        strings.TrimSpace(os.Getenv("CORREIOS_API_BASE_URL")) != "",
 		"checked_at":                      time.Now(),
 	})

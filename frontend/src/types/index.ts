@@ -783,6 +783,36 @@ export interface ObservabilityHealth {
   checked_at: string;
 }
 
+export interface MercadoPagoPlatformConfig {
+  id?: number;
+  client_id: string;
+  redirect_uri: string;
+  client_secret_configured: boolean;
+  webhook_secret_configured: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface MercadoPagoPlatformConfigInput {
+  client_id: string;
+  client_secret: string;
+  redirect_uri: string;
+  webhook_secret: string;
+}
+
+export interface TenantPaymentAccountStatus {
+  provider: 'mercadopago';
+  oauth_available: boolean;
+  connected: boolean;
+  status: 'disconnected' | 'connected' | 'error' | string;
+  seller_id?: string;
+  public_key?: string;
+  live_mode: boolean;
+  token_expires_at?: string;
+  connected_at?: string;
+  last_error?: string;
+}
+
 export interface MarketplaceOAuthStartResponse {
   provider: string;
   state: string;

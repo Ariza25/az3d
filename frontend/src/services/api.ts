@@ -48,6 +48,9 @@ import {
   PlatformOverview,
   WebhookLogItem,
   ObservabilityHealth,
+  MercadoPagoPlatformConfig,
+  MercadoPagoPlatformConfigInput,
+  TenantPaymentAccountStatus,
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
@@ -94,6 +97,56 @@ export const api = {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Loja nao encontrada');
     return data;
+  },
+
+  getMercadoPagoPlatformConfig: async (): Promise<MercadoPagoPlatformConfig> => {
+    const res = await fetch(`${API_BASE_URL}/admin/platform/payments/mercadopago`, { headers: getAdminHeaders() });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Erro ao carregar aplicacao Mercado Pago');
+    return body;
+  },
+
+  saveMercadoPagoPlatformConfig: async (input: MercadoPagoPlatformConfigInput): Promise<MercadoPagoPlatformConfig> => {
+    const res = await fetch(`${API_BASE_URL}/admin/platform/payments/mercadopago`, {
+      method: 'PUT', headers: getAdminHeaders(), body: JSON.stringify(input),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Erro ao salvar aplicacao Mercado Pago');
+    return body;
+  },
+
+  getTenantMercadoPagoStatus: async (tenantId?: number): Promise<TenantPaymentAccountStatus> => {
+    const res = await fetch(`${API_BASE_URL}/admin/payments/mercadopago/status`, { headers: getAdminHeaders(tenantId) });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Erro ao carregar conexao Mercado Pago');
+    return body;
+  },
+
+  startTenantMercadoPagoOAuth: async (tenantId?: number): Promise<{ authorization_url: string }> => {
+    const res = await fetch(`${API_BASE_URL}/admin/payments/mercadopago/oauth/start`, {
+      method: 'POST', headers: getAdminHeaders(tenantId),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Erro ao iniciar conexao Mercado Pago');
+    return body;
+  },
+
+  refreshTenantMercadoPagoOAuth: async (tenantId?: number): Promise<TenantPaymentAccountStatus> => {
+    const res = await fetch(`${API_BASE_URL}/admin/payments/mercadopago/oauth/refresh`, {
+      method: 'POST', headers: getAdminHeaders(tenantId),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Erro ao renovar conexao Mercado Pago');
+    return body;
+  },
+
+  disconnectTenantMercadoPagoOAuth: async (tenantId?: number): Promise<TenantPaymentAccountStatus> => {
+    const res = await fetch(`${API_BASE_URL}/admin/payments/mercadopago/oauth`, {
+      method: 'DELETE', headers: getAdminHeaders(tenantId),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Erro ao desconectar Mercado Pago');
+    return body;
   },
 
   // Categorias
