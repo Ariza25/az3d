@@ -161,7 +161,7 @@ Status internos principais:
 
 ## Conta Master
 
-O bootstrap inicial cria uma conta master para operar a plataforma:
+Em desenvolvimento, o bootstrap inicial cria uma conta master para operar a plataforma:
 
 ```text
 usuario: admin
@@ -171,11 +171,11 @@ role: master_admin
 
 O `master_admin` pode alternar tenant no admin e operar usando `X-Tenant-ID`. Contas `tenant_admin` continuam presas ao tenant do proprio JWT.
 
-Troque essa senha antes de qualquer uso fora de desenvolvimento.
+Em producao, contas padrao nao sao criadas. Se uma instalacao anterior ainda tiver uma dessas senhas padrao, o backend a substitui por uma senha aleatoria antes de aceitar requisicoes.
 
 ## Conta Tenant Inicial
 
-O bootstrap tambem cria uma unica conta administrativa do tenant `az3d`:
+Em desenvolvimento, o bootstrap tambem cria uma unica conta administrativa do tenant `az3d`:
 
 ```text
 email: teste@gmail.com
@@ -358,5 +358,5 @@ docker compose config
 
 ## Bootstrap Inicial
 
-O backend cria apenas o tenant base `az3d`, as configuracoes essenciais, a conta master `admin` / `Admin@123` e a conta tenant `teste@gmail.com` / `Teste@123`.
+O backend cria o tenant base `az3d` e as configuracoes essenciais. Contas com credenciais padrao sao criadas apenas fora de producao; em producao, senhas padrao legadas sao desativadas automaticamente.
 Produtos, categorias, usuarios de exemplo e pedidos artificiais de marketplace nao sao mais criados automaticamente.

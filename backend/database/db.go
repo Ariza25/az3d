@@ -1,8 +1,11 @@
 package database
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"log"
+	"strings"
 
 	"az3d-backend/config"
 	"az3d-backend/models"
@@ -123,7 +126,7 @@ func InitDB(cfg *config.Config) *gorm.DB {
 	DB = db
 
 	// Seed de Dados Iniciais
-	bootstrapData(db)
+	bootstrapData(db, cfg.Env)
 
 	return DB
 }
@@ -149,7 +152,7 @@ func cleanupOrphanedRows(db *gorm.DB) {
 	}
 }
 
-func bootstrapData(db *gorm.DB) {
+func bootstrapData(db *gorm.DB, environment string) {
 	var tenant models.Tenant
 	if err := db.Where("slug = ?", "az3d").First(&tenant).Error; err != nil {
 		tenant = models.Tenant{Name: "AZ3D", Slug: "az3d"}
@@ -160,9 +163,55 @@ func bootstrapData(db *gorm.DB) {
 	}
 
 	ensureTenantSettings(db, tenant)
-	ensureMasterAdmin(db, tenant.ID)
-	ensureTenantSeedAccount(db, tenant.ID)
+	if strings.EqualFold(strings.TrimSpace(environment), "production") {
+		if err := neutralizeDefaultProductionPasswords(db); err != nil {
+			log.Fatalf("Erro ao remover senhas padrao em producao: %v", err)
+		}
+	} else {
+		ensureMasterAdmin(db, tenant.ID)
+		ensureTenantSeedAccount(db, tenant.ID)
+	}
 	cleanupLegacySeedArtifacts(db)
+}
+
+func neutralizeDefaultProductionPasswords(db *gorm.DB) error {
+	accounts := []struct {
+		username        string
+		email           string
+		defaultPassword string
+	}{
+		{username: "admin", email: "admin@az3d.local", defaultPassword: "Admin@123"},
+		{username: "teste", email: "teste@gmail.com", defaultPassword: "Teste@123"},
+	}
+
+	for _, account := range accounts {
+		var user models.User
+		err := db.Where("username = ? OR email = ?", account.username, account.email).First(&user).Error
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				continue
+			}
+			return err
+		}
+		if !utils.CheckPasswordHash(account.defaultPassword, user.Password) {
+			continue
+		}
+
+		randomPassword := make([]byte, 48)
+		if _, err := rand.Read(randomPassword); err != nil {
+			return err
+		}
+		hash, err := utils.HashPassword(base64.RawURLEncoding.EncodeToString(randomPassword))
+		if err != nil {
+			return err
+		}
+		if err := db.Model(&user).Update("password", hash).Error; err != nil {
+			return err
+		}
+		log.Printf("Senha padrao desativada para a conta %q em producao", account.username)
+	}
+
+	return nil
 }
 
 func cleanupLegacySeedArtifacts(db *gorm.DB) {
