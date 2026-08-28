@@ -126,7 +126,7 @@ func InitDB(cfg *config.Config) *gorm.DB {
 	DB = db
 
 	// Seed de Dados Iniciais
-	bootstrapData(db, cfg.Env)
+	bootstrapData(db, cfg)
 
 	return DB
 }
@@ -152,7 +152,7 @@ func cleanupOrphanedRows(db *gorm.DB) {
 	}
 }
 
-func bootstrapData(db *gorm.DB, environment string) {
+func bootstrapData(db *gorm.DB, cfg *config.Config) {
 	var tenant models.Tenant
 	if err := db.Where("slug = ?", "az3d").First(&tenant).Error; err != nil {
 		tenant = models.Tenant{Name: "AZ3D", Slug: "az3d"}
@@ -163,7 +163,7 @@ func bootstrapData(db *gorm.DB, environment string) {
 	}
 
 	ensureTenantSettings(db, tenant)
-	if strings.EqualFold(strings.TrimSpace(environment), "production") {
+	if strings.EqualFold(strings.TrimSpace(cfg.Env), "production") {
 		if err := neutralizeDefaultProductionPasswords(db); err != nil {
 			log.Fatalf("Erro ao remover senhas padrao em producao: %v", err)
 		}
@@ -171,7 +171,52 @@ func bootstrapData(db *gorm.DB, environment string) {
 		ensureMasterAdmin(db, tenant.ID)
 		ensureTenantSeedAccount(db, tenant.ID)
 	}
+	if strings.TrimSpace(cfg.AdminLogin) != "" {
+		if err := ensureConfiguredMasterAdmin(db, tenant.ID, cfg.AdminLogin, cfg.AdminPassword); err != nil {
+			log.Fatalf("Erro ao configurar conta master: %v", err)
+		}
+	}
 	cleanupLegacySeedArtifacts(db)
+}
+
+func ensureConfiguredMasterAdmin(db *gorm.DB, tenantID uint, login string, password string) error {
+	login = strings.ToLower(strings.TrimSpace(login))
+	passwordHash, err := utils.HashPassword(password)
+	if err != nil {
+		return err
+	}
+
+	var user models.User
+	result := db.Where("LOWER(email) = ?", login).First(&user)
+	if result.Error != nil {
+		if result.Error != gorm.ErrRecordNotFound {
+			return result.Error
+		}
+		result = db.Where("role = ?", "master_admin").Order("id ASC").First(&user)
+	}
+
+	if result.Error == nil {
+		return db.Model(&user).Updates(map[string]any{
+			"tenant_id":     tenantID,
+			"name":          "Admin Master",
+			"email":         login,
+			"password":      passwordHash,
+			"role":          "master_admin",
+			"auth_provider": "password",
+		}).Error
+	}
+	if result.Error != gorm.ErrRecordNotFound {
+		return result.Error
+	}
+
+	return db.Create(&models.User{
+		TenantID:     tenantID,
+		Name:         "Admin Master",
+		Email:        login,
+		Password:     passwordHash,
+		Role:         "master_admin",
+		AuthProvider: "password",
+	}).Error
 }
 
 func neutralizeDefaultProductionPasswords(db *gorm.DB) error {

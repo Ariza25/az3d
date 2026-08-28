@@ -2,6 +2,7 @@ package config
 
 import (
 	"log"
+	"net/mail"
 	"os"
 	"strconv"
 	"strings"
@@ -14,6 +15,8 @@ type Config struct {
 	Env                     string
 	DatabaseURL             string
 	DatabaseRequired        bool
+	AdminLogin              string
+	AdminPassword           string
 	DBHost                  string
 	DBUser                  string
 	DBPassword              string
@@ -50,6 +53,8 @@ func LoadConfig() *Config {
 		Env:              getEnv("ENV", "development"),
 		DatabaseURL:      getEnv("DATABASE_URL", ""),
 		DatabaseRequired: getEnvBool("DATABASE_REQUIRED", true),
+		AdminLogin:       getEnv("ADM_LOGIN", ""),
+		AdminPassword:    getEnv("ADM_PASSWORD", ""),
 		DBHost:           getEnv("DB_HOST", "localhost"),
 		DBUser:           getEnv("DB_USER", "postgres"),
 		DBPassword:       getEnv("DB_PASSWORD", "postgres"),
@@ -148,6 +153,21 @@ func getEnvList(key string, fallback []string) []string {
 }
 
 func (cfg *Config) validate() {
+	adminLoginSet := strings.TrimSpace(cfg.AdminLogin) != ""
+	adminPasswordSet := cfg.AdminPassword != ""
+	if adminLoginSet != adminPasswordSet {
+		log.Fatal("ADM_LOGIN e ADM_PASSWORD devem ser definidos juntos.")
+	}
+	if adminLoginSet {
+		address, err := mail.ParseAddress(strings.TrimSpace(cfg.AdminLogin))
+		if err != nil || !strings.EqualFold(address.Address, strings.TrimSpace(cfg.AdminLogin)) {
+			log.Fatal("ADM_LOGIN deve ser um e-mail valido.")
+		}
+	}
+	if adminPasswordSet && len(cfg.AdminPassword) < 16 {
+		log.Fatal("ADM_PASSWORD fraca. Defina uma senha com pelo menos 16 caracteres.")
+	}
+
 	if !cfg.RequireStrongSecrets {
 		return
 	}
