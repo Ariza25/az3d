@@ -10,6 +10,7 @@ import {
   TenantMarketplaceSettings,
 } from '../types';
 import { api } from '../services/api';
+import { getAppPathname, withBasePath } from '../shared/basePath';
 
 const PROVIDERS = [
   { id: 'shopee', label: 'Shopee', accent: 'text-orange-300', border: 'border-orange-500/30', bg: 'bg-orange-500/10' },
@@ -48,7 +49,7 @@ const providerFromOAuthState = (state: string) => {
 };
 
 const marketplaceRedirectUri = (provider: string) => {
-  const base = `${window.location.origin}/admin/marketplaces/callback`;
+  const base = new URL(withBasePath('/admin/marketplaces/callback'), window.location.origin).toString();
   return provider === 'shopee' ? `${base}?provider=shopee` : base;
 };
 
@@ -133,7 +134,7 @@ export const MarketplaceConnectionsPanel: React.FC<MarketplaceConnectionsPanelPr
   }, [tenantId]);
 
   useEffect(() => {
-    if (!tenantId || !window.location.pathname.startsWith('/admin/marketplaces/callback')) return;
+    if (!tenantId || !getAppPathname().startsWith('/admin/marketplaces/callback')) return;
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code') || '';
     const state = params.get('state') || '';
@@ -156,7 +157,7 @@ export const MarketplaceConnectionsPanel: React.FC<MarketplaceConnectionsPanelPr
       .then(async () => {
         await loadData();
         onMessage({ type: 'success', text: 'Conexao OAuth concluida.' });
-        window.history.replaceState({}, '', '/admin');
+        window.history.replaceState({}, '', withBasePath('/admin'));
       })
       .catch((error) => onMessage({ type: 'error', text: error.message || 'Erro ao concluir OAuth' }))
       .finally(() => setLoadingProvider(null));

@@ -54,6 +54,11 @@ import {
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+export const resolveApiAssetUrl = (path: string) => {
+  if (!path || /^[a-z][a-z\d+.-]*:/i.test(path) || path.startsWith('//')) return path;
+  const apiOrigin = new URL(API_BASE_URL, window.location.origin).origin;
+  return new URL(path.startsWith('/') ? path : `/${path}`, apiOrigin).toString();
+};
 export const CUSTOMER_TOKEN_KEY = 'az3d_customer_token';
 export const ADMIN_TOKEN_KEY = 'az3d_admin_token';
 

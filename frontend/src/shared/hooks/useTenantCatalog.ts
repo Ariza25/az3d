@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Category, Product, Tenant } from '../../types';
 import { api } from '../../services/api';
 import { getStorePath, getTenantSlugFromPath, isStoreTenantPath } from '../tenantRoutes';
+import { getAppPathname } from '../basePath';
 
 interface UseTenantCatalogOptions {
   lockedTenantId?: number;
@@ -48,7 +49,7 @@ export const useTenantCatalog = (options: UseTenantCatalogOptions = {}) => {
           setActiveTenant(initial);
           localStorage.setItem('az3d_tenant_id', String(initial.id));
           window.dispatchEvent(new CustomEvent('az3d:tenant-changed', { detail: { tenantId: initial.id } }));
-          if (!lockedTenantId && !isStoreTenantPath() && window.location.pathname === '/') {
+          if (!lockedTenantId && !isStoreTenantPath() && getAppPathname() === '/') {
             window.history.replaceState({}, '', getStorePath(initial.slug));
           }
         }
@@ -66,7 +67,7 @@ export const useTenantCatalog = (options: UseTenantCatalogOptions = {}) => {
     localStorage.setItem('az3d_tenant_id', String(tenant.id));
     window.dispatchEvent(new CustomEvent('az3d:tenant-changed', { detail: { tenantId: tenant.id } }));
     setActiveCategory('todas');
-    if (isStoreTenantPath() || window.location.pathname === '/') {
+    if (isStoreTenantPath() || getAppPathname() === '/') {
       window.history.pushState({}, '', getStorePath(tenant.slug));
     }
   }, [lockedTenantId]);

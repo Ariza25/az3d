@@ -17,9 +17,10 @@ import { getStockStatus, getTotalStock } from '../../shared/storePresentation';
 import { getCurrentStoreRouteStyle, getProductPath, getStorePath } from '../../shared/tenantRoutes';
 import { AlertCircle, CheckCircle2, Clock3, X } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
+import { getAppPathname, withBasePath } from '../../shared/basePath';
 
 const getProductSlugFromLocation = () => {
-  const [, first, second, third, fourth] = window.location.pathname.split('/');
+  const [, first, second, third, fourth] = getAppPathname().split('/');
   if (first === 'loja' && third === 'produto' && fourth) return decodeURIComponent(fourth);
   if (first && second === 'store' && third === 'produto' && fourth) return decodeURIComponent(fourth);
   return '';
@@ -190,7 +191,7 @@ export const StoreApp: React.FC = () => {
   }, [activeTenant, tenantSettings, selectedProduct]);
 
   const openAdmin = () => {
-    window.history.pushState({}, '', '/admin');
+    window.history.pushState({}, '', withBasePath('/admin'));
     window.dispatchEvent(new PopStateEvent('popstate'));
   };
 
@@ -203,7 +204,7 @@ export const StoreApp: React.FC = () => {
 
   const closeProduct = () => {
     setSelectedProduct(null);
-    if (activeTenant?.slug && window.location.pathname.includes('/produto/')) {
+    if (activeTenant?.slug && getAppPathname().includes('/produto/')) {
       window.history.pushState({}, '', getStorePath(activeTenant.slug, getCurrentStoreRouteStyle()));
     }
   };

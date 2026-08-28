@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Lock, Mail, User as UserIcon, ArrowRight, AlertCircle, Layers, Chrome } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
+import { getAppReturnTo, withBasePath } from '../shared/basePath';
 
 interface RegisterModalProps {
   isOpen: boolean;
@@ -36,7 +37,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
       if (accountType === 'seller') {
         await registerSeller(name, email, password, storeName);
         onClose();
-        window.history.pushState({}, '', '/admin');
+        window.history.pushState({}, '', withBasePath('/admin'));
         window.dispatchEvent(new PopStateEvent('popstate'));
         return;
       }
@@ -63,7 +64,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
       const { auth_url } = await api.startGoogleOAuth(scope, {
         tenantId,
         storeName: accountType === 'seller' ? storeName : undefined,
-        returnTo: accountType === 'seller' ? '/admin' : window.location.pathname + window.location.search,
+        returnTo: accountType === 'seller' ? '/admin' : getAppReturnTo(),
       });
       window.location.href = auth_url;
     } catch (err: any) {

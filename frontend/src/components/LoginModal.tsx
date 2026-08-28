@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { X, Lock, Mail, ArrowRight, AlertCircle, Layers, Chrome } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { ADMIN_TOKEN_KEY, api } from '../services/api';
+import { getAppReturnTo, withBasePath } from '../shared/basePath';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -54,7 +55,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   if (!isOpen) return null;
 
   const goToAdmin = () => {
-    window.history.pushState({}, '', '/admin');
+    window.history.pushState({}, '', withBasePath('/admin'));
     window.dispatchEvent(new PopStateEvent('popstate'));
   };
 
@@ -92,7 +93,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     setError(null);
     try {
       const scope = accountType === 'seller' ? 'admin' : googleScope;
-      const returnTo = scope === 'admin' ? '/admin' : window.location.pathname + window.location.search;
+      const returnTo = scope === 'admin' ? '/admin' : getAppReturnTo();
       const { auth_url } = await api.startGoogleOAuth(scope, { tenantId, returnTo });
       window.location.href = auth_url;
     } catch (err: any) {

@@ -4,11 +4,12 @@ import { CartProvider } from './context/CartContext';
 import { AdminApp } from './apps/admin/AdminApp';
 import { StoreApp } from './apps/store/StoreApp';
 import { ADMIN_TOKEN_KEY, CUSTOMER_TOKEN_KEY } from './services/api';
+import { getAppPathname, withBasePath } from './shared/basePath';
 
-const getCurrentApp = () => (window.location.pathname.startsWith('/admin') ? 'admin' : 'store');
+const getCurrentApp = () => (getAppPathname().startsWith('/admin') ? 'admin' : 'store');
 
 const consumeGoogleCallback = () => {
-  if (!window.location.pathname.startsWith('/auth/google/callback')) return;
+  if (!getAppPathname().startsWith('/auth/google/callback')) return;
 
   const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
   const token = params.get('token');
@@ -22,7 +23,7 @@ const consumeGoogleCallback = () => {
     sessionStorage.setItem('az3d_auth_error', error);
   }
 
-  window.history.replaceState({}, '', returnTo);
+  window.history.replaceState({}, '', withBasePath(returnTo));
 };
 
 export function App() {

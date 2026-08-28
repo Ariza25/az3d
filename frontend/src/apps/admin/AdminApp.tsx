@@ -4,9 +4,10 @@ import { AdminModal } from '../../components/AdminModal';
 import { LoginModal } from '../../components/LoginModal';
 import { useAuth } from '../../context/AuthContext';
 import { useTenantCatalog } from '../../shared/hooks/useTenantCatalog';
+import { withBasePath } from '../../shared/basePath';
 
 const goToStore = () => {
-  window.history.pushState({}, '', '/');
+  window.history.pushState({}, '', withBasePath('/'));
   window.dispatchEvent(new PopStateEvent('popstate'));
 };
 

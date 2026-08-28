@@ -1,5 +1,7 @@
-export const getTenantSlugFromPath = (pathname = window.location.pathname) => {
-  const [, first, second] = pathname.split('/');
+import { getAppPathname, stripBasePath, withBasePath } from './basePath';
+
+export const getTenantSlugFromPath = (pathname = getAppPathname()) => {
+  const [, first, second] = stripBasePath(pathname).split('/');
   if (first === 'loja' && second) return decodeURIComponent(second);
   if (first && second === 'store') return decodeURIComponent(first);
   return '';
@@ -7,7 +9,7 @@ export const getTenantSlugFromPath = (pathname = window.location.pathname) => {
 
 export const getStorePath = (tenantSlug: string, style: 'loja' | 'store' = 'store') => {
   const slug = encodeURIComponent(tenantSlug);
-  return style === 'loja' ? `/loja/${slug}` : `/${slug}/store`;
+  return withBasePath(style === 'loja' ? `/loja/${slug}` : `/${slug}/store`);
 };
 
 export const getProductPath = (tenantSlug: string, productSlug: string | number, style: 'loja' | 'store' = 'store') => {
@@ -15,8 +17,8 @@ export const getProductPath = (tenantSlug: string, productSlug: string | number,
   return `${base}/produto/${encodeURIComponent(String(productSlug))}`;
 };
 
-export const getCurrentStoreRouteStyle = (pathname = window.location.pathname): 'loja' | 'store' => (
-  pathname.startsWith('/loja/') ? 'loja' : 'store'
+export const getCurrentStoreRouteStyle = (pathname = getAppPathname()): 'loja' | 'store' => (
+  stripBasePath(pathname).startsWith('/loja/') ? 'loja' : 'store'
 );
 
-export const isStoreTenantPath = (pathname = window.location.pathname) => Boolean(getTenantSlugFromPath(pathname));
+export const isStoreTenantPath = (pathname = getAppPathname()) => Boolean(getTenantSlugFromPath(pathname));

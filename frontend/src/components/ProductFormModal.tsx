@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Product, Category, ProductInput, TenantSettings } from '../types';
 import { X, Layers, Save, PackagePlus, AlertCircle, Calculator, DollarSign, Zap, Plus, Trash2, Loader2 } from 'lucide-react';
-import { api } from '../services/api';
+import { api, resolveApiAssetUrl } from '../services/api';
 import {
   DEFAULT_PRINTING_PRICING,
   PrintingPricingInput,
@@ -259,7 +259,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   const handleUploadImage = async (file: File, onUrl: (url: string) => void) => {
     try {
       const result = await api.uploadProductImage(file);
-      onUrl(`http://localhost:8080${result.url}`);
+      onUrl(resolveApiAssetUrl(result.url));
     } catch (err: any) {
       setError(err.message || 'Erro ao enviar imagem');
     }
