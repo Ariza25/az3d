@@ -52,6 +52,8 @@ Principais variaveis:
 PORT=8080
 ENV=development
 
+DATABASE_URL=
+DATABASE_REQUIRED=true
 DB_HOST=localhost
 DB_USER=postgres
 DB_PASSWORD=postgres
@@ -86,6 +88,7 @@ TRACKING_SYNC_INTERVAL_MINUTES=0
 
 Para producao, defina:
 
+- `DATABASE_URL` com a connection string PostgreSQL do Neon. Use `DATABASE_REQUIRED=false` apenas para publicar o container antes de conectar o banco.
 - `JWT_SECRET` com 32+ caracteres.
 - `REQUIRE_STRONG_SECRETS=true`.
 - `CREDENTIAL_ENCRYPTION_KEY` com 32+ caracteres para criptografar credenciais por tenant.

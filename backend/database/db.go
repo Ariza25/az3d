@@ -19,20 +19,28 @@ func InitDB(cfg *config.Config) *gorm.DB {
 	var db *gorm.DB
 	var err error
 
-	// 1. DSN do PostgreSQL para a base de dados do projeto
-	dsn := fmt.Sprintf(
-		"host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=UTC",
-		cfg.DBHost, cfg.DBUser, cfg.DBPassword, cfg.DBName, cfg.DBPort, cfg.DBSSLMode,
-	)
+	// 1. DATABASE_URL e o formato preferencial para provedores gerenciados como Neon.
+	// As variaveis DB_* continuam disponiveis para desenvolvimento local e Docker Compose.
+	dsn := cfg.DatabaseURL
+	if dsn == "" {
+		dsn = fmt.Sprintf(
+			"host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=UTC",
+			cfg.DBHost, cfg.DBUser, cfg.DBPassword, cfg.DBName, cfg.DBPort, cfg.DBSSLMode,
+		)
+	}
 
-	log.Printf("Conectando ao banco de dados PostgreSQL (%s:%s/%s)...", cfg.DBHost, cfg.DBPort, cfg.DBName)
+	if cfg.DatabaseURL != "" {
+		log.Println("Conectando ao banco de dados PostgreSQL via DATABASE_URL...")
+	} else {
+		log.Printf("Conectando ao banco de dados PostgreSQL (%s:%s/%s)...", cfg.DBHost, cfg.DBPort, cfg.DBName)
+	}
 	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{
 		Logger:                                   logger.Default.LogMode(logger.Warn),
 		DisableForeignKeyConstraintWhenMigrating: true,
 	})
 
 	// 2. Se o banco 'az3d_db' ainda não existir, tenta conectar ao banco padrão 'postgres' para criá-lo automaticamente
-	if err != nil {
+	if err != nil && cfg.DatabaseURL == "" {
 		log.Printf("Tentando verificar/criar o banco de dados '%s' no PostgreSQL...", cfg.DBName)
 		dsnRoot := fmt.Sprintf(
 			"host=%s user=%s password=%s dbname=postgres port=%s sslmode=%s TimeZone=UTC",

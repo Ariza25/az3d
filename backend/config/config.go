@@ -12,6 +12,8 @@ import (
 type Config struct {
 	Port                    string
 	Env                     string
+	DatabaseURL             string
+	DatabaseRequired        bool
 	DBHost                  string
 	DBUser                  string
 	DBPassword              string
@@ -44,16 +46,18 @@ func LoadConfig() *Config {
 	}
 
 	cfg := &Config{
-		Port:        getEnv("PORT", "8080"),
-		Env:         getEnv("ENV", "development"),
-		DBHost:      getEnv("DB_HOST", "localhost"),
-		DBUser:      getEnv("DB_USER", "postgres"),
-		DBPassword:  getEnv("DB_PASSWORD", "postgres"),
-		DBName:      getEnv("DB_NAME", "az3d_db"),
-		DBPort:      getEnv("DB_PORT", "5432"),
-		DBSSLMode:   getEnv("DB_SSLMODE", "disable"),
-		JWTSecret:   getEnv("JWT_SECRET", "az3d_default_jwt_secret_key"),
-		JWTTTLHours: getEnvInt("JWT_TTL_HOURS", 168),
+		Port:             getEnv("PORT", "8080"),
+		Env:              getEnv("ENV", "development"),
+		DatabaseURL:      getEnv("DATABASE_URL", ""),
+		DatabaseRequired: getEnvBool("DATABASE_REQUIRED", true),
+		DBHost:           getEnv("DB_HOST", "localhost"),
+		DBUser:           getEnv("DB_USER", "postgres"),
+		DBPassword:       getEnv("DB_PASSWORD", "postgres"),
+		DBName:           getEnv("DB_NAME", "az3d_db"),
+		DBPort:           getEnv("DB_PORT", "5432"),
+		DBSSLMode:        getEnv("DB_SSLMODE", "disable"),
+		JWTSecret:        getEnv("JWT_SECRET", "az3d_default_jwt_secret_key"),
+		JWTTTLHours:      getEnvInt("JWT_TTL_HOURS", 168),
 		CORSOrigins: getEnvList("CORS_ALLOWED_ORIGINS", []string{
 			"http://localhost:3000",
 			"http://localhost:5173",

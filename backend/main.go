@@ -17,7 +17,11 @@ import (
 func main() {
 	cfg := config.LoadConfig()
 
-	database.InitDB(cfg)
+	if cfg.DatabaseURL != "" || cfg.DatabaseRequired {
+		database.InitDB(cfg)
+	} else {
+		log.Println("Aviso: backend iniciado sem banco; defina DATABASE_URL para conectar o Neon")
+	}
 
 	if cfg.Env == "production" {
 		gin.SetMode(gin.ReleaseMode)
