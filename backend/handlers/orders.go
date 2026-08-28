@@ -392,7 +392,7 @@ func createMercadoPagoPreference(ctx context.Context, order models.Order) (*merc
 	frontendBaseURL := strings.TrimRight(getEnv("FRONTEND_BASE_URL", "http://localhost:5173"), "/")
 	apiPublicBaseURL := strings.TrimRight(getEnv("API_PUBLIC_BASE_URL", "http://localhost:8080"), "/")
 	mpBaseURL := strings.TrimRight(getEnv("MERCADO_PAGO_API_BASE_URL", "https://api.mercadopago.com"), "/")
-	storePath := fmt.Sprintf("%s/loja/%s", frontendBaseURL, url.PathEscape(tenant.Slug))
+	storePath := fmt.Sprintf("%s/%s/store", frontendBaseURL, url.PathEscape(tenant.Slug))
 	orderID := strconv.FormatUint(uint64(order.ID), 10)
 
 	requestPayload := mercadoPagoPreferenceRequest{

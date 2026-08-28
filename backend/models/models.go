@@ -1,7 +1,12 @@
 package models
 
 import (
+	"encoding/json"
+	"os"
+	"strings"
 	"time"
+
+	"az3d-backend/utils"
 
 	"gorm.io/gorm"
 )
@@ -789,27 +794,89 @@ type MarketplaceProductMapping struct {
 }
 
 type MarketplaceAccount struct {
-	ID             uint       `gorm:"primaryKey" json:"id"`
-	TenantID       uint       `gorm:"not null;index;uniqueIndex:idx_marketplace_account_tenant_provider" json:"tenant_id"`
-	Tenant         *Tenant    `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
-	Provider       string     `gorm:"size:50;not null;uniqueIndex:idx_marketplace_account_tenant_provider" json:"provider"`
-	AccountName    string     `gorm:"size:150" json:"account_name"`
-	SellerID       string     `gorm:"size:120" json:"seller_id"`
-	ShopID         string     `gorm:"size:120" json:"shop_id"`
-	Marketplace    string     `gorm:"size:40" json:"marketplace"`
-	AccessToken    string     `gorm:"type:text" json:"-"`
-	RefreshToken   string     `gorm:"type:text" json:"-"`
-	AuthCode       string     `gorm:"type:text" json:"-"`
-	TokenExpiresAt *time.Time `json:"token_expires_at,omitempty"`
-	IsActive       bool       `gorm:"default:true" json:"is_active"`
-	IsConnected    bool       `gorm:"default:false" json:"is_connected"`
-	SyncOrders     bool       `gorm:"default:true" json:"sync_orders"`
-	SyncStock      bool       `gorm:"default:true" json:"sync_stock"`
-	SyncStatus     string     `gorm:"size:30;default:'pending_credentials'" json:"sync_status"`
-	LastSyncAt     *time.Time `json:"last_sync_at,omitempty"`
-	LastError      string     `gorm:"type:text" json:"last_error"`
-	CreatedAt      time.Time  `json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
+	ID                   uint       `gorm:"primaryKey" json:"id"`
+	TenantID             uint       `gorm:"not null;index;uniqueIndex:idx_marketplace_account_tenant_provider" json:"tenant_id"`
+	Tenant               *Tenant    `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+	Provider             string     `gorm:"size:50;not null;uniqueIndex:idx_marketplace_account_tenant_provider" json:"provider"`
+	AccountName          string     `gorm:"size:150" json:"account_name"`
+	SellerID             string     `gorm:"size:120" json:"seller_id"`
+	ShopID               string     `gorm:"size:120" json:"shop_id"`
+	Marketplace          string     `gorm:"size:40" json:"marketplace"`
+	AccessToken          string     `gorm:"type:text" json:"-"`
+	RefreshToken         string     `gorm:"type:text" json:"-"`
+	AuthCode             string     `gorm:"type:text" json:"-"`
+	EncryptedCredentials string     `gorm:"type:text" json:"-"`
+	TokenExpiresAt       *time.Time `json:"token_expires_at,omitempty"`
+	IsActive             bool       `gorm:"default:true" json:"is_active"`
+	IsConnected          bool       `gorm:"default:false" json:"is_connected"`
+	SyncOrders           bool       `gorm:"default:true" json:"sync_orders"`
+	SyncStock            bool       `gorm:"default:true" json:"sync_stock"`
+	SyncStatus           string     `gorm:"size:30;default:'pending_credentials'" json:"sync_status"`
+	LastSyncAt           *time.Time `json:"last_sync_at,omitempty"`
+	LastError            string     `gorm:"type:text" json:"last_error"`
+	CreatedAt            time.Time  `json:"created_at"`
+	UpdatedAt            time.Time  `json:"updated_at"`
+}
+
+type marketplaceAccountCredentials struct {
+	AccessToken  string `json:"access_token,omitempty"`
+	RefreshToken string `json:"refresh_token,omitempty"`
+	AuthCode     string `json:"auth_code,omitempty"`
+}
+
+func marketplaceCredentialSecret() string {
+	return strings.TrimSpace(os.Getenv("CREDENTIAL_ENCRYPTION_KEY"))
+}
+
+func (account *MarketplaceAccount) AfterFind(tx *gorm.DB) error {
+	secret := marketplaceCredentialSecret()
+	if secret == "" || strings.TrimSpace(account.EncryptedCredentials) == "" {
+		return nil
+	}
+
+	decrypted, err := utils.DecryptString(account.EncryptedCredentials, secret)
+	if err != nil {
+		return nil
+	}
+
+	var credentials marketplaceAccountCredentials
+	if err := json.Unmarshal([]byte(decrypted), &credentials); err != nil {
+		return nil
+	}
+	account.AccessToken = credentials.AccessToken
+	account.RefreshToken = credentials.RefreshToken
+	account.AuthCode = credentials.AuthCode
+	return nil
+}
+
+func (account *MarketplaceAccount) BeforeSave(tx *gorm.DB) error {
+	secret := marketplaceCredentialSecret()
+	if secret == "" {
+		return nil
+	}
+
+	credentials := marketplaceAccountCredentials{
+		AccessToken:  strings.TrimSpace(account.AccessToken),
+		RefreshToken: strings.TrimSpace(account.RefreshToken),
+		AuthCode:     strings.TrimSpace(account.AuthCode),
+	}
+	if credentials.AccessToken == "" && credentials.RefreshToken == "" && credentials.AuthCode == "" {
+		return nil
+	}
+
+	raw, err := json.Marshal(credentials)
+	if err != nil {
+		return err
+	}
+	encrypted, err := utils.EncryptString(string(raw), secret)
+	if err != nil {
+		return err
+	}
+	account.EncryptedCredentials = encrypted
+	account.AccessToken = ""
+	account.RefreshToken = ""
+	account.AuthCode = ""
+	return nil
 }
 
 type ExternalMarketplaceOrder struct {

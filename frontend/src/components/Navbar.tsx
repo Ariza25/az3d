@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShoppingBag, LogOut, Search, Layers, ChevronDown, Store, ShieldAlert, Heart, ReceiptText } from 'lucide-react';
+import { ShoppingBag, LogOut, Search, Layers, ChevronDown, ShieldAlert, Heart, ReceiptText } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { Tenant, TenantSettings } from '../types';
@@ -10,8 +10,6 @@ interface NavbarProps {
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   activeTenant: Tenant | null;
-  tenants: Tenant[];
-  onSelectTenant: (tenant: Tenant) => void;
   onOpenAdmin: () => void;
   onOpenFavorites: () => void;
   tenantSettings?: TenantSettings | null;
@@ -23,8 +21,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   searchQuery,
   setSearchQuery,
   activeTenant,
-  tenants,
-  onSelectTenant,
   onOpenAdmin,
   onOpenFavorites,
   tenantSettings,
@@ -41,7 +37,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           
-          {/* Logo AZ3D & Seletor Multi-Tenant */}
+          {/* Identidade da loja */}
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-3 cursor-pointer group">
               {logoUrl ? (
@@ -60,27 +56,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </span>
               </div>
             </div>
-
-            {/* Seletor de Loja/Tenant na Navbar */}
-            {tenants.length > 0 && (
-              <div className="hidden lg:flex items-center bg-chumbo-900 border border-chumbo-750 rounded-xl px-2.5 py-1 space-x-1.5 text-xs text-slate-300">
-                <Store className="w-3.5 h-3.5 text-laser-400" />
-                <select
-                  value={activeTenant?.id || 1}
-                  onChange={(e) => {
-                    const t = tenants.find((item) => item.id === parseInt(e.target.value));
-                    if (t) onSelectTenant(t);
-                  }}
-                  className="bg-transparent text-white font-mono focus:outline-none cursor-pointer pr-1"
-                >
-                  {tenants.map((t) => (
-                    <option key={t.id} value={t.id} className="bg-chumbo-950 text-white">
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
           </div>
 
           {/* Search Bar Minimalista */}

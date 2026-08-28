@@ -154,7 +154,6 @@ func main() {
 			admin.POST("/marketplaces/sync-orders", marketplaceHandler.SyncMarketplaceOrders)
 			admin.GET("/marketplaces/external-orders", marketplaceHandler.GetExternalOrders)
 			admin.GET("/marketplaces/webhook-events", marketplaceHandler.GetMarketplaceWebhookEvents)
-			admin.POST("/marketplaces/simulate-order", marketplaceHandler.SimulateMarketplaceOrder)
 
 			admin.GET("/carrier-accounts", carrierHandler.GetCarrierAccounts)
 			admin.POST("/carrier-accounts", carrierHandler.SaveCarrierAccount)

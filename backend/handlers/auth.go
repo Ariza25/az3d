@@ -279,7 +279,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 // POST /api/auth/customer/login
 func (h *AuthHandler) CustomerLogin(c *gin.Context) {
-	h.loginWithAllowedRoles(c, map[string]bool{"customer": true}, "Use uma conta de cliente para entrar na loja")
+	h.loginWithAllowedRoles(c, map[string]bool{"customer": true}, "Essa conta e administrativa. Acesse /admin para entrar no painel")
 }
 
 // POST /api/auth/admin/login

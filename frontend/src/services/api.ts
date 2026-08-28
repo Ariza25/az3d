@@ -881,17 +881,5 @@ export const api = {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Erro ao sincronizar produto com o marketplace');
     return data;
-  },
-
-  simulateMarketplaceOrder: async (provider: string, tenantId?: number): Promise<{ message: string; order: Order }> => {
-    const res = await fetch(`${API_BASE_URL}/admin/marketplaces/simulate-order`, {
-      method: 'POST',
-      headers: getAdminHeaders(tenantId),
-      body: JSON.stringify({ provider }),
-    });
-
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Erro ao simular pedido de marketplace');
-    return data;
   }
 };

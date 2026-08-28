@@ -100,10 +100,11 @@ export const AdminApp: React.FC = () => {
           subtitle="Login exclusivo para lojistas e operadores do tenant"
           submitLabel="Entrar no Admin"
           loadingLabel="Validando admin..."
-          defaultEmail="admin"
-          defaultPassword="Admin@123"
+          defaultEmail="teste@gmail.com"
+          defaultPassword="Teste@123"
           showRegisterLink={false}
           googleScope="admin"
+          initialAccountType="seller"
         />
       </div>
     );

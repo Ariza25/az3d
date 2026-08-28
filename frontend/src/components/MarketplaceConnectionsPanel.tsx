@@ -47,6 +47,11 @@ const providerFromOAuthState = (state: string) => {
   return match?.[1]?.replace('mercado_livre', 'mercadolivre') || '';
 };
 
+const marketplaceRedirectUri = (provider: string) => {
+  const base = `${window.location.origin}/admin/marketplaces/callback`;
+  return provider === 'shopee' ? `${base}?provider=shopee` : base;
+};
+
 interface MarketplaceConnectionsPanelProps {
   tenantId?: number;
   products: Product[];
@@ -144,7 +149,7 @@ export const MarketplaceConnectionsPanel: React.FC<MarketplaceConnectionsPanelPr
           state,
           shop_id: params.get('shop_id') || params.get('shop_id_list') || '',
           seller_id: params.get('seller_id') || '',
-          redirect_uri: `${window.location.origin}/admin/marketplaces/callback`,
+          redirect_uri: marketplaceRedirectUri(provider),
         },
         tenantId
       )
@@ -231,7 +236,7 @@ export const MarketplaceConnectionsPanel: React.FC<MarketplaceConnectionsPanelPr
     if (!tenantId) return;
     setLoadingProvider(provider);
     try {
-      const redirectUri = `${window.location.origin}/admin/marketplaces/callback`;
+      const redirectUri = marketplaceRedirectUri(provider);
       const response = await api.startMarketplaceOAuth(provider, redirectUri, tenantId);
       if (response.missing_config.length) {
         onMessage({ type: 'error', text: `Configure: ${response.missing_config.join(', ')}` });
@@ -255,7 +260,7 @@ export const MarketplaceConnectionsPanel: React.FC<MarketplaceConnectionsPanelPr
     }
     setLoadingProvider(provider);
     try {
-      const redirectUri = `${window.location.origin}/admin/marketplaces/callback`;
+      const redirectUri = marketplaceRedirectUri(provider);
       await api.completeMarketplaceOAuth({ provider, ...draft, redirect_uri: redirectUri }, tenantId);
       await loadData();
       onMessage({ type: 'success', text: 'OAuth processado.' });

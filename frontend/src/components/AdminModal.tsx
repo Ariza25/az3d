@@ -24,6 +24,11 @@ import { PricingCalculator } from './PricingCalculator';
 import { PricingManagementPanel } from './PricingManagementPanel';
 import { FinancePanel } from './FinancePanel';
 import { MarketplaceConnectionsPanel } from './MarketplaceConnectionsPanel';
+import { AdminDashboard } from '../features/admin/components/AdminDashboard';
+import { AdminMasterOverview } from '../features/admin/components/AdminMasterOverview';
+import { AdminObservability } from '../features/admin/components/AdminObservability';
+import { AdminInventory } from '../features/admin/components/AdminInventory';
+import { Button, SearchInput } from './ui';
 import {
   X,
   Package,
@@ -33,11 +38,9 @@ import {
   Tag,
   ShoppingBag,
   Store,
-  Search,
   ShoppingCart,
   ToggleLeft,
   ToggleRight,
-  Zap,
   RefreshCw,
   ExternalLink,
   Calculator,
@@ -48,7 +51,6 @@ import {
   ShieldCheck,
   Activity,
   Clock,
-  AlertTriangle,
 } from 'lucide-react';
 
 // Mapa de metadados visuais dos marketplaces
@@ -157,7 +159,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   // Estados para Marketplaces
   const [marketplaces, setMarketplaces] = useState<MarketplaceIntegration[]>([]);
   const [mappings, setMappings] = useState<MarketplaceProductMapping[]>([]);
-  const [simulatingProvider, setSimulatingProvider] = useState<string | null>(null);
   const [syncingProduct, setSyncingProduct] = useState<{ productId: number; provider: string } | null>(null);
   const [platformOverview, setPlatformOverview] = useState<PlatformOverview | null>(null);
   const [webhookLogs, setWebhookLogs] = useState<WebhookLogItem[]>([]);
@@ -293,20 +294,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       setMessage({ type: 'success', text: `Integração ${updated.is_active ? 'ativada' : 'desativada'} com sucesso!` });
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Erro ao alternar integração' });
-    }
-  };
-
-  const handleSimulateOrder = async (provider: string) => {
-    if (!activeTenant) return;
-    setSimulatingProvider(provider);
-    try {
-      const result = await api.simulateMarketplaceOrder(provider, activeTenant.id);
-      setMessage({ type: 'success', text: result.message });
-      loadTenantData();
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.message || 'Erro ao simular pedido' });
-    } finally {
-      setSimulatingProvider(null);
     }
   };
 
@@ -725,286 +712,38 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         }>
           
           {activeTab === 'dashboard' && (
-            <div className="space-y-5">
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/70 p-4">
-                  <span className="block text-[10px] font-mono uppercase text-slate-500">Faturamento</span>
-                  <strong className="mt-1 block text-xl text-white">R$ {dashboardRevenue.toFixed(2).replace('.', ',')}</strong>
-                </div>
-                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/70 p-4">
-                  <span className="block text-[10px] font-mono uppercase text-slate-500">Pedidos abertos</span>
-                  <strong className="mt-1 block text-xl text-white">{pendingOrders}</strong>
-                </div>
-                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/70 p-4">
-                  <span className="block text-[10px] font-mono uppercase text-slate-500">Produtos ativos</span>
-                  <strong className="mt-1 block text-xl text-white">{activeProducts}</strong>
-                </div>
-                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/70 p-4">
-                  <span className="block text-[10px] font-mono uppercase text-slate-500">Baixo estoque</span>
-                  <strong className="mt-1 block text-xl text-white">{lowStockProducts}</strong>
-                </div>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
-                  <h3 className="text-sm font-bold text-white">Pedidos recentes</h3>
-                  <div className="mt-3 space-y-2">
-                    {orders.slice(0, 5).map((order) => (
-                      <div key={order.id} className="flex items-center justify-between rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3 text-xs">
-                        <span className="font-mono text-slate-300">#{order.id} - {ORDER_STATUS_LABELS[order.status] || order.status}</span>
-                        <strong className="text-white">R$ {order.total_amount.toFixed(2).replace('.', ',')}</strong>
-                      </div>
-                    ))}
-                    {orders.length === 0 && <p className="text-xs text-slate-500">Nenhum pedido registrado.</p>}
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
-                  <h3 className="text-sm font-bold text-white">Produtos para revisar</h3>
-                  <div className="mt-3 space-y-2">
-                    {products.filter((product) => product.status !== 'active' || product.stock_qty <= 3).slice(0, 5).map((product) => (
-                      <div key={product.id} className="flex items-center justify-between rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3 text-xs">
-                        <span className="truncate text-slate-300">{product.title}</span>
-                        <span className="font-mono text-slate-500">{product.status} / {product.stock_qty} un</span>
-                      </div>
-                    ))}
-                    {products.every((product) => product.status === 'active' && product.stock_qty > 3) && <p className="text-xs text-slate-500">Sem alertas de produto.</p>}
-                  </div>
-                </div>
-              </div>
-            </div>
+            <AdminDashboard
+              orders={orders}
+              products={products}
+              revenue={dashboardRevenue}
+              pendingOrders={pendingOrders}
+              activeProducts={activeProducts}
+              lowStockProducts={lowStockProducts}
+              orderStatusLabels={ORDER_STATUS_LABELS}
+            />
           )}
 
           {activeTab === 'master' && isMasterAdmin && (
-            <div className="space-y-5">
-              <div>
-                <h3 className="text-sm font-bold text-white">Visao plataforma</h3>
-                <p className="text-xs text-slate-400">Operacao multi-tenant, integracoes e pontos de atencao globais.</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/70 p-4">
-                  <span className="block text-[10px] font-mono uppercase text-slate-500">Tenants</span>
-                  <strong className="mt-1 block text-xl text-white">{platformOverview?.tenants_count ?? tenants.length}</strong>
-                </div>
-                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/70 p-4">
-                  <span className="block text-[10px] font-mono uppercase text-slate-500">Pedidos abertos</span>
-                  <strong className="mt-1 block text-xl text-white">{platformOverview?.open_orders_count ?? pendingOrders}</strong>
-                </div>
-                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/70 p-4">
-                  <span className="block text-[10px] font-mono uppercase text-slate-500">Baixo estoque</span>
-                  <strong className="mt-1 block text-xl text-white">{platformOverview?.low_stock_count ?? lowStockItems.length}</strong>
-                </div>
-                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/70 p-4">
-                  <span className="block text-[10px] font-mono uppercase text-slate-500">Contas integradas</span>
-                  <strong className="mt-1 block text-xl text-white">
-                    {(platformOverview?.marketplace_accounts_count ?? marketplaces.length) + (platformOverview?.carrier_accounts_count ?? carrierAccounts.length)}
-                  </strong>
-                </div>
-              </div>
-
-              <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
-                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4 overflow-hidden">
-                  <div className="flex items-center justify-between gap-3">
-                    <h4 className="text-sm font-bold text-white">Tenants</h4>
-                    <span className="text-[10px] font-mono text-slate-500">produtos / pedidos / integracoes</span>
-                  </div>
-                  <div className="mt-3 overflow-x-auto">
-                    <table className="w-full min-w-[760px] text-left text-xs">
-                      <thead className="text-[10px] uppercase text-slate-500">
-                        <tr>
-                          <th className="py-2 pr-3">Loja</th>
-                          <th className="py-2 pr-3">Produtos</th>
-                          <th className="py-2 pr-3">Pedidos</th>
-                          <th className="py-2 pr-3">Estoque</th>
-                          <th className="py-2 pr-3">Marketplace</th>
-                          <th className="py-2 pr-3">Correios</th>
-                          <th className="py-2 pr-3">Ultima venda</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-chumbo-800 text-slate-300">
-                        {(platformOverview?.tenants || []).map((tenant) => {
-                          const tenantRef = tenants.find((item) => item.id === tenant.tenant_id);
-                          return (
-                            <tr key={tenant.tenant_id} className={activeTenant?.id === tenant.tenant_id ? 'bg-laser-500/5' : ''}>
-                              <td className="py-3 pr-3">
-                                <button onClick={() => tenantRef && onSelectTenant(tenantRef)} className="text-left">
-                                  <strong className="block text-white">{tenant.tenant_name}</strong>
-                                  <span className="font-mono text-slate-500">/{tenant.tenant_slug} - #{tenant.tenant_id}</span>
-                                </button>
-                              </td>
-                              <td className="py-3 pr-3 font-mono">{tenant.active_products_count}/{tenant.products_count}</td>
-                              <td className="py-3 pr-3 font-mono">{tenant.open_orders_count}/{tenant.orders_count}</td>
-                              <td className="py-3 pr-3">
-                                <span className={tenant.low_stock_count > 0 ? 'text-amber-300 font-bold' : 'text-emerald-300'}>{tenant.low_stock_count} alerta(s)</span>
-                              </td>
-                              <td className="py-3 pr-3">
-                                <span className={tenant.marketplace_errors_count > 0 ? 'text-rose-300' : 'text-slate-300'}>
-                                  {tenant.active_marketplace_count}/{tenant.marketplace_accounts}
-                                </span>
-                              </td>
-                              <td className="py-3 pr-3">
-                                <span className={tenant.carrier_errors_count > 0 ? 'text-rose-300' : 'text-slate-300'}>
-                                  {tenant.connected_carrier_count}/{tenant.carrier_accounts}
-                                </span>
-                              </td>
-                              <td className="py-3 pr-3 text-slate-500">
-                                {tenant.last_order_at ? new Date(tenant.last_order_at).toLocaleDateString('pt-BR') : '-'}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                        {!platformOverview && (
-                          <tr>
-                            <td className="py-6 text-center text-slate-500" colSpan={7}>Carregando visao de plataforma...</td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
-                  <h4 className="text-sm font-bold text-white">Status global</h4>
-                  <div className="mt-3 space-y-2 text-xs">
-                    <div className="flex items-center justify-between rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3">
-                      <span>Mercado Pago</span>
-                      <span className={platformOverview?.payment_gateway_configured ? 'text-emerald-300' : 'text-amber-300'}>
-                        {platformOverview?.payment_gateway_configured ? 'configurado' : 'pendente'}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3">
-                      <span>Webhook secreto</span>
-                      <span className={platformOverview?.webhook_secret_configured ? 'text-emerald-300' : 'text-amber-300'}>
-                        {platformOverview?.webhook_secret_configured ? 'ativo' : 'recomendado'}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3">
-                      <span>Erros de integracao</span>
-                      <span className={integrationProblems > 0 ? 'text-rose-300 font-bold' : 'text-emerald-300'}>{integrationProblems}</span>
-                    </div>
-                    <div className="rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3">
-                      <strong className="block text-white">Permissoes por tenant</strong>
-                      <span className="text-slate-500">Estrutura preparada para evoluir usuarios e perfis por loja.</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <AdminMasterOverview
+              activeTenant={activeTenant}
+              tenants={tenants}
+              platformOverview={platformOverview}
+              pendingOrders={pendingOrders}
+              lowStockCount={lowStockItems.length}
+              marketplaceAccountsCount={marketplaces.length}
+              carrierAccountsCount={carrierAccounts.length}
+              integrationProblems={integrationProblems}
+              onSelectTenant={onSelectTenant}
+            />
           )}
 
           {activeTab === 'observability' && (
-            <div className="space-y-5">
-              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <h3 className="text-sm font-bold text-white">Observabilidade</h3>
-                  <p className="text-xs text-slate-400">Healthcheck administrativo, webhooks recebidos e erros de integracao.</p>
-                </div>
-                <button
-                  onClick={loadTenantData}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-chumbo-700 bg-chumbo-950 px-3 py-2 text-xs font-bold text-slate-200 hover:border-laser-500/40"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  Atualizar
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/70 p-4">
-                  <span className="block text-[10px] font-mono uppercase text-slate-500">API</span>
-                  <strong className={observabilityHealth?.status === 'ok' ? 'mt-1 block text-xl text-emerald-300' : 'mt-1 block text-xl text-amber-300'}>
-                    {observabilityHealth?.status || '...'}
-                  </strong>
-                </div>
-                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/70 p-4">
-                  <span className="block text-[10px] font-mono uppercase text-slate-500">Banco</span>
-                  <strong className={observabilityHealth?.database === 'online' ? 'mt-1 block text-xl text-emerald-300' : 'mt-1 block text-xl text-rose-300'}>
-                    {observabilityHealth?.database || '...'}
-                  </strong>
-                </div>
-                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/70 p-4">
-                  <span className="block text-[10px] font-mono uppercase text-slate-500">Webhooks falhos 24h</span>
-                  <strong className="mt-1 block text-xl text-white">
-                    {(observabilityHealth?.failed_payment_webhooks_24h || 0) + (observabilityHealth?.failed_marketplace_webhooks_24h || 0)}
-                  </strong>
-                </div>
-                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/70 p-4">
-                  <span className="block text-[10px] font-mono uppercase text-slate-500">Erros integracao</span>
-                  <strong className="mt-1 block text-xl text-white">
-                    {(observabilityHealth?.marketplace_errors || 0) + (observabilityHealth?.carrier_errors || 0)}
-                  </strong>
-                </div>
-              </div>
-
-              <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <h4 className="text-sm font-bold text-white">Webhooks recentes</h4>
-                    <span className="text-[10px] font-mono text-slate-500">{webhookLogs.length} evento(s)</span>
-                  </div>
-                  <div className="mt-3 max-h-96 overflow-y-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead className="text-[10px] uppercase text-slate-500">
-                        <tr>
-                          <th className="py-2 pr-3">Origem</th>
-                          <th className="py-2 pr-3">Evento</th>
-                          <th className="py-2 pr-3">Status</th>
-                          <th className="py-2 pr-3">Recebido</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-chumbo-800 text-slate-300">
-                        {webhookLogs.map((event) => (
-                          <tr key={`${event.source}-${event.id}`}>
-                            <td className="py-3 pr-3">
-                              <strong className="block text-white">{event.provider}</strong>
-                              <span className="font-mono text-slate-500">tenant #{event.tenant_id || '-'}</span>
-                            </td>
-                            <td className="py-3 pr-3">
-                              <span className="block">{event.event_type || '-'}</span>
-                              <span className="font-mono text-slate-500">{event.external_id || '-'}</span>
-                              {event.error && <span className="mt-1 block text-rose-300">{event.error}</span>}
-                            </td>
-                            <td className="py-3 pr-3">
-                              <span className={event.status === 'failed' ? 'text-rose-300' : event.status === 'processed' ? 'text-emerald-300' : 'text-amber-300'}>
-                                {event.status}
-                              </span>
-                            </td>
-                            <td className="py-3 pr-3 text-slate-500">{new Date(event.received_at).toLocaleString('pt-BR')}</td>
-                          </tr>
-                        ))}
-                        {webhookLogs.length === 0 && (
-                          <tr>
-                            <td colSpan={4} className="py-8 text-center text-slate-500">Nenhum webhook recebido ainda.</td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
-                  <h4 className="text-sm font-bold text-white">Configuracoes criticas</h4>
-                  <div className="mt-3 space-y-2 text-xs">
-                    {[
-                      ['Mercado Pago token', observabilityHealth?.mercado_pago_configured],
-                      ['Mercado Pago webhook secret', observabilityHealth?.mercado_pago_webhook_secret],
-                      ['Correios API base', observabilityHealth?.correios_base_configured],
-                    ].map(([label, ok]) => (
-                      <div key={String(label)} className="flex items-center justify-between rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3">
-                        <span>{label}</span>
-                        <span className={ok ? 'text-emerald-300' : 'text-amber-300'}>{ok ? 'ok' : 'pendente'}</span>
-                      </div>
-                    ))}
-                    {carrierHealth.filter((item) => item.last_error).map((item) => (
-                      <div key={item.provider} className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3">
-                        <strong className="text-rose-200">{item.account_name || item.provider}</strong>
-                        <p className="mt-1 text-slate-400">{item.last_error}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
+            <AdminObservability
+              health={observabilityHealth}
+              webhookLogs={webhookLogs}
+              carrierHealth={carrierHealth}
+              onRefresh={loadTenantData}
+            />
           )}
 
           {/* TAB 1: PRODUTOS */}
@@ -1012,26 +751,24 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             <div className="space-y-4">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
                 <div className="relative w-full sm:w-72">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                  <input
-                    type="text"
+                  <SearchInput
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Buscar produto por nome ou material..."
-                    className="w-full bg-chumbo-950 border border-chumbo-800 rounded-xl pl-9 pr-4 py-2 text-xs text-white focus:outline-none focus:border-laser-400"
                   />
                 </div>
 
-                <button
+                <Button
+                  type="button"
+                  variant="primary"
+                  icon={<Plus className="w-4 h-4" />}
                   onClick={() => {
                     setEditingProduct(null);
                     setIsProductFormOpen(true);
                   }}
-                  className="flex items-center space-x-2 px-4 py-2 rounded-xl bg-white hover:bg-slate-200 text-chumbo-950 font-bold text-xs transition-all shadow-md active:scale-95"
                 >
-                  <Plus className="w-4 h-4" />
-                  <span>Novo Produto 3D</span>
-                </button>
+                  Novo Produto 3D
+                </Button>
               </div>
 
               {/* Tabela de Produtos */}
@@ -1351,149 +1088,18 @@ export const AdminModal: React.FC<AdminModalProps> = ({
           )}
 
           {activeTab === 'inventory' && (
-            <div className="space-y-5">
-              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <h3 className="text-sm font-bold text-white">Controle de estoque</h3>
-                  <p className="text-xs text-slate-400">Saldos atuais, alertas de reposicao e historico de movimentacoes.</p>
-                </div>
-                <span className="rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs font-mono text-slate-300">
-                  {lowStockItems.length} alerta(s) de baixo estoque
-                </span>
-              </div>
-
-              <form onSubmit={handleAdjustStock} className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
-                <h4 className="text-sm font-bold text-white">Ajuste rapido</h4>
-                <div className="mt-3 grid gap-3 md:grid-cols-[1.2fr_1fr_120px_1fr_auto]">
-                  <select
-                    value={stockAdjustment.product_id || stockAdjustmentProduct?.id || ''}
-                    onChange={(event) => {
-                      const productId = Number(event.target.value);
-                      const product = products.find((item) => item.id === productId);
-                      setStockAdjustment((prev) => ({
-                        ...prev,
-                        product_id: productId,
-                        color_name: product?.color_stocks?.[0]?.color_name || '',
-                        stock_qty: product?.color_stocks?.[0]?.stock_qty ?? product?.stock_qty ?? 0,
-                      }));
-                    }}
-                    className="rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
-                  >
-                    {products.map((product) => (
-                      <option key={product.id} value={product.id}>{product.title}</option>
-                    ))}
-                  </select>
-                  <select
-                    value={stockAdjustment.color_name}
-                    onChange={(event) => {
-                      const colorName = event.target.value;
-                      const stock = stockAdjustmentProduct?.color_stocks?.find((item) => item.color_name === colorName);
-                      setStockAdjustment((prev) => ({ ...prev, color_name: colorName, stock_qty: stock?.stock_qty ?? stockAdjustmentProduct?.stock_qty ?? 0 }));
-                    }}
-                    className="rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
-                  >
-                    <option value="">Estoque geral</option>
-                    {stockAdjustmentProduct?.color_stocks?.map((stock) => (
-                      <option key={stock.color_name} value={stock.color_name}>{stock.color_name}</option>
-                    ))}
-                  </select>
-                  <input
-                    type="number"
-                    min={0}
-                    value={stockAdjustment.stock_qty}
-                    onChange={(event) => setStockAdjustment((prev) => ({ ...prev, stock_qty: Number(event.target.value) || 0 }))}
-                    className="rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
-                  />
-                  <input
-                    value={stockAdjustment.reason}
-                    onChange={(event) => setStockAdjustment((prev) => ({ ...prev, reason: event.target.value }))}
-                    placeholder="Motivo"
-                    className="rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
-                  />
-                  <button type="submit" className="rounded-xl bg-white px-4 py-2 text-xs font-bold text-chumbo-950 hover:bg-slate-200">
-                    Ajustar
-                  </button>
-                </div>
-              </form>
-
-              <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
-                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <h4 className="text-sm font-bold text-white">Alertas</h4>
-                    <AlertTriangle className={lowStockItems.length ? 'h-4 w-4 text-amber-300' : 'h-4 w-4 text-slate-600'} />
-                  </div>
-                  <div className="mt-3 space-y-2">
-                    {lowStockItems.map(({ product, color, qty, severity, alert }) => (
-                      <div
-                        key={`${product.id}-${color || 'base'}`}
-                        className={`flex items-center justify-between gap-3 rounded-xl border p-3 text-xs ${
-                          severity === 'out' ? 'border-rose-500/30 bg-rose-500/10' : 'border-amber-500/20 bg-amber-500/10'
-                        }`}
-                      >
-                        <div className="min-w-0">
-                          <strong className="block truncate text-white">{product.title}</strong>
-                          <span className="text-slate-400">{color || 'Estoque geral'} - SKU {product.sku || '-'}</span>
-                        </div>
-                        <div className="flex shrink-0 items-center gap-2">
-                          <span className={severity === 'out' ? 'rounded-lg bg-rose-400 px-2 py-1 font-mono font-bold text-chumbo-950' : 'rounded-lg bg-amber-400 px-2 py-1 font-mono font-bold text-chumbo-950'}>
-                            {qty} un
-                          </span>
-                          {alert && (
-                            <button
-                              type="button"
-                              onClick={() => handlePrepareRestock(alert)}
-                              className="rounded-lg border border-chumbo-700 bg-chumbo-950 px-2 py-1 font-bold text-slate-200 hover:border-laser-500/40"
-                            >
-                              Repor
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                    {lowStockItems.length === 0 && (
-                      <p className="py-6 text-center text-xs text-slate-500">Nenhum produto abaixo do limite de alerta.</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <h4 className="text-sm font-bold text-white">Ultimas movimentacoes</h4>
-                    <select
-                      value={stockMovementProductId}
-                      onChange={(event) => setStockMovementProductId(event.target.value ? Number(event.target.value) : '')}
-                      className="rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
-                    >
-                      <option value="">Todos os produtos</option>
-                      {products.map((product) => (
-                        <option key={product.id} value={product.id}>{product.title}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="mt-3 max-h-80 space-y-2 overflow-y-auto">
-                    {filteredStockMovements.map((movement) => (
-                      <div key={movement.id} className="rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3 text-xs">
-                        <div className="flex items-center justify-between gap-3">
-                          <strong className="min-w-0 truncate text-white">{movement.product?.title || `Produto #${movement.product_id}`}</strong>
-                          <span className={movement.quantity_delta < 0 ? 'font-mono font-bold text-rose-300' : 'font-mono font-bold text-emerald-300'}>
-                            {movement.quantity_delta > 0 ? '+' : ''}{movement.quantity_delta}
-                          </span>
-                        </div>
-                        <div className="mt-1 flex flex-wrap gap-2 text-slate-400">
-                          <span>{movement.color_name || 'geral'}</span>
-                          <span>saldo {movement.quantity_after}</span>
-                          <span>{new Date(movement.created_at).toLocaleString('pt-BR')}</span>
-                        </div>
-                        {movement.reason && <p className="mt-1 text-slate-500">{movement.reason}</p>}
-                      </div>
-                    ))}
-                    {filteredStockMovements.length === 0 && (
-                      <p className="py-6 text-center text-xs text-slate-500">Nenhuma movimentacao registrada ainda.</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
+            <AdminInventory
+              products={products}
+              lowStockItems={lowStockItems}
+              stockAdjustment={stockAdjustment}
+              stockAdjustmentProduct={stockAdjustmentProduct}
+              stockMovementProductId={stockMovementProductId}
+              filteredStockMovements={filteredStockMovements}
+              onStockAdjustmentChange={setStockAdjustment}
+              onStockMovementProductChange={setStockMovementProductId}
+              onAdjustStock={handleAdjustStock}
+              onPrepareRestock={handlePrepareRestock}
+            />
           )}
 
           {/* TAB 4: PRECIFICACAO */}
@@ -1840,7 +1446,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                   const meta = MARKETPLACE_META[provider];
                   const integration = marketplaces.find((m) => m.provider === provider);
                   const isActive = integration?.is_active ?? false;
-                  const isSimulating = simulatingProvider === provider;
 
                   return (
                     <div key={provider} className={`rounded-2xl border p-5 space-y-4 transition-all ${isActive ? `${meta.bg} ${meta.border}` : 'bg-chumbo-950/60 border-chumbo-800'}`}>
@@ -1896,22 +1501,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         </div>
                       )}
 
-                      {/* Botao de teste manual */}
-                      <button
-                        onClick={() => handleSimulateOrder(provider)}
-                        disabled={isSimulating || !isActive}
-                        className={`w-full py-2 rounded-xl text-xs font-bold flex items-center justify-center space-x-1.5 transition-all ${
-                          isActive
-                            ? `${meta.bg} ${meta.color} border ${meta.border} hover:opacity-80 active:scale-95`
-                            : 'bg-chumbo-900 text-slate-600 cursor-not-allowed border border-chumbo-800'
-                        }`}
-                      >
-                        {isSimulating ? (
-                          <><RefreshCw className="w-3.5 h-3.5 animate-spin" /><span>Testando...</span></>
-                        ) : (
-                          <><Zap className="w-3.5 h-3.5" /><span>Testar entrada de pedido</span></>
-                        )}
-                      </button>
                     </div>
                   );
                 })}

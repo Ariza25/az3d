@@ -1,16 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Category, Product, Tenant } from '../../types';
 import { api } from '../../services/api';
+import { getStorePath, getTenantSlugFromPath, isStoreTenantPath } from '../tenantRoutes';
 
 interface UseTenantCatalogOptions {
   lockedTenantId?: number;
 }
-
-const getTenantSlugFromLocation = () => {
-  const [, first, second] = window.location.pathname.split('/');
-  if (first === 'loja' && second) return decodeURIComponent(second);
-  return '';
-};
 
 const getHostTenantIdentifier = () => {
   const hostname = window.location.hostname.toLowerCase();
@@ -37,7 +32,7 @@ export const useTenantCatalog = (options: UseTenantCatalogOptions = {}) => {
           : list;
         setTenants(visibleTenants);
         if (visibleTenants.length > 0) {
-          const pathSlug = getTenantSlugFromLocation();
+          const pathSlug = getTenantSlugFromPath();
           const hostIdentifier = getHostTenantIdentifier();
           const storedId = localStorage.getItem('az3d_tenant_id');
           const fromPath = pathSlug
@@ -53,6 +48,9 @@ export const useTenantCatalog = (options: UseTenantCatalogOptions = {}) => {
           setActiveTenant(initial);
           localStorage.setItem('az3d_tenant_id', String(initial.id));
           window.dispatchEvent(new CustomEvent('az3d:tenant-changed', { detail: { tenantId: initial.id } }));
+          if (!lockedTenantId && !isStoreTenantPath() && window.location.pathname === '/') {
+            window.history.replaceState({}, '', getStorePath(initial.slug));
+          }
         }
       } catch (err) {
         console.error('Erro ao carregar lista de tenants:', err);
@@ -68,8 +66,8 @@ export const useTenantCatalog = (options: UseTenantCatalogOptions = {}) => {
     localStorage.setItem('az3d_tenant_id', String(tenant.id));
     window.dispatchEvent(new CustomEvent('az3d:tenant-changed', { detail: { tenantId: tenant.id } }));
     setActiveCategory('todas');
-    if (window.location.pathname.startsWith('/loja/')) {
-      window.history.pushState({}, '', `/loja/${tenant.slug}`);
+    if (isStoreTenantPath() || window.location.pathname === '/') {
+      window.history.pushState({}, '', getStorePath(tenant.slug));
     }
   }, [lockedTenantId]);
 

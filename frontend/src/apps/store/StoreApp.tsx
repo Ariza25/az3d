@@ -14,12 +14,14 @@ import { useTenantCatalog } from '../../shared/hooks/useTenantCatalog';
 import { api } from '../../services/api';
 import { StoreFilters, AvailabilityFilter, StoreSort } from '../../components/StoreFilters';
 import { getStockStatus, getTotalStock } from '../../shared/storePresentation';
+import { getCurrentStoreRouteStyle, getProductPath, getStorePath } from '../../shared/tenantRoutes';
 import { AlertCircle, CheckCircle2, Clock3, X } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 
 const getProductSlugFromLocation = () => {
-  const [, first, , third, fourth] = window.location.pathname.split('/');
+  const [, first, second, third, fourth] = window.location.pathname.split('/');
   if (first === 'loja' && third === 'produto' && fourth) return decodeURIComponent(fourth);
+  if (first && second === 'store' && third === 'produto' && fourth) return decodeURIComponent(fourth);
   return '';
 };
 
@@ -35,7 +37,6 @@ const upsertMetaDescription = (content: string) => {
 
 export const StoreApp: React.FC = () => {
   const {
-    tenants,
     activeTenant,
     categories,
     products,
@@ -44,7 +45,6 @@ export const StoreApp: React.FC = () => {
     searchQuery,
     setSearchQuery,
     isLoading,
-    onSelectTenant,
   } = useTenantCatalog();
   const { openCart, openOrders } = useCart();
 
@@ -197,14 +197,14 @@ export const StoreApp: React.FC = () => {
   const openProduct = (product: Product) => {
     setSelectedProduct(product);
     if (activeTenant?.slug) {
-      window.history.pushState({}, '', `/loja/${activeTenant.slug}/produto/${product.slug || product.id}`);
+      window.history.pushState({}, '', getProductPath(activeTenant.slug, product.slug || product.id, getCurrentStoreRouteStyle()));
     }
   };
 
   const closeProduct = () => {
     setSelectedProduct(null);
     if (activeTenant?.slug && window.location.pathname.includes('/produto/')) {
-      window.history.pushState({}, '', `/loja/${activeTenant.slug}`);
+      window.history.pushState({}, '', getStorePath(activeTenant.slug, getCurrentStoreRouteStyle()));
     }
   };
 
@@ -219,8 +219,6 @@ export const StoreApp: React.FC = () => {
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         activeTenant={activeTenant}
-        tenants={tenants}
-        onSelectTenant={onSelectTenant}
         onOpenAdmin={openAdmin}
         onOpenFavorites={() => setIsFavoritesOpen(true)}
         tenantSettings={tenantSettings}
@@ -237,7 +235,7 @@ export const StoreApp: React.FC = () => {
             }}
             onClose={() => {
               setPaymentReturn(null);
-              if (activeTenant?.slug) window.history.replaceState({}, '', `/loja/${activeTenant.slug}`);
+              if (activeTenant?.slug) window.history.replaceState({}, '', getStorePath(activeTenant.slug, getCurrentStoreRouteStyle()));
             }}
           />
         )}
@@ -314,6 +312,7 @@ export const StoreApp: React.FC = () => {
         }}
         tenantId={activeTenant?.id}
         googleScope="customer"
+        showAccountTypeSwitch
         title={loginContext === 'cart' ? 'Entre para continuar sua compra' : undefined}
         subtitle={loginContext === 'cart' ? 'Depois do login, vamos adicionar o produto ao seu carrinho' : undefined}
         submitLabel={loginContext === 'cart' ? 'Entrar e continuar' : undefined}

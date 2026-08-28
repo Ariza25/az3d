@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -164,19 +163,6 @@ func providerDefaultMarketplace(provider string) string {
 		return "BR"
 	default:
 		return ""
-	}
-}
-
-func providerEstimatedFeePercent(provider string) float64 {
-	switch provider {
-	case "shopee":
-		return 14
-	case "mercadolivre":
-		return 16
-	case "amazon":
-		return 15
-	default:
-		return 12
 	}
 }
 
@@ -1877,106 +1863,4 @@ func (h *MarketplaceHandler) GetExternalOrders(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, orders)
-}
-
-// POST /api/admin/marketplaces/simulate-order
-func (h *MarketplaceHandler) SimulateMarketplaceOrder(c *gin.Context) {
-	tenantID := getTenantID(c)
-
-	type SimulateInput struct {
-		Provider string `json:"provider" binding:"required"`
-	}
-
-	var input SimulateInput
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Provider obrigatorio"})
-		return
-	}
-	input.Provider = normalizeProvider(input.Provider)
-
-	var product models.Product
-	if err := database.DB.Where("tenant_id = ?", tenantID).First(&product).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Nenhum produto cadastrado no tenant para simular o pedido"})
-		return
-	}
-
-	var user models.User
-	if err := database.DB.Where("tenant_id = ?", tenantID).First(&user).Error; err != nil {
-		database.DB.First(&user)
-	}
-
-	badge := fmt.Sprintf("[Venda %s simulada #%d]", marketplaceLabel(input.Provider), time.Now().Unix()%100000)
-	order := models.Order{
-		TenantID:        tenantID,
-		UserID:          user.ID,
-		TotalAmount:     product.Price,
-		Status:          "printing",
-		Items:           []models.OrderItem{{ProductID: product.ID, Quantity: 1, UnitPrice: product.Price, Color: "Preto Slate"}},
-		ShippingAddress: fmt.Sprintf("%s - Comprador: %s", badge, user.Name),
-	}
-
-	if err := database.DB.Create(&order).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao registrar venda simulada do marketplace"})
-		return
-	}
-	externalOrder, err := createExternalOrderFromProduct(tenantID, input.Provider, product, &order.ID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Pedido interno criado, mas houve erro ao registrar pedido externo"})
-		return
-	}
-
-	database.DB.Preload("User").Preload("Items.Product").First(&order, order.ID)
-
-	c.JSON(http.StatusCreated, gin.H{
-		"message":        fmt.Sprintf("Venda simulada via %s registrada na fila de impressao 3D.", marketplaceLabel(input.Provider)),
-		"order":          order,
-		"external_order": externalOrder,
-	})
-}
-
-func createExternalOrderFromProduct(tenantID uint, provider string, product models.Product, internalOrderID *uint) (models.ExternalMarketplaceOrder, error) {
-	now := time.Now()
-	externalID := fmt.Sprintf("SIM-%s-%d-%d", strings.ToUpper(provider), now.Unix(), product.ID)
-	fees := math.Round(product.Price*providerEstimatedFeePercent(provider)) / 100
-	net := product.Price - fees
-
-	order := models.ExternalMarketplaceOrder{
-		TenantID:        tenantID,
-		Provider:        provider,
-		ExternalOrderID: externalID,
-		ExternalStatus:  "simulated_paid",
-		Currency:        "BRL",
-		GrossAmount:     product.Price,
-		ItemsAmount:     product.Price,
-		MarketplaceFees: fees,
-		NetAmount:       net,
-		BuyerNickname:   "comprador_simulado",
-		InternalOrderID: internalOrderID,
-		OrderedAt:       now,
-		SyncedAt:        now,
-		RawPayload:      `{"source":"admin_simulation"}`,
-	}
-	if err := database.DB.Create(&order).Error; err != nil {
-		return order, err
-	}
-
-	productID := product.ID
-	item := models.ExternalMarketplaceOrderItem{
-		TenantID:           tenantID,
-		ExternalOrderIDRef: order.ID,
-		ProductID:          &productID,
-		Provider:           provider,
-		ExternalItemID:     fmt.Sprintf("ITEM-%d", product.ID),
-		ExternalSKU:        product.SKU,
-		Title:              product.Title,
-		Quantity:           1,
-		UnitPrice:          product.Price,
-		GrossAmount:        product.Price,
-		FeeAmount:          fees,
-	}
-	if err := database.DB.Create(&item).Error; err != nil {
-		return order, err
-	}
-	database.DB.Preload("Items.Product").First(&order, order.ID)
-	return order, nil
 }

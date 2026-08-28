@@ -6,7 +6,7 @@ Plataforma multi-tenant para lojas/oficinas venderem produtos de impressao 3D em
 
 O foco atual do projeto e:
 
-- Tenant por loja, com slug em URL como `/loja/az3d`.
+- Tenant por loja, com slug em URL como `/az3d/store` ou outro tenant real cadastrado.
 - Store publica com identidade visual do tenant.
 - Catalogo de produtos, categorias, cores, estoque e favoritos.
 - Login por e-mail/senha ou Google para compradores.
@@ -121,7 +121,7 @@ npm install
 npm run dev
 ```
 
-A store/admin ficam em `http://localhost:5173`.
+A store/admin ficam em `http://localhost:5173`. Cada loja publica usa URL propria por slug, por exemplo `http://localhost:5173/az3d/store`.
 
 ### Docker Compose
 
@@ -158,7 +158,7 @@ Status internos principais:
 
 ## Conta Master
 
-O seed cria uma conta master para operar a plataforma:
+O bootstrap inicial cria uma conta master para operar a plataforma:
 
 ```text
 usuario: admin
@@ -169,6 +169,16 @@ role: master_admin
 O `master_admin` pode alternar tenant no admin e operar usando `X-Tenant-ID`. Contas `tenant_admin` continuam presas ao tenant do proprio JWT.
 
 Troque essa senha antes de qualquer uso fora de desenvolvimento.
+
+## Conta Tenant Inicial
+
+O bootstrap tambem cria uma unica conta administrativa do tenant `az3d`:
+
+```text
+email: teste@gmail.com
+senha: Teste@123
+role: tenant_admin
+```
 
 ## Login Google
 
@@ -257,6 +267,33 @@ O painel possui base para Mercado Livre, Shopee e Amazon:
 
 Para o MVP atual, a prioridade e usar os marketplaces como origem/sincronizacao e manter a store propria operando com compra via Mercado Pago.
 
+### Shopee
+
+Para trazer os dados da Shopee para um tenant, separe duas responsabilidades:
+
+- Plataforma AZ3D: possui o app da Shopee Open Platform e guarda `SHOPEE_PARTNER_ID` / `SHOPEE_PARTNER_KEY`.
+- Tenant: apenas autoriza a propria loja via OAuth. Ele nao precisa informar `Partner ID` nem `Partner Key`.
+
+1. Configure no backend da plataforma:
+
+```env
+SHOPEE_PARTNER_ID=
+SHOPEE_PARTNER_KEY=
+SHOPEE_API_BASE_URL=https://partner.shopeemobile.com
+```
+
+Essas variaveis sao da plataforma, nao do tenant. Em producao, defina tambem `CREDENTIAL_ENCRYPTION_KEY` forte para criptografar tokens OAuth das contas conectadas.
+
+2. Reinicie o backend da plataforma.
+3. Entre no admin do tenant em `/admin`.
+4. Abra `Marketplaces`, selecione a conta Shopee, marque `Ativo`, `Pedidos` e `Estoque`, e salve.
+5. Clique em `OAuth`, abra a URL de autorizacao e autorize a loja Shopee.
+6. Use `Testar` para validar a conexao.
+7. Use `Catalogo` para importar/atualizar anuncios da Shopee como produtos locais da store.
+8. Use `Sync` para importar pedidos recentes da Shopee para o tenant.
+
+Os dados ficam associados ao tenant via `tenant_id`: a conta conectada vai para `marketplace_accounts`, produtos importados viram `products` locais com mapeamento em `marketplace_product_mappings`, e pedidos externos ficam em `external_marketplace_orders`. Quando habilitado nas regras do marketplace, o pedido externo tambem gera pedido interno. Tokens OAuth ficam fora das respostas JSON e sao criptografados em `encrypted_credentials` quando `CREDENTIAL_ENCRYPTION_KEY` esta configurada.
+
 ## Admin Master, Estoque E Observabilidade
 
 O painel admin possui uma visao de plataforma para `master_admin`, com tenants, pedidos abertos, alertas de estoque e status de contas Mercado Pago/marketplaces/Correios.
@@ -316,6 +353,7 @@ cd ..
 docker compose config
 ```
 
-## Dados Demo
+## Bootstrap Inicial
 
-O backend faz seed inicial quando o banco esta vazio, criando tenants como `az3d` e `makerlab`, categorias, produtos e usuarios demo. Verifique `backend/database/db.go` para os dados de bootstrap.
+O backend cria apenas o tenant base `az3d`, as configuracoes essenciais, a conta master `admin` / `Admin@123` e a conta tenant `teste@gmail.com` / `Teste@123`.
+Produtos, categorias, usuarios de exemplo e pedidos artificiais de marketplace nao sao mais criados automaticamente.

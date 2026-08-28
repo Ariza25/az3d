@@ -65,8 +65,8 @@ func InitDB(cfg *config.Config) *gorm.DB {
 	// Limpeza preventiva: zeramos tenant_id de linhas órfãs antes de criar FK constraints
 	// (evita erro SQLSTATE 23503 ao reiniciar após mudança de schema)
 	cleanupOrphanedRows(db)
-	_ = db.Migrator().DropIndex(&models.MarketplaceAccount{}, "idx_marketplace_account_provider")
-	_ = db.Migrator().DropIndex(&models.ExternalMarketplaceOrder{}, "idx_external_order")
+	db.Exec("DROP INDEX IF EXISTS idx_marketplace_account_provider")
+	db.Exec("DROP INDEX IF EXISTS idx_external_order")
 
 	// Auto Migration das tabelas (sem FK constraints — adicionados manualmente após limpeza)
 	err = db.AutoMigrate(
@@ -112,7 +112,7 @@ func InitDB(cfg *config.Config) *gorm.DB {
 	DB = db
 
 	// Seed de Dados Iniciais
-	seedData(db)
+	bootstrapData(db)
 
 	return DB
 }
@@ -138,317 +138,85 @@ func cleanupOrphanedRows(db *gorm.DB) {
 	}
 }
 
-func seedData(db *gorm.DB) {
-	// 1. Criar Tenants de exemplo se não existirem
-	var tenantCount int64
-	db.Model(&models.Tenant{}).Count(&tenantCount)
-
-	tenant1 := models.Tenant{Name: "AZ3D Print Studio", Slug: "az3d", Domain: "az3d.local", LogoURL: ""}
-	tenant2 := models.Tenant{Name: "MakerLab 3D Tech", Slug: "makerlab", Domain: "makerlab.local", LogoURL: ""}
-
-	if tenantCount == 0 {
-		db.Create(&tenant1)
-		db.Create(&tenant2)
-	} else {
-		db.First(&tenant1, 1)
-		db.First(&tenant2, 2)
-	}
-	ensureTenantSettings(db, tenant1)
-	ensureTenantSettings(db, tenant2)
-	ensureMasterAdmin(db, tenant1.ID)
-
-	// Verificar se já temos categorias cadastradas
-	var count int64
-	db.Model(&models.Category{}).Count(&count)
-	if count > 0 {
-		return
+func bootstrapData(db *gorm.DB) {
+	var tenant models.Tenant
+	if err := db.Where("slug = ?", "az3d").First(&tenant).Error; err != nil {
+		tenant = models.Tenant{Name: "AZ3D", Slug: "az3d"}
+		db.Create(&tenant)
+	} else if tenant.Name == "AZ3D Print Studio" {
+		db.Model(&tenant).Update("name", "AZ3D")
+		tenant.Name = "AZ3D"
 	}
 
-	log.Println("Semeando dados iniciais Multi-Tenant do catálogo 3D...")
+	ensureTenantSettings(db, tenant)
+	ensureMasterAdmin(db, tenant.ID)
+	ensureTenantSeedAccount(db, tenant.ID)
+	cleanupLegacySeedArtifacts(db)
+}
 
-	// 2. Criar Usuários (Admin e Cliente)
-	hashedPassword, _ := utils.HashPassword("123456")
-
-	adminUser := models.User{
-		TenantID: tenant1.ID,
-		Name:     "Administrador AZ3D",
-		Username: "admin-az3d",
-		Email:    "admin@az3d.com.br",
-		Password: hashedPassword,
-		Role:     "admin",
+func cleanupLegacySeedArtifacts(db *gorm.DB) {
+	legacyProductSlugs := []string{
+		"dragao-articulado-guardiao-ember",
+		"suporte-cyberspace-headphone",
+		"vaso-poligonal-voronoi-v1",
+		"capacete-cyberpunk-neon-protocol",
+		"organizador-modular-cabos-deskflow",
+		"busto-mecha-samurai-8k",
+		"luminaria-mesa-lua-texturizada-lunar-3d",
+		"gabarito-angular-mecanico-regulavel",
+		"chassis-robotico-4wd",
 	}
-	db.Create(&adminUser)
-
-	demoUser := models.User{
-		TenantID: tenant1.ID,
-		Name:     "Cliente AZ3D",
-		Username: "cliente-az3d",
-		Email:    "cliente@az3d.com.br",
-		Password: hashedPassword,
-		Role:     "customer",
+	var legacyProducts []models.Product
+	db.Unscoped().Where("slug IN ?", legacyProductSlugs).Find(&legacyProducts)
+	productIDs := make([]uint, 0, len(legacyProducts))
+	for _, product := range legacyProducts {
+		productIDs = append(productIDs, product.ID)
 	}
-	db.Create(&demoUser)
-
-	// 3. Criar Categorias para o Tenant 1 (AZ3D)
-	categoriesTenant1 := []models.Category{
-		{
-			TenantID:    tenant1.ID,
-			Name:        "Colecionáveis & Geek",
-			Slug:        "colecionaveis-geek",
-			Description: "Estátuas, bustos e action figures em resina 8K e PLA Silk.",
-			Icon:        "shield",
-		},
-		{
-			TenantID:    tenant1.ID,
-			Name:        "Setup Tech & Organização",
-			Slug:        "setup-tech",
-			Description: "Suportes para headphone, cabos, notebooks e acessórios de mesa.",
-			Icon:        "cpu",
-		},
-		{
-			TenantID:    tenant1.ID,
-			Name:        "Decoração Minimalista",
-			Slug:        "decoracao",
-			Description: "Vasos geométricos, luminárias articuladas e arte de parede.",
-			Icon:        "sparkles",
-		},
-		{
-			TenantID:    tenant1.ID,
-			Name:        "Utilitários & Ferramentas",
-			Slug:        "utilitarios",
-			Description: "Peças mecânicas, gabaritos, engrenagens e peças funcionais.",
-			Icon:        "wrench",
-		},
-		{
-			TenantID:    tenant1.ID,
-			Name:        "Cosplay & Props",
-			Slug:        "cosplay-props",
-			Description: "Capacetes, réplicas em tamanho real e acessórios para cosplay.",
-			Icon:        "sword",
-		},
+	if len(productIDs) > 0 {
+		db.Unscoped().Where("product_id IN ?", productIDs).Delete(&models.ProductColorImage{})
+		db.Unscoped().Where("product_id IN ?", productIDs).Delete(&models.ProductVariant{})
+		db.Unscoped().Where("product_id IN ?", productIDs).Delete(&models.ProductColorStock{})
+		db.Unscoped().Where("product_id IN ?", productIDs).Delete(&models.ProductReview{})
+		db.Unscoped().Where("product_id IN ?", productIDs).Delete(&models.ProductFavorite{})
+		db.Unscoped().Where("product_id IN ?", productIDs).Delete(&models.ProductPricingSnapshot{})
+		db.Unscoped().Where("product_id IN ?", productIDs).Delete(&models.ProductActualCost{})
+		db.Unscoped().Where("product_id IN ?", productIDs).Delete(&models.MarketplaceProductMapping{})
+		db.Unscoped().Where("id IN ?", productIDs).Delete(&models.Product{})
 	}
 
-	for i := range categoriesTenant1 {
-		db.Create(&categoriesTenant1[i])
+	legacyCategorySlugs := []string{
+		"colecionaveis-geek",
+		"setup-tech",
+		"decoracao",
+		"utilitarios",
+		"cosplay-props",
+		"robotica-prototipagem",
+		"acessorios-industriais",
 	}
+	db.Unscoped().Where("slug IN ?", legacyCategorySlugs).Delete(&models.Category{})
 
-	// Categorias para o Tenant 2 (MakerLab)
-	categoriesTenant2 := []models.Category{
-		{
-			TenantID:    tenant2.ID,
-			Name:        "Robótica & Prototipagem",
-			Slug:        "robotica-prototipagem",
-			Description: "Chassis, engrenagens e suportes de sensores para projetos Maker.",
-			Icon:        "cpu",
-		},
-		{
-			TenantID:    tenant2.ID,
-			Name:        "Acessórios Industriais",
-			Slug:        "acessorios-industriais",
-			Description: "Gabaritos, guias e organizadores de bancada técnica.",
-			Icon:        "wrench",
-		},
-	}
-	for i := range categoriesTenant2 {
-		db.Create(&categoriesTenant2[i])
-	}
+	db.Unscoped().Where("username IN ? OR email IN ?", []string{"admin-az3d", "cliente-az3d"}, []string{"admin@az3d.com.br", "cliente@az3d.com.br"}).Delete(&models.User{})
+	db.Unscoped().Where("seller_id IN ?", []string{"AZ3D_PRINT_MELI_BR", "az3d_shopee_store", "A23D_AMZ_SELLER_ID"}).Delete(&models.MarketplaceIntegration{})
+	db.Unscoped().Where("external_order_id LIKE ? OR raw_payload = ?", "SIM-%", `{"source":"admin_simulation"}`).Delete(&models.ExternalMarketplaceOrder{})
+	db.Unscoped().Where("external_item_id LIKE ?", "ITEM-%").Delete(&models.ExternalMarketplaceOrderItem{})
+	db.Unscoped().Where("name IN ?", []string{"Manutencao e depreciacao", "Assinaturas e ferramentas"}).Delete(&models.TenantFixedCost{})
+	db.Unscoped().
+		Where("is_connected = ? AND access_token = ? AND refresh_token = ? AND auth_code = ? AND account_name IN ?", false, "", "", "", []string{"Shopee", "Mercado Livre", "Amazon Seller"}).
+		Delete(&models.MarketplaceAccount{})
 
-	// 4. Criar Produtos para Tenant 1 (AZ3D)
-	productsTenant1 := []models.Product{
-		{
-			TenantID:    tenant1.ID,
-			Title:       "Dragão Articulado Guardião Ember",
-			Slug:        "dragao-articulado-guardiao-ember",
-			Description: "Dragão totalmente articulado impresso em uma única peça sem suportes. Possui movimento dinâmico fluido e acabamento gradiente bicromático em PLA Silk Dual-Color.",
-			Price:       149.90,
-			ImageURL:    "https://images.unsplash.com/photo-1563089145-599997674d42?q=80&w=800&auto=format&fit=crop",
-			CategoryID:  categoriesTenant1[0].ID,
-			Material:    "PLA Silk Dupla Cor",
-			LayerHeight: "0.12mm (Ultra Detalhe)",
-			PrintTime:   "18 horas",
-			Dimensions:  "450 x 80 x 60 mm",
-			Weight:      "220g",
-			InStock:     true,
-			StockQty:    15,
-		},
-		{
-			TenantID:    tenant1.ID,
-			Title:       "Suporte Cyberspace para Headphone",
-			Slug:        "suporte-cyberspace-headphone",
-			Description: "Design futurista minimalista e estruturalmente reforçado para suportar headphones de alta fidelidade. Passagem de cabo oculta e base antiderrapante.",
-			Price:       89.90,
-			ImageURL:    "https://images.unsplash.com/photo-1546435770-a3e426bf472b?q=80&w=800&auto=format&fit=crop",
-			CategoryID:  categoriesTenant1[1].ID,
-			Material:    "PETG Carbon Fiber",
-			LayerHeight: "0.20mm (Resistência Mecânica)",
-			PrintTime:   "9 horas",
-			Dimensions:  "140 x 130 x 260 mm",
-			Weight:      "310g",
-			InStock:     true,
-			StockQty:    20,
-		},
-		{
-			TenantID:    tenant1.ID,
-			Title:       "Vaso Poligonal Voronoi V1",
-			Slug:        "vaso-poligonal-voronoi-v1",
-			Description: "Vaso decorativo moderno com padrão matemático Voronoi. Ideal para arranjos secos ou plantas suculentas em ambientes corporativos e residenciais.",
-			Price:       74.90,
-			ImageURL:    "https://images.unsplash.com/photo-1581783342308-f792dbdd27c5?q=80&w=800&auto=format&fit=crop",
-			CategoryID:  categoriesTenant1[2].ID,
-			Material:    "PLA Matte Slate",
-			LayerHeight: "0.16mm",
-			PrintTime:   "11 horas",
-			Dimensions:  "120 x 120 x 200 mm",
-			Weight:      "190g",
-			InStock:     true,
-			StockQty:    12,
-		},
-		{
-			TenantID:    tenant1.ID,
-			Title:       "Capacete Cyberpunk Neon Protocol",
-			Slug:        "capacete-cyberpunk-neon-protocol",
-			Description: "Réplica impressionante em tamanho real (1:1) com acabamento texturizado, viseira adaptável e encaixes para iluminação LED interna.",
-			Price:       499.00,
-			ImageURL:    "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?q=80&w=800&auto=format&fit=crop",
-			CategoryID:  categoriesTenant1[4].ID,
-			Material:    "ABS / PETG Alta Tenacidade",
-			LayerHeight: "0.16mm",
-			PrintTime:   "42 horas",
-			Dimensions:  "280 x 260 x 300 mm",
-			Weight:      "850g",
-			InStock:     true,
-			StockQty:    5,
-		},
-		{
-			TenantID:    tenant1.ID,
-			Title:       "Organizador Modular de Cabos DeskFlow",
-			Slug:        "organizador-modular-cabos-deskflow",
-			Description: "Kit com 5 presilhas magnéticas ajustáveis para gerenciamento limpo de cabos de carregador, monitor e periféricos em mesas de trabalho.",
-			Price:       45.00,
-			ImageURL:    "https://images.unsplash.com/photo-1586953208448-b95a79798f07?q=80&w=800&auto=format&fit=crop",
-			CategoryID:  categoriesTenant1[1].ID,
-			Material:    "PETG Flexível",
-			LayerHeight: "0.20mm",
-			PrintTime:   "3 horas",
-			Dimensions:  "90 x 25 x 15 mm (cada)",
-			Weight:      "65g",
-			InStock:     true,
-			StockQty:    30,
-		},
-		{
-			TenantID:    tenant1.ID,
-			Title:       "Busto Mecha Samurai 8K",
-			Slug:        "busto-mecha-samurai-8k",
-			Description: "Miniatura hiperdetalhada impressa em Resina UV de alta precisão 8K. Acabamento cinza fosco perfeito para pintura artesanal ou coleção imediata.",
-			Price:       189.90,
-			ImageURL:    "https://images.unsplash.com/photo-1563089145-599997674d42?q=80&w=800&auto=format&fit=crop",
-			CategoryID:  categoriesTenant1[0].ID,
-			Material:    "Resina UV 8K High Detail",
-			LayerHeight: "0.03mm (Precisão Cirúrgica)",
-			PrintTime:   "15 horas",
-			Dimensions:  "110 x 90 x 170 mm",
-			Weight:      "280g",
-			InStock:     true,
-			StockQty:    8,
-		},
-		{
-			TenantID:    tenant1.ID,
-			Title:       "Luminária de Mesa Lua Texturizada Lunar-3D",
-			Slug:        "luminaria-mesa-lua-texturizada-lunar-3d",
-			Description: "Esfera de iluminação com relevo topográfico exato da Lua obtido via dados da NASA. Acompanha base de madeira minimalista e soquete USB.",
-			Price:       129.90,
-			ImageURL:    "https://images.unsplash.com/photo-1532693322450-2cb5c511067d?q=80&w=800&auto=format&fit=crop",
-			CategoryID:  categoriesTenant1[2].ID,
-			Material:    "PLA Lithophane Translúcido",
-			LayerHeight: "0.12mm",
-			PrintTime:   "16 horas",
-			Dimensions:  "160 x 160 x 180 mm",
-			Weight:      "210g",
-			InStock:     true,
-			StockQty:    14,
-		},
-		{
-			TenantID:    tenant1.ID,
-			Title:       "Gabarito Angular Mecânico Regulável",
-			Slug:        "gabarito-angular-mecanico-regulavel",
-			Description: "Ferramenta de medição rápida para marcenaria e bricolagem com escala gravada a laser e parafusos de travamento em PETG reforçado.",
-			Price:       59.90,
-			ImageURL:    "https://images.unsplash.com/photo-1581092160607-ee22621dd758?q=80&w=800&auto=format&fit=crop",
-			CategoryID:  categoriesTenant1[3].ID,
-			Material:    "PETG Industrial",
-			LayerHeight: "0.20mm",
-			PrintTime:   "5 horas",
-			Dimensions:  "200 x 40 x 12 mm",
-			Weight:      "140g",
-			InStock:     true,
-			StockQty:    25,
-		},
+	var makerlab models.Tenant
+	if result := db.Where("slug = ? AND name = ?", "makerlab", "MakerLab 3D Tech").Limit(1).Find(&makerlab); result.RowsAffected > 0 {
+		db.Unscoped().Where("tenant_id = ?", makerlab.ID).Delete(&models.TenantSettings{})
+		db.Unscoped().Where("tenant_id = ?", makerlab.ID).Delete(&models.TenantStoreSettings{})
+		db.Unscoped().Where("tenant_id = ?", makerlab.ID).Delete(&models.TenantPricingSettings{})
+		db.Unscoped().Where("tenant_id = ?", makerlab.ID).Delete(&models.TenantFulfillmentSettings{})
+		db.Unscoped().Where("tenant_id = ?", makerlab.ID).Delete(&models.TenantMarketplaceSettings{})
+		db.Unscoped().Where("tenant_id = ?", makerlab.ID).Delete(&models.MaterialPreset{})
+		db.Unscoped().Where("tenant_id = ?", makerlab.ID).Delete(&models.PrinterPreset{})
+		db.Unscoped().Where("tenant_id = ?", makerlab.ID).Delete(&models.PlatformFeePreset{})
+		db.Unscoped().Where("tenant_id = ?", makerlab.ID).Delete(&models.MarketplaceAccount{})
+		db.Unscoped().Delete(&makerlab)
 	}
-
-	for i := range productsTenant1 {
-		db.Create(&productsTenant1[i])
-	}
-
-	// Produtos para Tenant 2 (MakerLab)
-	productsTenant2 := []models.Product{
-		{
-			TenantID:    tenant2.ID,
-			Title:       "Chassis Robótico 4WD Prototipagem",
-			Slug:        "chassis-robotico-4wd",
-			Description: "Chassis modular reforçado impresso em ABS para robôs móveis de competição.",
-			Price:       119.00,
-			ImageURL:    "https://images.unsplash.com/photo-1581092160607-ee22621dd758?q=80&w=800&auto=format&fit=crop",
-			CategoryID:  categoriesTenant2[0].ID,
-			Material:    "ABS Reforçado",
-			LayerHeight: "0.20mm",
-			PrintTime:   "12 horas",
-			Dimensions:  "220 x 180 x 60 mm",
-			Weight:      "350g",
-			InStock:     true,
-			StockQty:    10,
-		},
-	}
-
-	for i := range productsTenant2 {
-		db.Create(&productsTenant2[i])
-	}
-
-	// 5. Criar Integrações Iniciais de Marketplace
-	marketplaceSeed := []models.MarketplaceIntegration{
-		{
-			TenantID:   tenant1.ID,
-			Provider:   "mercadolivre",
-			SellerID:   "AZ3D_PRINT_MELI_BR",
-			SellerName: "AZ3D Oficial (Mercado Livre)",
-			IsActive:   true,
-			SyncOrders: true,
-			SyncStock:  true,
-		},
-		{
-			TenantID:   tenant1.ID,
-			Provider:   "shopee",
-			SellerID:   "az3d_shopee_store",
-			SellerName: "AZ3D Print (Shopee BR)",
-			IsActive:   true,
-			SyncOrders: true,
-			SyncStock:  true,
-		},
-		{
-			TenantID:   tenant1.ID,
-			Provider:   "amazon",
-			SellerID:   "A23D_AMZ_SELLER_ID",
-			SellerName: "AZ3D Studio (Amazon Seller)",
-			IsActive:   false,
-			SyncOrders: true,
-			SyncStock:  false,
-		},
-	}
-
-	for i := range marketplaceSeed {
-		db.Create(&marketplaceSeed[i])
-	}
-
-	log.Println("Seeding do banco concluído com sucesso!")
 }
 
 func ensureTenantSettings(db *gorm.DB, tenant models.Tenant) {
@@ -563,62 +331,6 @@ func ensureTenantSettings(db *gorm.DB, tenant models.Tenant) {
 		})
 	}
 
-	db.Model(&models.TenantFixedCost{}).Where("tenant_id = ?", tenant.ID).Count(&count)
-	if count == 0 {
-		db.Create(&models.TenantFixedCost{
-			TenantID:        tenant.ID,
-			Name:            "Manutencao e depreciacao",
-			MonthlyAmount:   120,
-			AllocationBasis: "print_hours",
-			IsActive:        true,
-		})
-		db.Create(&models.TenantFixedCost{
-			TenantID:        tenant.ID,
-			Name:            "Assinaturas e ferramentas",
-			MonthlyAmount:   80,
-			AllocationBasis: "monthly",
-			IsActive:        true,
-		})
-	}
-
-	accounts := []models.MarketplaceAccount{
-		{
-			TenantID:    tenant.ID,
-			Provider:    "shopee",
-			AccountName: "Shopee",
-			Marketplace: "BR",
-			IsActive:    true,
-			IsConnected: false,
-			SyncOrders:  true,
-			SyncStock:   true,
-			SyncStatus:  "pending_credentials",
-		},
-		{
-			TenantID:    tenant.ID,
-			Provider:    "mercadolivre",
-			AccountName: "Mercado Livre",
-			Marketplace: "MLB",
-			IsActive:    true,
-			IsConnected: false,
-			SyncOrders:  true,
-			SyncStock:   true,
-			SyncStatus:  "pending_credentials",
-		},
-		{
-			TenantID:    tenant.ID,
-			Provider:    "amazon",
-			AccountName: "Amazon Seller",
-			Marketplace: "BR",
-			IsActive:    false,
-			IsConnected: false,
-			SyncOrders:  true,
-			SyncStock:   false,
-			SyncStatus:  "pending_credentials",
-		},
-	}
-	for _, account := range accounts {
-		db.Where("tenant_id = ? AND provider = ?", tenant.ID, account.Provider).FirstOrCreate(&account)
-	}
 }
 
 func ensureMasterAdmin(db *gorm.DB, tenantID uint) {
@@ -650,6 +362,39 @@ func ensureMasterAdmin(db *gorm.DB, tenantID uint) {
 			updates["email"] = user.Email
 		}
 		db.Model(&existing).Updates(updates)
+		return
+	}
+
+	db.Create(&user)
+}
+
+func ensureTenantSeedAccount(db *gorm.DB, tenantID uint) {
+	password, err := utils.HashPassword("Teste@123")
+	if err != nil {
+		log.Printf("Erro ao gerar senha da conta tenant inicial: %v", err)
+		return
+	}
+
+	user := models.User{
+		TenantID: tenantID,
+		Name:     "Tenant AZ3D",
+		Username: "teste",
+		Email:    "teste@gmail.com",
+		Password: password,
+		Role:     "tenant_admin",
+	}
+
+	var existing models.User
+	err = db.Where("username = ? OR email = ?", user.Username, user.Email).First(&existing).Error
+	if err == nil {
+		db.Model(&existing).Updates(map[string]any{
+			"tenant_id": tenantID,
+			"name":      user.Name,
+			"username":  user.Username,
+			"email":     user.Email,
+			"password":  user.Password,
+			"role":      user.Role,
+		})
 		return
 	}
 

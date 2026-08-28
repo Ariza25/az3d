@@ -64,9 +64,6 @@ export const Footer: React.FC = () => {
 
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 space-y-4 sm:space-y-0">
           <p>© 2026 AZ3D Printing Studio. Todos os direitos reservados.</p>
-          <div className="flex items-center space-x-6 text-slate-400">
-            <span className="font-mono">Backend Go + PostgreSQL | Frontend React TS Tailwind</span>
-          </div>
         </div>
 
       </div>

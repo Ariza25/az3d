@@ -59,7 +59,7 @@ Backend:
 
 - `backend/main.go`: router, CORS, middlewares e rotas.
 - `backend/config`: carregamento de envs.
-- `backend/database`: conexao, migration e seed.
+- `backend/database`: conexao, migration e bootstrap inicial.
 - `backend/models`: entidades e inputs.
 - `backend/handlers`: HTTP handlers.
 - `backend/middleware`: auth/admin middleware.
@@ -146,12 +146,20 @@ Evitar:
 
 ## Admin Master E Transportadoras
 
-Conta seedada para desenvolvimento:
+Conta criada no bootstrap para desenvolvimento:
 
 ```text
 usuario: admin
 senha: Admin@123
 role: master_admin
+```
+
+Conta tenant inicial:
+
+```text
+email: teste@gmail.com
+senha: Teste@123
+role: tenant_admin
 ```
 
 Antes de producao, trocar senha e configurar `REQUIRE_STRONG_SECRETS=true`.
