@@ -76,7 +76,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
   );
   const selectedStock = product.color_stocks?.find((stock) => stock.color_name === selectedColor);
   const selectedImageUrl = availableColors.find((color) => color.name === selectedColor)?.imageUrl || product.image_url;
-  const selectedPrice = selectedVariant?.price || product.price;
+  const selectedPrice = selectedVariant?.price ?? product.price;
+  const purchaseTotal = selectedPrice * quantity;
   const stockLimit = selectedStock?.stock_qty ?? product.stock_qty;
   const hasRealReviews = Boolean(product.review_summary?.review_count);
   const stockStatus = getStockStatus({ ...product, color_stocks: undefined, stock_qty: stockLimit, in_stock: stockLimit > 0 && product.in_stock });
@@ -241,9 +242,12 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
 
             <div className="mt-7 border-t border-chumbo-800 pt-6">
               <div className="grid grid-cols-[1fr_auto] items-end gap-4 lg:grid-cols-[auto_auto_minmax(180px,1fr)]">
-                <div>
-                  <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500">Preço</span>
-                  <span className="mt-1 block whitespace-nowrap text-3xl font-extrabold text-white">{money(selectedPrice)}</span>
+                <div aria-live="polite" aria-label="Total da compra">
+                  <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500">Total</span>
+                  <span className="mt-1 block whitespace-nowrap text-3xl font-extrabold text-white">{money(purchaseTotal)}</span>
+                  {quantity > 1 && (
+                    <span className="mt-1 block whitespace-nowrap text-[11px] text-slate-500">{quantity} × {money(selectedPrice)} cada</span>
+                  )}
                 </div>
 
                 <div className="flex h-12 items-center rounded-xl border border-chumbo-700 bg-chumbo-950 p-1" aria-label="Quantidade">

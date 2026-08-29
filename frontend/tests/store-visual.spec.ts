@@ -127,6 +127,11 @@ test('registra a home e o modal sem overflow horizontal', async ({ page }, testI
     expect(Math.abs((quantityBox!.y + quantityBox!.height) - (buttonBox!.y + buttonBox!.height))).toBeLessThan(16);
   }
 
+  await modal.getByRole('button', { name: 'Aumentar quantidade' }).click();
+  const purchaseTotal = modal.getByLabel('Total da compra');
+  await expect(purchaseTotal.getByText('R$ 159,80', { exact: true })).toBeVisible();
+  await expect(purchaseTotal.getByText('2 × R$ 79,90 cada', { exact: true })).toBeVisible();
+
   await page.screenshot({
     path: `test-results/playwright/modal-${testInfo.project.name}.png`,
     fullPage: false,

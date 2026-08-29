@@ -3,6 +3,7 @@ package mercadolivre
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -16,6 +17,23 @@ import (
 
 type Connector struct {
 	client *http.Client
+}
+
+// APIError exposes only the HTTP status and operation. Response bodies are
+// intentionally omitted because Mercado Livre responses may contain sensitive
+// seller or buyer data.
+type APIError struct {
+	Operation  string
+	StatusCode int
+}
+
+func (e *APIError) Error() string {
+	return fmt.Sprintf("mercado livre %s retornou HTTP %d", e.Operation, e.StatusCode)
+}
+
+func IsUnauthorized(err error) bool {
+	var apiErr *APIError
+	return errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusUnauthorized
 }
 
 func New() *Connector {
@@ -86,7 +104,7 @@ func (c *Connector) postToken(ctx context.Context, form url.Values) (mp.TokenRes
 	}
 	defer res.Body.Close()
 	if res.StatusCode >= 300 {
-		return mp.TokenResult{}, fmt.Errorf("mercado livre token HTTP %d", res.StatusCode)
+		return mp.TokenResult{}, &APIError{Operation: "oauth/token", StatusCode: res.StatusCode}
 	}
 	var response mercadoTokenResponse
 	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
@@ -226,7 +244,11 @@ func (c *Connector) getJSON(ctx context.Context, endpoint string, token string, 
 	}
 	defer res.Body.Close()
 	if res.StatusCode >= 300 {
-		return fmt.Errorf("mercado livre retornou HTTP %d", res.StatusCode)
+		operation := "API"
+		if parsed, parseErr := url.Parse(endpoint); parseErr == nil && parsed.Path != "" {
+			operation = parsed.Path
+		}
+		return &APIError{Operation: operation, StatusCode: res.StatusCode}
 	}
 	return json.NewDecoder(res.Body).Decode(out)
 }

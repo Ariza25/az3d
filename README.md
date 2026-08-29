@@ -273,6 +273,57 @@ O painel possui base para Mercado Livre, Shopee e Amazon:
 
 Para o MVP atual, a prioridade e usar os marketplaces como origem/sincronizacao e manter a store propria operando com compra via Mercado Pago.
 
+### AZ3D Seller MCP (Mercado Livre)
+
+O backend inclui um servidor MCP local em Go que usa o conector oficial da API do Mercado Livre. A primeira versao e propositalmente somente leitura e expoe quatro ferramentas:
+
+- `meli_connection_status`: valida a conta configurada;
+- `meli_list_items`: lista ate 50 anuncios ativos;
+- `meli_list_orders`: lista pedidos pagos recentes sem dados pessoais do comprador;
+- `meli_sales_summary`: resume faturamento, taxas, frete, descontos e unidades vendidas.
+
+Configure as credenciais somente no ambiente local. Nunca grave tokens no `config.toml` do Codex nem no repositorio:
+
+```env
+MELI_CLIENT_ID=
+MELI_CLIENT_SECRET=
+MELI_SELLER_ID=
+MELI_ACCESS_TOKEN=
+MELI_REFRESH_TOKEN=
+MELI_TOKEN_EXPIRES_AT=2026-08-29T18:00:00Z
+MELI_TOKEN_STORE_PATH=C:\Users\User\AppData\Local\AZ3D\meli-token.enc
+CREDENTIAL_ENCRYPTION_KEY=uma-chave-aleatoria-com-pelo-menos-32-caracteres
+```
+
+`MELI_TOKEN_STORE_PATH` e `CREDENTIAL_ENCRYPTION_KEY` sao obrigatorios para refresh automatico. O arquivo armazena access token, refresh token rotacionado, seller ID e expiracao de forma criptografada. Sem armazenamento seguro, o MCP recusa renovar o token para nao consumir um refresh token de uso unico sem conseguir persistir o sucessor.
+
+Compile o executavel:
+
+```powershell
+cd backend
+go build -o .\bin\az3d-seller-mcp.exe .\cmd\az3d-seller-mcp
+```
+
+Exemplo de configuracao do Codex, reutilizando variaveis do ambiente em vez de copiar seus valores:
+
+```toml
+[mcp_servers.az3d_seller]
+command = "C:\\caminho\\para\\az3d\\backend\\bin\\az3d-seller-mcp.exe"
+env_vars = [
+  "MELI_CLIENT_ID",
+  "MELI_CLIENT_SECRET",
+  "MELI_SELLER_ID",
+  "MELI_ACCESS_TOKEN",
+  "MELI_REFRESH_TOKEN",
+  "MELI_TOKEN_EXPIRES_AT",
+  "MELI_TOKEN_STORE_PATH",
+  "CREDENTIAL_ENCRYPTION_KEY"
+]
+required = true
+```
+
+O transporte e STDIO: `stdout` fica reservado ao JSON-RPC do MCP e diagnosticos sao enviados apenas para `stderr`. Operacoes de escrita (publicar, alterar preco/estoque e gerenciar Ads) entrarao em uma etapa posterior, com validacao, previa, confirmacao e auditoria.
+
 ### Shopee
 
 Para trazer os dados da Shopee para um tenant, separe duas responsabilidades:
