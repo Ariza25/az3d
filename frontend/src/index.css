@@ -50,9 +50,10 @@
   width: 100%;
   border-radius: 0.75rem;
   border: 1px solid #2a303f;
-  background: #111318;
+  background: #0a0b0d;
   color: #f8fafc;
-  padding: 0.625rem 0.75rem;
+  min-height: 42px;
+  padding: 0.625rem 2.25rem 0.625rem 0.75rem;
   font-size: 0.8125rem;
   outline: none;
 }

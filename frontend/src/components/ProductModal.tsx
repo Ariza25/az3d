@@ -1,70 +1,51 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Product, ProductReview } from '../types';
-import { X, Layers, Clock, Ruler, Weight, ShoppingBag, Check, Heart, Star } from 'lucide-react';
+import { Product } from '../types';
+import { Check, Heart, Layers, Minus, Plus, ShoppingBag, Star, X } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
-import { getStockStatus, money } from '../shared/storePresentation';
+import { getAvailableColors, getColorVisual, getDefaultColor, getStockStatus, money } from '../shared/storePresentation';
 
 interface ProductModalProps {
   product: Product | null;
   onClose: () => void;
 }
 
-const COLOR_OPTIONS = [
-  { name: 'Preto Slate', hex: '#18181b', border: '#3f3f46' },
-  { name: 'Branco Marmore', hex: '#f4f4f5', border: '#e4e4e7' },
-  { name: 'Cinza Chumbo', hex: '#3f3f46', border: '#71717a' },
-  { name: 'PLA Silk Dupla Cor', hex: '#06b6d4', border: '#22d3ee' },
-  { name: 'Bronze Metalizado', hex: '#d97706', border: '#f59e0b' },
-];
-
-const getColorVisual = (name: string) => {
-  const normalized = name.toLowerCase();
-  return (
-    COLOR_OPTIONS.find((color) => color.name.toLowerCase() === normalized) ||
-    COLOR_OPTIONS.find((color) => normalized.includes(color.name.toLowerCase())) ||
-    { name, hex: '#64748b', border: '#94a3b8' }
-  );
-};
-
 export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) => {
   const { addToCart } = useCart();
   const { isAuthenticated } = useAuth();
-  const [selectedColor, setSelectedColor] = useState('Preto Slate');
+  const [selectedColor, setSelectedColor] = useState('Padrão');
   const [quantity, setQuantity] = useState(1);
-  const [reviews, setReviews] = useState<ProductReview[]>([]);
   const [isFavorite, setIsFavorite] = useState(false);
-  const [reviewRating, setReviewRating] = useState(5);
-  const [reviewComment, setReviewComment] = useState('');
   const [feedback, setFeedback] = useState<string | null>(null);
 
   const availableColors = useMemo(() => {
-    const colorImages = product?.color_images?.filter((image) => image.color_name && image.image_url) || [];
-    if (colorImages.length > 0) {
-      return colorImages.map((image) => ({
-        ...getColorVisual(image.color_name),
-        name: image.color_name,
-        imageUrl: image.image_url,
-      }));
-    }
-
-    return COLOR_OPTIONS.map((color) => ({
-      ...color,
-      imageUrl: product?.image_url || '',
-    }));
+    if (!product) return [];
+    const names = getAvailableColors(product);
+    const normalizedNames = names.length > 0 ? names : [getDefaultColor(product)];
+    return normalizedNames.map((name) => {
+      const image = product.color_images?.find((item) => item.color_name === name)?.image_url;
+      return { name, imageUrl: image || product.image_url, ...getColorVisual(name) };
+    });
   }, [product]);
 
+  const imageChoices = useMemo(() => {
+    const seen = new Set<string>();
+    return availableColors.filter((color) => {
+      if (!color.imageUrl || seen.has(color.imageUrl)) return false;
+      seen.add(color.imageUrl);
+      return true;
+    });
+  }, [availableColors]);
+
   useEffect(() => {
-    setSelectedColor(availableColors[0]?.name || 'Preto Slate');
+    setSelectedColor(availableColors[0]?.name || 'Padrão');
     setQuantity(1);
     setFeedback(null);
   }, [availableColors, product?.id]);
 
   useEffect(() => {
     if (!product) return;
-
-    api.getProductReviews(product.id).then(setReviews).catch(() => setReviews([]));
     if (isAuthenticated) {
       api.getMyFavorites(product.tenant_id)
         .then((favorites) => setIsFavorite(favorites.some((favorite) => favorite.product_id === product.id)))
@@ -74,21 +55,37 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
     }
   }, [product, isAuthenticated]);
 
+  useEffect(() => {
+    if (!product) return;
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [product, onClose]);
+
   if (!product) return null;
 
   const selectedVariant = product.variants?.find(
     (variant) => variant.color_name === selectedColor && variant.is_active
   );
   const selectedStock = product.color_stocks?.find((stock) => stock.color_name === selectedColor);
-  const selectedImageUrl =
-    availableColors.find((color) => color.name === selectedColor)?.imageUrl || product.image_url;
+  const selectedImageUrl = availableColors.find((color) => color.name === selectedColor)?.imageUrl || product.image_url;
   const selectedPrice = selectedVariant?.price || product.price;
-  const selectedMaterial = selectedVariant?.material || product.material;
-  const selectedLayerHeight = selectedVariant?.layer_height || product.layer_height;
-  const selectedPrintTime = selectedVariant?.print_time || product.print_time;
   const stockLimit = selectedStock?.stock_qty ?? product.stock_qty;
   const hasRealReviews = Boolean(product.review_summary?.review_count);
   const stockStatus = getStockStatus({ ...product, color_stocks: undefined, stock_qty: stockLimit, in_stock: stockLimit > 0 && product.in_stock });
+  const stockTextTone = !stockStatus.canBuy ? 'text-red-300' : stockLimit <= 3 ? 'text-amber-300' : 'text-emerald-300';
+  const stockCopy = stockLimit <= 0
+    ? 'Sem estoque no momento'
+    : stockLimit <= 3
+      ? `${stockLimit} ${stockLimit === 1 ? 'unidade disponível' : 'unidades disponíveis'}`
+      : `${stockLimit} unidades disponíveis`;
 
   const handleAddToCart = () => {
     if (addToCart({ ...product, price: selectedPrice }, quantity, selectedColor)) {
@@ -98,7 +95,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
 
   const toggleFavorite = async () => {
     if (!isAuthenticated) {
-      setFeedback('Entre como comprador para favoritar.');
+      setFeedback('Entre como comprador para favoritar este item.');
       return;
     }
 
@@ -110,139 +107,163 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
         await api.addProductFavorite(product.id, product.tenant_id);
         setIsFavorite(true);
       }
-    } catch (err: any) {
-      setFeedback(err.message || 'Nao foi possivel atualizar favorito.');
+    } catch (error: any) {
+      setFeedback(error.message || 'Não foi possível atualizar o favorito.');
     }
   };
 
-  const submitReview = async () => {
-    if (!isAuthenticated) {
-      setFeedback('Entre como comprador para avaliar.');
-      return;
-    }
-
-    try {
-      await api.saveProductReview(product.id, reviewRating, reviewComment, product.tenant_id);
-      const updatedReviews = await api.getProductReviews(product.id, product.tenant_id);
-      setReviews(updatedReviews);
-      setReviewComment('');
-      setFeedback('Avaliacao salva.');
-    } catch (err: any) {
-      setFeedback(err.message || 'Avaliacao disponivel apenas para compradores deste produto.');
-    }
+  const selectColor = (colorName: string) => {
+    setSelectedColor(colorName);
+    setQuantity(1);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto bg-black/80 backdrop-blur-md">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/80 p-3 backdrop-blur-md sm:p-6"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="product-modal-title"
+    >
       <div
-        className="glass-panel w-full max-w-4xl rounded-3xl overflow-hidden border border-chumbo-700 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200"
-        onClick={(e) => e.stopPropagation()}
+        className="glass-panel relative max-h-[calc(100vh-1.5rem)] w-full max-w-6xl overflow-y-auto rounded-3xl border border-chumbo-700 shadow-2xl animate-in fade-in zoom-in-95 duration-200 sm:max-h-[calc(100vh-3rem)] lg:overflow-hidden"
+        onClick={(event) => event.stopPropagation()}
       >
-        <button onClick={onClose} className="absolute top-4 right-4 z-10 p-2.5 rounded-full bg-chumbo-950/80 text-slate-400 hover:text-white border border-chumbo-700 transition-colors">
-          <X className="w-5 h-5" />
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-4 top-4 z-30 rounded-full border border-white/10 bg-chumbo-950/85 p-2.5 text-slate-400 transition-colors hover:border-white/20 hover:text-white"
+          aria-label="Fechar detalhes do produto"
+        >
+          <X className="h-5 w-5" />
         </button>
 
-        <div className="grid grid-cols-1 md:grid-cols-2">
-          <div className="relative bg-chumbo-950 p-6 flex items-center justify-center min-h-[320px]">
-            <img src={selectedImageUrl} alt={product.title} className="w-full h-80 object-cover rounded-2xl border border-chumbo-800 shadow-xl" />
+        <div className="grid lg:h-[620px] lg:max-h-[calc(100vh-3rem)] lg:grid-cols-[52fr_48fr]">
+          <div className="relative flex min-h-[200px] items-center justify-center overflow-hidden bg-chumbo-950 sm:min-h-[440px] lg:min-h-0">
+            <img src={selectedImageUrl} alt="" className="absolute inset-0 h-full w-full scale-110 object-cover opacity-20 blur-2xl" aria-hidden="true" />
+            <div className="absolute inset-0 bg-gradient-to-br from-chumbo-950/35 via-chumbo-950/55 to-chumbo-950" />
+            <img src={selectedImageUrl} alt={product.title} className="relative z-10 h-48 w-full object-contain p-3 sm:h-80 sm:p-6 lg:h-full lg:max-h-[620px] lg:p-10" />
+
+            {imageChoices.length > 1 && (
+              <div className="absolute bottom-5 left-5 z-20 flex gap-2 rounded-2xl border border-white/10 bg-chumbo-950/75 p-2 backdrop-blur-md">
+                {imageChoices.map((choice) => (
+                  <button
+                    type="button"
+                    key={`${choice.name}-${choice.imageUrl}`}
+                    onClick={() => selectColor(choice.name)}
+                    className={`h-14 w-14 overflow-hidden rounded-xl border bg-chumbo-900 transition ${choice.imageUrl === selectedImageUrl ? 'border-white ring-1 ring-white' : 'border-chumbo-700 opacity-70 hover:opacity-100'}`}
+                    aria-label={`Ver imagem da cor ${choice.name}`}
+                  >
+                    <img src={choice.imageUrl} alt="" className="h-full w-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
-          <div className="p-6 md:p-8 flex flex-col justify-between space-y-6 bg-chumbo-900">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center space-x-2 text-xs font-mono text-laser-400">
-                  <Layers className="w-4 h-4" />
-                  <span className="uppercase tracking-widest font-bold">Detalhes do produto</span>
+          <div className="flex min-h-0 flex-col bg-chumbo-900 p-5 sm:p-8 lg:overflow-y-auto lg:p-10">
+            <div className="flex-1">
+              <div className="flex items-center justify-between gap-3 pr-12">
+                <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-laser-400">
+                  <Layers className="h-4 w-4" />
+                  Detalhes do produto
                 </div>
-                <button type="button" onClick={toggleFavorite} className={`rounded-xl border px-3 py-2 text-xs font-bold transition-colors ${isFavorite ? 'border-rose-400/50 bg-rose-500/10 text-rose-300' : 'border-chumbo-700 bg-chumbo-950 text-slate-300 hover:text-white'}`}>
-                  <Heart className={`inline h-4 w-4 ${isFavorite ? 'fill-rose-300' : ''}`} />
+                <button
+                  type="button"
+                  onClick={toggleFavorite}
+                  className={`rounded-xl border p-2.5 transition-colors ${isFavorite ? 'border-rose-400/50 bg-rose-500/10 text-rose-300' : 'border-chumbo-700 bg-chumbo-950/70 text-slate-300 hover:border-chumbo-600 hover:text-white'}`}
+                  aria-label={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+                >
+                  <Heart className={`h-4 w-4 ${isFavorite ? 'fill-rose-300' : ''}`} />
                 </button>
               </div>
 
-              <h2 className="text-2xl font-extrabold text-white">{product.title}</h2>
+              <h2 id="product-modal-title" className="mt-5 text-2xl font-extrabold leading-tight text-white sm:text-3xl lg:text-[2rem]">{product.title}</h2>
 
-              {hasRealReviews && (
-                <div className="flex items-center gap-2 text-sm text-amber-300">
-                  <Star className="h-4 w-4 fill-amber-300" />
-                  <span className="font-bold">{product.review_summary!.average_rating.toFixed(1)}</span>
-                  <span className="text-slate-500">({product.review_summary!.review_count} avaliacoes)</span>
-                </div>
-              )}
-
-              {feedback && <div className="rounded-xl border border-chumbo-700 bg-chumbo-950 p-3 text-xs text-slate-300">{feedback}</div>}
-
-              <p className="text-sm text-slate-300 leading-relaxed font-normal">{product.description}</p>
-
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                <Spec icon={<Layers className="w-4 h-4 text-slate-400" />} label="Material" value={selectedMaterial} />
-                <Spec icon={<Clock className="w-4 h-4 text-slate-400" />} label="Prazo estimado" value={selectedPrintTime} />
-                <Spec icon={<Ruler className="w-4 h-4 text-slate-400" />} label="Dimensoes (XYZ)" value={product.dimensions} />
-                <Spec icon={<Weight className="w-4 h-4 text-slate-400" />} label="Acabamento / Peso" value={selectedLayerHeight} />
+              <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
+                <span>{product.category?.name || 'Catálogo'}</span>
+                {product.sku && <><span aria-hidden="true">·</span><span>SKU {product.sku}</span></>}
+                {hasRealReviews && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span className="inline-flex items-center gap-1 text-amber-300">
+                      <Star className="h-3.5 w-3.5 fill-amber-300" />
+                      <strong>{product.review_summary!.average_rating.toFixed(1)}</strong>
+                      <span className="text-slate-500">({product.review_summary!.review_count})</span>
+                    </span>
+                  </>
+                )}
               </div>
 
-              <div className="space-y-2 pt-2">
-                <label className="text-xs font-mono text-slate-400 uppercase tracking-wider block">
-                  Cor selecionada: <span className="text-white font-bold">{selectedColor}</span>
-                </label>
-                <div className="flex items-center space-x-3">
-                  {availableColors.map((col) => (
-                    <button
-                      key={col.name}
-                      onClick={() => setSelectedColor(col.name)}
-                      className={`w-7 h-7 rounded-full flex items-center justify-center transition-transform ${selectedColor === col.name ? 'scale-125 ring-2 ring-white ring-offset-2 ring-offset-chumbo-900' : 'hover:scale-110'}`}
-                      style={{ backgroundColor: col.hex, border: `1px solid ${col.border}` }}
-                      title={col.name}
-                    >
-                      {selectedColor === col.name && <Check className={`w-3.5 h-3.5 ${col.hex === '#f4f4f5' ? 'text-black' : 'text-white'}`} />}
-                    </button>
-                  ))}
-                </div>
-                <div className={`rounded-xl border px-3 py-2 text-xs ${stockStatus.tone}`}>
-                  {stockLimit > 0
-                    ? `${stockLimit <= 3 ? 'Ultimas unidades: ' : ''}${stockLimit} unidade${stockLimit === 1 ? '' : 's'} disponivel${stockLimit === 1 ? '' : 's'} nesta cor.`
-                    : 'Esta cor esta sem estoque no momento.'}
-                </div>
-              </div>
+              <p className="mt-6 whitespace-pre-line text-[15px] leading-7 text-slate-300">{product.description}</p>
 
-              <div className="rounded-xl border border-chumbo-800 bg-chumbo-950/70 p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-mono uppercase text-slate-400">Avaliar produto</span>
-                  <select value={reviewRating} onChange={(e) => setReviewRating(Number(e.target.value))} className="rounded-lg border border-chumbo-700 bg-chumbo-900 px-2 py-1 text-xs text-white">
-                    {[5, 4, 3, 2, 1].map((rating) => <option key={rating} value={rating}>{rating} estrelas</option>)}
-                  </select>
-                </div>
-                <textarea value={reviewComment} onChange={(e) => setReviewComment(e.target.value)} rows={2} placeholder="Conte como foi sua compra" className="mt-2 w-full rounded-lg border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-laser-400" />
-                <button type="button" onClick={submitReview} className="mt-2 rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-chumbo-950 hover:bg-slate-200">Salvar avaliacao</button>
-              </div>
+              {feedback && <div className="mt-5 rounded-xl border border-chumbo-700 bg-chumbo-950 p-3 text-xs text-slate-300">{feedback}</div>}
 
-              {reviews.length > 0 && (
-                <div className="max-h-24 space-y-2 overflow-y-auto pr-1">
-                  {reviews.slice(0, 3).map((review) => (
-                    <div key={review.id} className="rounded-lg border border-chumbo-800 bg-chumbo-950/60 p-2 text-xs text-slate-300">
-                      <span className="font-bold text-amber-300">{review.rating}/5</span>
-                      {review.comment && <span className="ml-2">{review.comment}</span>}
+              <div className="mt-7 border-t border-chumbo-800 pt-6">
+                {availableColors.length > 1 ? (
+                  <div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Escolha a cor</span>
+                      <span className="text-sm font-bold text-white">{selectedColor}</span>
                     </div>
-                  ))}
+                    <div className="mt-3 flex flex-wrap items-center gap-3">
+                      {availableColors.map((color) => (
+                        <button
+                          type="button"
+                          key={color.name}
+                          onClick={() => selectColor(color.name)}
+                          className={`flex h-10 w-10 items-center justify-center rounded-full transition ${selectedColor === color.name ? 'ring-2 ring-white ring-offset-2 ring-offset-chumbo-900' : 'hover:scale-110'}`}
+                          style={{ backgroundColor: color.hex, border: `1px solid ${color.border}` }}
+                          title={color.name}
+                          aria-label={`Selecionar cor ${color.name}`}
+                        >
+                          {selectedColor === color.name && <Check className={`h-4 w-4 ${color.hex === '#f8fafc' ? 'text-black' : 'text-white'}`} />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Cor</span>
+                    <span className="inline-flex items-center gap-2 text-sm font-bold text-white">
+                      <span className="h-4 w-4 rounded-full border" style={{ backgroundColor: availableColors[0]?.hex, borderColor: availableColors[0]?.border }} />
+                      {selectedColor}
+                    </span>
+                  </div>
+                )}
+
+                <div className={`mt-4 inline-flex items-center gap-2 text-xs font-semibold ${stockTextTone}`}>
+                  <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                  {stockCopy}
                 </div>
-              )}
+              </div>
             </div>
 
-            <div className="pt-4 border-t border-chumbo-800 flex items-center justify-between">
-              <div>
-                <span className="text-xs font-mono text-slate-400 block">Preco unitario</span>
-                <span className="text-2xl font-extrabold text-white">{money(selectedPrice)}</span>
-              </div>
-
-              <div className="flex items-center space-x-3">
-                <div className="flex items-center bg-chumbo-950 border border-chumbo-800 rounded-xl p-1">
-                  <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="w-8 h-8 rounded-lg text-slate-400 hover:text-white flex items-center justify-center hover:bg-chumbo-800">-</button>
-                  <span className="w-8 text-center font-mono font-bold text-sm text-white">{quantity}</span>
-                  <button onClick={() => setQuantity(Math.min(stockLimit || 1, quantity + 1))} className="w-8 h-8 rounded-lg text-slate-400 hover:text-white flex items-center justify-center hover:bg-chumbo-800">+</button>
+            <div className="mt-7 border-t border-chumbo-800 pt-6">
+              <div className="grid grid-cols-[1fr_auto] items-end gap-4 lg:grid-cols-[auto_auto_minmax(180px,1fr)]">
+                <div>
+                  <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500">Preço</span>
+                  <span className="mt-1 block whitespace-nowrap text-3xl font-extrabold text-white">{money(selectedPrice)}</span>
                 </div>
 
-                <button onClick={handleAddToCart} disabled={stockLimit <= 0} className="flex items-center space-x-2 px-6 py-3 rounded-xl bg-white hover:bg-slate-200 text-chumbo-950 font-extrabold text-sm transition-all shadow-xl active:scale-95 disabled:cursor-not-allowed disabled:opacity-50">
-                  <ShoppingBag className="w-4 h-4" />
-                  <span>{stockLimit > 0 ? isAuthenticated ? 'Adicionar ao carrinho' : 'Entrar para comprar' : 'Sem estoque'}</span>
+                <div className="flex h-12 items-center rounded-xl border border-chumbo-700 bg-chumbo-950 p-1" aria-label="Quantidade">
+                  <button type="button" onClick={() => setQuantity(Math.max(1, quantity - 1))} className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-chumbo-800 hover:text-white" aria-label="Diminuir quantidade">
+                    <Minus className="h-4 w-4" />
+                  </button>
+                  <span className="w-8 text-center text-sm font-bold text-white">{quantity}</span>
+                  <button type="button" onClick={() => setQuantity(Math.min(stockLimit || 1, quantity + 1))} className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-chumbo-800 hover:text-white" aria-label="Aumentar quantidade">
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleAddToCart}
+                  disabled={stockLimit <= 0}
+                  className="col-span-2 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-white px-5 text-sm font-extrabold text-chumbo-950 shadow-xl transition hover:bg-slate-200 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 lg:col-span-1"
+                >
+                  <ShoppingBag className="h-4 w-4" />
+                  {stockLimit > 0 ? (isAuthenticated ? 'Adicionar' : 'Entrar para comprar') : 'Sem estoque'}
                 </button>
               </div>
             </div>
@@ -252,13 +273,3 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
     </div>
   );
 };
-
-const Spec = ({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) => (
-  <div className="bg-chumbo-950/80 p-3 rounded-xl border border-chumbo-800 flex items-center space-x-3">
-    {icon}
-    <div>
-      <span className="text-[10px] text-slate-400 block uppercase font-mono">{label}</span>
-      <span className="text-xs font-bold text-slate-100">{value}</span>
-    </div>
-  </div>
-);

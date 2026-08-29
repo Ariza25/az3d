@@ -18,9 +18,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal }
   const reviewCount = product.review_summary?.review_count || product.review_count || 0;
 
   return (
-    <div className="glass-card rounded-xl overflow-hidden group flex flex-col justify-between border border-chumbo-800 hover:border-chumbo-600 transition-all duration-300">
+    <article className="glass-card group flex h-full flex-col overflow-hidden rounded-2xl border border-chumbo-800 transition-all duration-300 hover:border-chumbo-600">
       <div
-        className="relative h-64 overflow-hidden bg-chumbo-950 cursor-pointer"
+        className="relative aspect-square cursor-pointer overflow-hidden bg-chumbo-950"
         onClick={() => onOpenModal(product)}
       >
         <img
@@ -52,8 +52,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal }
         </button>
       </div>
 
-      <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
-        <div>
+      <div className="flex flex-1 flex-col p-5">
+        <div className="flex-1">
           <h3
             onClick={() => onOpenModal(product)}
             className="text-base font-bold text-white group-hover:text-slate-200 transition-colors line-clamp-1 cursor-pointer"
@@ -69,13 +69,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal }
               </span>
             )}
           </div>
-          <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+          <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-slate-400">
             {product.description}
           </p>
         </div>
 
-        <div className="flex items-center justify-between gap-3 text-[11px] font-mono text-slate-400 bg-chumbo-900/80 px-3 py-2 rounded-xl border border-chumbo-800">
-          <span className="truncate">{product.category?.name || 'Catalogo'}</span>
+        <div className="mt-4 flex items-center justify-between gap-3 text-[11px] font-mono text-slate-500">
+          <span className="truncate">{product.category?.name || 'Catálogo'}</span>
           <div className="flex items-center -space-x-1.5">
             {colors.map((color) => {
               const visual = getColorVisual(color);
@@ -93,24 +93,24 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal }
           </div>
         </div>
 
-        <div className="flex items-center justify-between pt-2 border-t border-chumbo-850">
-          <div>
+        <div className="mt-5 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3 border-t border-chumbo-800 pt-4">
+          <div className="min-w-0">
             <span className="text-[10px] uppercase font-mono tracking-wider text-slate-400 block">
-              Preco
+              Preço
             </span>
-            <span className="text-2xl font-extrabold text-white">{money(product.price)}</span>
+            <span className="block whitespace-nowrap text-xl font-extrabold text-white">{money(product.price)}</span>
           </div>
 
           <button
             onClick={() => addToCart(product, 1, getDefaultColor(product))}
             disabled={!stockStatus.canBuy}
-            className="flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-white hover:bg-slate-200 text-chumbo-950 font-bold text-xs transition-all active:scale-95 shadow-md disabled:cursor-not-allowed disabled:opacity-45"
+            className="flex h-11 items-center space-x-2 rounded-xl bg-white px-4 text-chumbo-950 shadow-md transition-all hover:bg-slate-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45"
           >
             <ShoppingBag className="w-4 h-4" />
-            <span>{stockStatus.canBuy ? 'Adicionar ao carrinho' : 'Indisponivel'}</span>
+            <span className="text-xs font-extrabold">{stockStatus.canBuy ? 'Adicionar' : 'Indisponível'}</span>
           </button>
         </div>
       </div>
-    </div>
+    </article>
   );
 };

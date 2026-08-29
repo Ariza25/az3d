@@ -1,7 +1,7 @@
 import React from 'react';
-import { ArrowRight, Grid2X2, ShoppingBag, Star } from 'lucide-react';
+import { ArrowRight, ShoppingBag, Sparkles } from 'lucide-react';
 import { Category, Product, Tenant, TenantSettings } from '../types';
-import { money } from '../shared/storePresentation';
+import { getStockStatus, money } from '../shared/storePresentation';
 
 interface HeroProps {
   tenant: Tenant | null;
@@ -9,6 +9,7 @@ interface HeroProps {
   featuredProduct?: Product;
   categories: Category[];
   onSelectCategory: (slug: string) => void;
+  onOpenProduct?: (product: Product) => void;
 }
 
 export const Hero: React.FC<HeroProps> = ({
@@ -17,6 +18,7 @@ export const Hero: React.FC<HeroProps> = ({
   featuredProduct,
   categories,
   onSelectCategory,
+  onOpenProduct,
 }) => {
   const storeName = settings?.store_name || tenant?.name || 'AZ3D Store';
   const logoUrl = settings?.logo_url || tenant?.logo_url;
@@ -26,72 +28,98 @@ export const Hero: React.FC<HeroProps> = ({
     featuredProduct?.image_url ||
     'https://images.unsplash.com/photo-1563089145-599997674d42?q=80&w=1400&auto=format&fit=crop';
   const featuredTitle = featuredProduct?.title || 'Produtos prontos para comprar';
-  const featuredPrice = featuredProduct ? money(featuredProduct.price) : 'Catalogo da loja';
-  const visibleCategories = categories.slice(0, 4);
+  const featuredPrice = featuredProduct ? money(featuredProduct.price) : 'Catálogo da loja';
+  const visibleCategories = categories.slice(0, 3);
+  const stockStatus = featuredProduct ? getStockStatus(featuredProduct) : null;
   const scrollToCatalog = () => document.getElementById('catalog')?.scrollIntoView({ behavior: 'smooth' });
 
   return (
-    <section className="relative min-h-[520px] overflow-hidden border-b border-chumbo-850 bg-chumbo-950">
-      <img src={featuredImage} alt={featuredTitle} className="absolute inset-0 h-full w-full object-cover opacity-45" />
-      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(10,11,13,0.96)_0%,rgba(10,11,13,0.82)_48%,rgba(10,11,13,0.38)_100%)]" />
+    <section className="relative overflow-hidden border-b border-chumbo-850 bg-chumbo-950">
+      <div className="absolute -left-24 top-10 h-72 w-72 rounded-full bg-cyan-500/10 blur-3xl" />
+      <div className="absolute right-0 top-0 h-full w-1/2 bg-[radial-gradient(circle_at_center,rgba(34,211,238,0.08),transparent_62%)]" />
 
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 lg:py-20">
-        <div className="max-w-3xl space-y-7">
+      <div className={`relative z-10 mx-auto grid max-w-7xl items-center gap-10 px-4 py-12 sm:px-6 lg:px-8 lg:py-16 ${featuredProduct ? 'lg:grid-cols-[minmax(0,1fr)_420px]' : ''}`}>
+        <div className="max-w-2xl space-y-7">
           <div className="flex items-center gap-3">
             {logoUrl ? (
-              <img src={logoUrl} alt={storeName} className="h-12 w-12 rounded-xl object-cover border border-white/15 bg-chumbo-900" />
+              <img src={logoUrl} alt={storeName} className="h-12 w-12 rounded-xl border border-white/15 bg-chumbo-900 object-cover" />
             ) : (
-              <div className="h-12 w-12 rounded-xl border border-white/15 bg-chumbo-900 flex items-center justify-center" style={{ color: primaryColor }}>
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-white/15 bg-chumbo-900" style={{ color: primaryColor }}>
                 <ShoppingBag className="h-6 w-6" />
               </div>
             )}
             <div>
               <p className="text-xs font-mono uppercase tracking-widest text-slate-400">Loja oficial</p>
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-tight text-white">{storeName}</h1>
+              <h1 className="text-4xl font-extrabold leading-tight text-white sm:text-5xl lg:text-6xl">{storeName}</h1>
             </div>
           </div>
 
-          <p className="max-w-2xl text-base sm:text-lg leading-relaxed text-slate-200">
-            Produtos selecionados, estoque atualizado e compra direta na loja. Encontre pecas prontas por categoria, cor, material e disponibilidade.
+          <p className="max-w-xl text-base leading-relaxed text-slate-300 sm:text-lg">
+            Peças selecionadas, produção cuidadosa e compra direta. Explore o catálogo e encontre o item ideal para o seu projeto.
           </p>
 
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={scrollToCatalog}
-              className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-extrabold text-chumbo-950 shadow-lg transition hover:brightness-110"
-              style={{ backgroundColor: primaryColor }}
-            >
-              Comprar agora
-              <ArrowRight className="h-4 w-4" />
-            </button>
-            {visibleCategories.map((category) => (
-              <button
-                key={category.id}
-                type="button"
-                onClick={() => {
-                  onSelectCategory(category.slug);
-                  scrollToCatalog();
-                }}
-                className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-chumbo-950/70 px-4 py-3 text-sm font-bold text-slate-100 hover:bg-chumbo-900"
-              >
-                <Grid2X2 className="h-4 w-4" />
-                {category.name}
-              </button>
-            ))}
-          </div>
+          <button
+            type="button"
+            onClick={scrollToCatalog}
+            className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-extrabold text-chumbo-950 shadow-lg transition hover:brightness-110"
+            style={{ backgroundColor: primaryColor }}
+          >
+            Explorar catálogo
+            <ArrowRight className="h-4 w-4" />
+          </button>
 
-          {featuredProduct && (
-            <div className="inline-flex max-w-full items-center gap-3 rounded-xl border border-white/15 bg-chumbo-950/80 px-4 py-3">
-              <Star className="h-4 w-4 shrink-0 fill-amber-300 text-amber-300" />
-              <div className="min-w-0">
-                <p className="text-[11px] font-mono uppercase tracking-wider text-slate-500">Produto em destaque</p>
-                <p className="truncate text-sm font-bold text-white">{featuredTitle}</p>
-              </div>
-              <span className="shrink-0 text-sm font-extrabold text-white">{featuredPrice}</span>
+          {visibleCategories.length > 0 && (
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-slate-400">
+              <span className="text-xs font-mono uppercase tracking-widest text-slate-600">Explore</span>
+              {visibleCategories.map((category) => (
+                <button
+                  key={category.id}
+                  type="button"
+                  onClick={() => {
+                    onSelectCategory(category.slug);
+                    scrollToCatalog();
+                  }}
+                  className="transition-colors hover:text-white"
+                >
+                  {category.name}
+                </button>
+              ))}
             </div>
           )}
         </div>
+
+        {featuredProduct && (
+          <article className="group overflow-hidden rounded-3xl border border-white/10 bg-chumbo-900/80 shadow-2xl shadow-black/30 backdrop-blur">
+            <button
+              type="button"
+              onClick={() => onOpenProduct?.(featuredProduct)}
+              className="relative block aspect-[16/10] w-full overflow-hidden text-left"
+              aria-label={`Ver ${featuredTitle}`}
+            >
+              <img src={featuredImage} alt={featuredTitle} className="h-full w-full object-cover transition duration-700 group-hover:scale-105" />
+              <div className="absolute inset-0 bg-gradient-to-t from-chumbo-950/85 via-transparent to-transparent" />
+              <span className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full border border-white/15 bg-chumbo-950/80 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-white backdrop-blur">
+                <Sparkles className="h-3.5 w-3.5 text-laser-400" />
+                Escolha da loja
+              </span>
+            </button>
+            <div className="flex items-center justify-between gap-5 p-5 sm:p-6">
+              <div className="min-w-0">
+                <p className={`mb-2 text-xs font-bold ${stockStatus?.canBuy ? 'text-emerald-300' : 'text-slate-500'}`}>{stockStatus?.label}</p>
+                <h2 className="line-clamp-2 text-xl font-extrabold leading-snug text-white">{featuredTitle}</h2>
+                <p className="mt-1 text-sm font-bold text-slate-300">{featuredPrice}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onOpenProduct?.(featuredProduct)}
+                className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-extrabold text-chumbo-950 transition hover:bg-slate-200"
+              >
+                Ver produto
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+          </article>
+        )}
       </div>
     </section>
   );

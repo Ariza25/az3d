@@ -34,24 +34,24 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <header className="sticky top-0 z-40 w-full glass-panel border-b border-chumbo-800 bg-chumbo-950/80 backdrop-blur-md">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-20">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="flex h-16 items-center justify-between sm:h-20">
           
           {/* Identidade da loja */}
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-3 cursor-pointer group">
+          <div className="flex min-w-0 items-center space-x-3 sm:space-x-4">
+            <div className="group flex min-w-0 cursor-pointer items-center space-x-2 sm:space-x-3">
               {logoUrl ? (
-                <img src={logoUrl} alt={storeName} className="w-10 h-10 rounded-lg object-cover border border-chumbo-700 bg-chumbo-900 shadow-lg group-hover:scale-105 transition-transform duration-300" />
+                <img src={logoUrl} alt={storeName} className="h-9 w-9 shrink-0 rounded-lg border border-chumbo-700 bg-chumbo-900 object-cover shadow-lg transition-transform duration-300 group-hover:scale-105 sm:h-10 sm:w-10" />
               ) : (
-                <div className="w-10 h-10 rounded-lg bg-chumbo-900 border border-chumbo-700 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform duration-300" style={{ color: primaryColor }}>
-                  <Layers className="w-6 h-6 stroke-[2.5]" />
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-chumbo-700 bg-chumbo-900 shadow-lg transition-transform duration-300 group-hover:scale-105 sm:h-10 sm:w-10" style={{ color: primaryColor }}>
+                  <Layers className="h-5 w-5 stroke-[2.5] sm:h-6 sm:w-6" />
                 </div>
               )}
-              <div>
-                <span className="text-2xl font-extrabold tracking-wider text-white flex items-center gap-1">
+              <div className="min-w-0">
+                <span className="block max-w-[118px] truncate text-lg font-extrabold tracking-wide text-white sm:max-w-none sm:text-2xl sm:tracking-wider">
                   {storeName}
                 </span>
-                <span className="text-[10px] uppercase tracking-widest text-slate-400 font-medium block -mt-1">
+                <span className="-mt-1 hidden text-[10px] font-medium uppercase tracking-widest text-slate-400 sm:block">
                   {activeTenant?.slug || 'store'}
                 </span>
               </div>
@@ -73,7 +73,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Ações / Usuário & Carrinho & Painel Admin */}
-          <div className="flex items-center space-x-3">
+          <div className="flex shrink-0 items-center space-x-1.5 sm:space-x-3">
             
             {/* Botão Painel Admin (Se admin) */}
             {isAuthenticated && (user?.role === 'admin' || user?.role === 'tenant_admin' || user?.role === 'master_admin') && (
@@ -110,7 +110,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Botão Carrinho */}
             <button
               onClick={openCart}
-              className="relative p-2.5 rounded-xl bg-chumbo-900 hover:bg-chumbo-800 border border-chumbo-700/50 text-slate-200 hover:text-white transition-all group"
+              className="group relative rounded-xl border border-chumbo-700/50 bg-chumbo-900 p-2 text-slate-200 transition-all hover:bg-chumbo-800 hover:text-white sm:p-2.5"
               aria-label="Abrir carrinho de vendas"
             >
               <ShoppingBag className="w-5 h-5 group-hover:scale-110 transition-transform" />
@@ -177,16 +177,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                 )}
               </div>
             ) : (
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-1 sm:space-x-2">
                 <button
                   onClick={onOpenLogin}
-                  className="px-4 py-2 text-sm font-medium text-slate-300 hover:text-white transition-colors"
+                  className="hidden px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:text-white sm:block"
                 >
                   Entrar
                 </button>
                 <button
                   onClick={onOpenRegister}
-                  className="px-4 py-2 text-sm font-medium bg-white text-chumbo-950 hover:bg-slate-200 rounded-xl font-semibold shadow-md transition-all duration-200 active:scale-95"
+                  className="rounded-xl bg-white px-3 py-2 text-xs font-semibold text-chumbo-950 shadow-md transition-all duration-200 hover:bg-slate-200 active:scale-95 sm:px-4 sm:text-sm"
                 >
                   Cadastrar
                 </button>
@@ -198,7 +198,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* Campo de Busca Mobile */}
-        <div className="md:hidden pb-4">
+        <div className="pb-3 md:hidden">
           <div className="relative w-full">
             <input
               type="text"

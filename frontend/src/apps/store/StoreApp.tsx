@@ -247,6 +247,7 @@ export const StoreApp: React.FC = () => {
           featuredProduct={featuredProduct}
           categories={categories}
           onSelectCategory={setActiveCategory}
+          onOpenProduct={openProduct}
         />
 
         <CategoryFilter
@@ -266,6 +267,12 @@ export const StoreApp: React.FC = () => {
           maxPrice={maxPrice}
           priceCeiling={priceCeiling}
           onMaxPriceChange={setMaxPrice}
+          onClear={() => {
+            setMaterialFilter('todos');
+            setAvailabilityFilter('all');
+            setMaxPrice(priceCeiling);
+            setSortBy('featured');
+          }}
         />
 
         <ProductGrid

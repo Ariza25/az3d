@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, Layers, MapPin, ReceiptText, ShoppingBag, Truck, Trash2, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, Layers, MapPin, Minus, Plus, ReceiptText, ShoppingBag, Truck, Trash2, X } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
@@ -48,6 +48,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [drawerMode, setDrawerMode] = useState<'cart' | 'orders'>('cart');
+  const [checkoutStep, setCheckoutStep] = useState<'items' | 'delivery'>('items');
 
   const canShip = tenantSettings?.delivery_ship_enabled ?? true;
   const canPickup = tenantSettings?.delivery_pickup_enabled ?? true;
@@ -76,7 +77,11 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
   };
 
   useEffect(() => {
-    const handleOpenCart = () => setDrawerMode('cart');
+    const handleOpenCart = () => {
+      setDrawerMode('cart');
+      setCheckoutStep('items');
+      setErrorMessage(null);
+    };
     const handleOpenOrders = () => {
       setDrawerMode('orders');
       loadMyOrders();
@@ -88,6 +93,40 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
       window.removeEventListener('az3d:open-orders', handleOpenOrders);
     };
   }, [isAuthenticated, tenantSettings?.tenant_id]);
+
+  useEffect(() => {
+    if (cart.length === 0) setCheckoutStep('items');
+  }, [cart.length]);
+
+  useEffect(() => {
+    if (!isCartOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsCartOpen(false);
+    };
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isCartOpen, setIsCartOpen]);
+
+  const closeDrawer = () => {
+    setIsCartOpen(false);
+    setCheckoutStep('items');
+    setErrorMessage(null);
+  };
+
+  const continueToDelivery = () => {
+    setErrorMessage(null);
+    if (!isAuthenticated) {
+      closeDrawer();
+      onOpenLogin();
+      return;
+    }
+    setCheckoutStep('delivery');
+  };
 
   if (!isCartOpen) return null;
 
@@ -148,36 +187,60 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
     }
   };
 
+  const title = drawerMode === 'orders'
+    ? 'Meus pedidos'
+    : checkoutStep === 'delivery'
+      ? 'Entrega e contato'
+      : 'Seu carrinho';
+
+  const subtitle = drawerMode === 'orders'
+    ? 'Acompanhe suas compras'
+    : checkoutStep === 'delivery'
+      ? 'Etapa 2 de 2'
+      : `${totalItems} ${totalItems === 1 ? 'item' : 'itens'}`;
+
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-black/70 backdrop-blur-sm">
-      <div className="absolute inset-0" onClick={() => setIsCartOpen(false)} />
+      <div className="absolute inset-0" onClick={closeDrawer} aria-hidden="true" />
 
-      <div className="fixed inset-y-0 right-0 max-w-full flex pl-0 sm:pl-10">
-        <div className="w-screen max-w-md bg-chumbo-950 border-l border-chumbo-800 shadow-2xl flex flex-col justify-between sm:max-w-lg">
-          <div className="p-6 border-b border-chumbo-850 flex items-center justify-between bg-chumbo-900/60">
-            <div className="flex items-center space-x-3">
-              <div className="w-9 h-9 rounded-xl bg-chumbo-800 border border-chumbo-700 flex items-center justify-center text-white">
-                <ShoppingBag className="w-5 h-5 text-laser-400" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-white">{drawerMode === 'orders' ? 'Meus pedidos' : 'Carrinho'}</h2>
-                <p className="text-xs text-slate-400 font-mono">
-                  {drawerMode === 'orders' ? 'Acompanhe suas compras' : `${totalItems} ${totalItems === 1 ? 'item selecionado' : 'itens selecionados'}`}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {drawerMode === 'orders' && (
-                <button onClick={() => setDrawerMode('cart')} className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-chumbo-800 transition-colors">
-                  <ArrowLeft className="w-5 h-5" />
+      <div className="fixed inset-y-0 right-0 flex max-w-full sm:pl-10">
+        <section
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="cart-drawer-title"
+          className="flex w-screen max-w-[36rem] flex-col border-l border-chumbo-800 bg-chumbo-950 shadow-2xl"
+        >
+          <header className="flex min-h-24 items-center justify-between border-b border-chumbo-850 bg-chumbo-900/70 px-5 py-5 sm:px-7">
+            <div className="flex min-w-0 items-center gap-3">
+              {(drawerMode === 'orders' || checkoutStep === 'delivery') ? (
+                <button
+                  type="button"
+                  onClick={() => drawerMode === 'orders' ? setDrawerMode('cart') : setCheckoutStep('items')}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-chumbo-700 text-slate-300 transition-colors hover:bg-chumbo-800 hover:text-white"
+                  aria-label="Voltar ao carrinho"
+                >
+                  <ArrowLeft className="h-5 w-5" />
                 </button>
+              ) : (
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-chumbo-700 bg-chumbo-800 text-laser-400">
+                  <ShoppingBag className="h-5 w-5" />
+                </div>
               )}
-              <button onClick={() => setIsCartOpen(false)} className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-chumbo-800 transition-colors">
-                <X className="w-5 h-5" />
-              </button>
+              <div className="min-w-0">
+                <h2 id="cart-drawer-title" className="truncate text-lg font-extrabold text-white">{title}</h2>
+                <p className="mt-0.5 text-xs text-slate-400">{subtitle}</p>
+              </div>
             </div>
-          </div>
+
+            <button
+              type="button"
+              onClick={closeDrawer}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-chumbo-800 hover:text-white"
+              aria-label="Fechar carrinho"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </header>
 
           {drawerMode === 'orders' ? (
             <OrdersPanel
@@ -186,21 +249,21 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
               errorMessage={errorMessage}
               onReload={loadMyOrders}
               onOpenLogin={() => {
-                setIsCartOpen(false);
+                closeDrawer();
                 onOpenLogin();
               }}
               isAuthenticated={isAuthenticated}
             />
           ) : orderSuccess ? (
-            <div className="p-8 flex-1 overflow-y-auto text-center space-y-5">
-              <div className="mx-auto w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/40">
-                <CheckCircle2 className="w-10 h-10" />
+            <div className="flex-1 space-y-5 overflow-y-auto p-8 text-center">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-emerald-500/40 bg-emerald-500/20 text-emerald-400">
+                <CheckCircle2 className="h-10 w-10" />
               </div>
               <div>
                 <h3 className="text-xl font-bold text-white">Pedido registrado</h3>
-                <p className="mt-2 text-sm text-slate-300 leading-relaxed">{orderSuccess}</p>
+                <p className="mt-2 text-sm leading-relaxed text-slate-300">{orderSuccess}</p>
                 {lastOrder && (
-                  <p className="mt-2 text-sm font-mono text-slate-100">Pedido #{lastOrder.id} - {money(lastOrder.total_amount)}</p>
+                  <p className="mt-2 text-sm font-mono text-slate-100">Pedido #{lastOrder.id} · {money(lastOrder.total_amount)}</p>
                 )}
               </div>
 
@@ -220,11 +283,11 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
                     setOrderSuccess(null);
                     setLastOrder(null);
                     setMyOrders([]);
-                    setIsCartOpen(false);
+                    closeDrawer();
                   }}
                   className="rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-chumbo-950 hover:bg-slate-200"
                 >
-                  Voltar a loja
+                  Voltar à loja
                 </button>
               </div>
 
@@ -232,139 +295,239 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
             </div>
           ) : (
             <>
-              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div className="flex-1 overflow-y-auto px-5 py-6 sm:px-7">
                 {errorMessage && (
-                  <div className="p-3.5 rounded-xl bg-red-950/60 border border-red-800/80 text-red-200 text-xs flex items-center space-x-2">
-                    <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+                  <div className="mb-5 flex items-center gap-2 rounded-xl border border-red-800/80 bg-red-950/60 p-3.5 text-xs text-red-200" role="alert">
+                    <AlertCircle className="h-4 w-4 shrink-0 text-red-400" />
                     <span>{errorMessage}</span>
                   </div>
                 )}
 
                 {cart.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-center text-slate-500 py-16 space-y-3">
-                    <ShoppingBag className="w-12 h-12 stroke-[1.5]" />
-                    <p className="text-sm font-medium">Seu carrinho esta vazio</p>
-                    <p className="text-xs text-slate-600 max-w-xs">Escolha produtos no catalogo e adicione ao carrinho.</p>
+                  <div className="flex h-full min-h-[420px] flex-col items-center justify-center px-4 py-16 text-center">
+                    <div className="flex h-20 w-20 items-center justify-center rounded-3xl border border-chumbo-700 bg-chumbo-900 text-laser-400 shadow-xl shadow-black/20">
+                      <ShoppingBag className="h-9 w-9 stroke-[1.7]" />
+                    </div>
+                    <h3 className="mt-6 text-xl font-extrabold text-white">Seu carrinho está vazio</h3>
+                    <p className="mt-2 max-w-xs text-sm leading-6 text-slate-400">Encontre uma peça, escolha a cor e ela aparece aqui para você revisar.</p>
+                    <button
+                      type="button"
+                      onClick={closeDrawer}
+                      className="mt-6 inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-extrabold text-chumbo-950 transition-colors hover:bg-slate-200"
+                    >
+                      Explorar catálogo
+                      <ArrowRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : checkoutStep === 'items' ? (
+                  <div className="space-y-3">
+                    {cart.map((item) => (
+                      <article key={`${item.product.id}-${item.color}`} className="rounded-2xl border border-chumbo-800 bg-chumbo-900/65 p-3 sm:p-4">
+                        <div className="flex gap-3.5 sm:gap-4">
+                          <img
+                            src={item.product.color_images?.find((image) => image.color_name === item.color)?.image_url || item.product.image_url}
+                            alt={item.product.title}
+                            className="h-24 w-24 shrink-0 rounded-xl border border-chumbo-700 object-cover sm:h-28 sm:w-28"
+                          />
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <h4 className="line-clamp-2 text-sm font-bold leading-5 text-white sm:text-base">{item.product.title}</h4>
+                                <span className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-400">
+                                  <Layers className="h-3.5 w-3.5 text-laser-400" />
+                                  {item.color}
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => removeFromCart(item.product.id, item.color)}
+                                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
+                                aria-label={`Remover ${item.product.title}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+
+                            <div className="mt-4 flex items-end justify-between gap-3">
+                              <div className="flex h-10 items-center rounded-xl border border-chumbo-700 bg-chumbo-950" aria-label={`Quantidade de ${item.product.title}`}>
+                                <button
+                                  type="button"
+                                  onClick={() => updateQuantity(item.product.id, item.color, item.quantity - 1)}
+                                  className="flex h-full w-10 items-center justify-center text-slate-400 transition-colors hover:text-white"
+                                  aria-label={`Diminuir quantidade de ${item.product.title}`}
+                                >
+                                  <Minus className="h-3.5 w-3.5" />
+                                </button>
+                                <span className="min-w-7 text-center font-mono text-sm font-bold text-white">{item.quantity}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => updateQuantity(item.product.id, item.color, item.quantity + 1)}
+                                  className="flex h-full w-10 items-center justify-center text-slate-400 transition-colors hover:text-white"
+                                  aria-label={`Aumentar quantidade de ${item.product.title}`}
+                                >
+                                  <Plus className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                              <div className="text-right">
+                                <span className="block text-[10px] uppercase tracking-wider text-slate-500">Subtotal</span>
+                                <strong className="mt-0.5 block text-base font-extrabold text-white">{money(item.product.price * item.quantity)}</strong>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </article>
+                    ))}
                   </div>
                 ) : (
-                  cart.map((item) => (
-                    <div key={`${item.product.id}-${item.color}`} className="glass-card p-3.5 rounded-xl border border-chumbo-800 flex items-center space-x-3.5">
-                      <img
-                        src={item.product.color_images?.find((image) => image.color_name === item.color)?.image_url || item.product.image_url}
-                        alt={item.product.title}
-                        className="w-16 h-16 object-cover rounded-xl border border-chumbo-700 shrink-0"
+                  <div className="space-y-7">
+                    <section>
+                      <div className="mb-3">
+                        <h3 className="text-sm font-bold text-white">Como você quer receber?</h3>
+                        <p className="mt-1 text-xs text-slate-500">Escolha a opção mais conveniente.</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        {deliveryOptions.map((option) => {
+                          const Icon = option.value === 'shipping' ? Truck : ShoppingBag;
+                          const isSelected = deliveryMethod === option.value;
+                          return (
+                            <button
+                              key={option.value}
+                              type="button"
+                              disabled={!option.enabled}
+                              onClick={() => {
+                                setDeliveryMethod(option.value);
+                                setErrorMessage(null);
+                              }}
+                              className={`flex min-h-20 items-center gap-3 rounded-2xl border px-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${isSelected ? 'border-laser-400 bg-laser-400/10 text-white' : 'border-chumbo-700 bg-chumbo-900/60 text-slate-300 hover:border-chumbo-600'}`}
+                              aria-pressed={isSelected}
+                            >
+                              <Icon className={`h-5 w-5 shrink-0 ${isSelected ? 'text-laser-400' : 'text-slate-500'}`} />
+                              <span>
+                                <strong className="block text-sm">{option.label}</strong>
+                                <span className="mt-0.5 block text-[11px] text-slate-500">{option.value === 'shipping' ? 'No seu endereço' : 'Na loja'}</span>
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </section>
+
+                    <section>
+                      <div className="mb-3">
+                        <h3 className="text-sm font-bold text-white">Dados para contato</h3>
+                        <p className="mt-1 text-xs text-slate-500">Usaremos esses dados somente neste pedido.</p>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <RequiredInput label="Nome de quem recebe" value={recipientName} onChange={setRecipientName} placeholder="Seu nome" autoComplete="name" />
+                        <RequiredInput label="Telefone" value={recipientPhone} onChange={setRecipientPhone} placeholder="(00) 00000-0000" autoComplete="tel" />
+                      </div>
+                    </section>
+
+                    {deliveryMethod === 'shipping' && (
+                      <section>
+                        <div className="mb-3">
+                          <h3 className="text-sm font-bold text-white">Endereço de entrega</h3>
+                          <p className="mt-1 text-xs text-slate-500">Preencha onde o pedido deve chegar.</p>
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-[1fr_1fr_88px]">
+                          <RequiredInput label="CEP" value={zipCode} onChange={setZipCode} placeholder="00000-000" autoComplete="postal-code" />
+                          <RequiredInput label="Cidade" value={city} onChange={setCity} placeholder="Sua cidade" autoComplete="address-level2" />
+                          <RequiredInput label="UF" value={state} onChange={setState} placeholder="SP" autoComplete="address-level1" />
+                        </div>
+                        <div className="mt-3">
+                          <RequiredInput label="Endereço completo" value={shippingAddress} onChange={setShippingAddress} placeholder="Rua, número, bairro e complemento" autoComplete="street-address" />
+                        </div>
+                      </section>
+                    )}
+
+                    <label className="block">
+                      <span className="mb-1.5 block text-xs font-semibold text-slate-300">Observações <span className="font-normal text-slate-500">(opcional)</span></span>
+                      <textarea
+                        value={notes}
+                        onChange={(event) => setNotes(event.target.value)}
+                        rows={3}
+                        placeholder="Alguma orientação para a loja?"
+                        className="w-full resize-none rounded-xl border border-chumbo-700/80 bg-chumbo-900 px-3.5 py-3 text-sm text-white placeholder-slate-600 outline-none transition-colors focus:border-laser-400"
                       />
-
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-bold text-white truncate">{item.product.title}</h4>
-                        <div className="flex items-center space-x-2 text-[11px] text-slate-400 font-mono mt-0.5">
-                          <span className="flex items-center gap-1 text-slate-300">
-                            <Layers className="w-3 h-3 text-laser-400" /> {item.color}
-                          </span>
-                        </div>
-                        <p className="text-xs font-extrabold text-white mt-1">{money(item.product.price * item.quantity)}</p>
-                      </div>
-
-                      <div className="flex flex-col items-end space-y-2">
-                        <button onClick={() => removeFromCart(item.product.id, item.color)} className="text-slate-500 hover:text-red-400 p-1 transition-colors" title="Remover item">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-
-                        <div className="flex items-center border border-chumbo-700 bg-chumbo-950 rounded-lg">
-                          <button onClick={() => updateQuantity(item.product.id, item.color, item.quantity - 1)} className="px-2 py-0.5 text-slate-400 hover:text-white text-xs">-</button>
-                          <span className="px-2 font-mono text-xs font-bold text-white">{item.quantity}</span>
-                          <button onClick={() => updateQuantity(item.product.id, item.color, item.quantity + 1)} className="px-2 py-0.5 text-slate-400 hover:text-white text-xs">+</button>
-                        </div>
-                      </div>
-                    </div>
-                  ))
+                    </label>
+                  </div>
                 )}
               </div>
 
-              {cart.length > 0 && (
-                <div className="p-6 border-t border-chumbo-850 bg-chumbo-900/80 space-y-4">
-                  <div className="rounded-xl border border-chumbo-800 bg-chumbo-950/70 p-3">
+              {cart.length > 0 && checkoutStep === 'items' && (
+                <footer className="space-y-4 border-t border-chumbo-850 bg-chumbo-900/85 px-5 py-5 sm:px-7">
+                  <div>
                     <div className="flex items-center justify-between text-xs text-slate-400">
-                      <span>Resumo</span>
-                      <span>{totalItems} {totalItems === 1 ? 'item' : 'itens'}</span>
+                      <span>Subtotal · {totalItems} {totalItems === 1 ? 'item' : 'itens'}</span>
+                      <span className="text-xl font-extrabold text-white">{money(totalPrice)}</span>
                     </div>
-                    <div className="mt-2 flex items-center justify-between">
-                      <span className="text-sm font-semibold text-slate-300">Total</span>
-                      <span className="text-2xl font-extrabold text-white">{money(totalPrice)}</span>
-                    </div>
+                    <p className="mt-1 text-[11px] text-slate-500">Entrega ou retirada é definida no próximo passo.</p>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    {deliveryOptions.map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        disabled={!option.enabled}
-                        onClick={() => setDeliveryMethod(option.value)}
-                        className={`rounded-xl border px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40 ${deliveryMethod === option.value ? 'border-laser-400 bg-laser-400/10 text-laser-300' : 'border-chumbo-700 text-slate-400'}`}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <RequiredInput value={recipientName} onChange={setRecipientName} placeholder="Nome obrigatorio" />
-                    <RequiredInput value={recipientPhone} onChange={setRecipientPhone} placeholder="Telefone obrigatorio" />
-                  </div>
-
-                  {deliveryMethod === 'shipping' && (
-                    <>
-                      <div className="grid grid-cols-[1fr_1fr_70px] gap-2">
-                        <RequiredInput value={zipCode} onChange={setZipCode} placeholder="CEP" />
-                        <RequiredInput value={city} onChange={setCity} placeholder="Cidade" />
-                        <RequiredInput value={state} onChange={setState} placeholder="UF" />
-                      </div>
-                      <RequiredInput value={shippingAddress} onChange={setShippingAddress} placeholder="Rua, numero, bairro, complemento" />
-                    </>
-                  )}
-
-                  <textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    rows={2}
-                    placeholder="Observacoes do pedido"
-                    className="w-full bg-chumbo-950 border border-chumbo-700/80 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-white"
-                  />
-
                   <button
+                    type="button"
+                    onClick={continueToDelivery}
+                    disabled={!canShip && !canPickup}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-white py-3.5 text-sm font-extrabold text-chumbo-950 shadow-xl transition-colors hover:bg-slate-200 disabled:opacity-50"
+                  >
+                    <span>{isAuthenticated ? 'Continuar para entrega' : 'Entrar para continuar'}</span>
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                  <button type="button" onClick={closeDrawer} className="w-full text-xs font-semibold text-slate-400 transition-colors hover:text-white">
+                    Continuar comprando
+                  </button>
+                </footer>
+              )}
+
+              {cart.length > 0 && checkoutStep === 'delivery' && (
+                <footer className="border-t border-chumbo-850 bg-chumbo-900/90 px-5 py-5 sm:px-7">
+                  <div className="mb-4 flex items-center justify-between">
+                    <span className="text-sm font-semibold text-slate-300">Total do pedido</span>
+                    <span className="text-2xl font-extrabold text-white">{money(totalPrice)}</span>
+                  </div>
+                  <button
+                    type="button"
                     onClick={handleCheckout}
                     disabled={isSubmitting || (!canShip && !canPickup)}
-                    className="w-full py-3.5 rounded-xl bg-white hover:bg-slate-200 text-chumbo-950 font-extrabold text-sm transition-all shadow-xl flex items-center justify-center space-x-2 disabled:opacity-50"
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-white py-3.5 text-sm font-extrabold text-chumbo-950 shadow-xl transition-colors hover:bg-slate-200 disabled:opacity-50"
                   >
-                    <span>{isSubmitting ? 'Abrindo Mercado Pago...' : isAuthenticated ? 'Pagar com Mercado Pago' : 'Entrar para concluir'}</span>
-                    <ArrowRight className="w-4 h-4" />
+                    <span>{isSubmitting ? 'Abrindo Mercado Pago...' : 'Ir para o pagamento'}</span>
+                    <ArrowRight className="h-4 w-4" />
                   </button>
-                </div>
+                  <p className="mt-2 text-center text-[10px] leading-4 text-slate-500">Você revisará o pagamento com segurança no Mercado Pago.</p>
+                </footer>
               )}
             </>
           )}
-        </div>
+        </section>
       </div>
     </div>
   );
 };
 
 const RequiredInput = ({
+  label,
   value,
   onChange,
   placeholder,
+  autoComplete,
 }: {
+  label: string;
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
+  autoComplete?: string;
 }) => (
-  <input
-    value={value}
-    onChange={(event) => onChange(event.target.value)}
-    placeholder={placeholder}
-    className="bg-chumbo-950 border border-chumbo-700/80 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-white"
-  />
+  <label className="block">
+    <span className="mb-1.5 block text-xs font-semibold text-slate-300">{label}</span>
+    <input
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      placeholder={placeholder}
+      autoComplete={autoComplete}
+      className="w-full rounded-xl border border-chumbo-700/80 bg-chumbo-900 px-3.5 py-3 text-sm text-white placeholder-slate-600 outline-none transition-colors focus:border-laser-400"
+    />
+  </label>
 );
 
 const OrdersPanel = ({

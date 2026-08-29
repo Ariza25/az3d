@@ -11,17 +11,17 @@ interface CategoryFilterProps {
 const getCategoryIcon = (iconName: string) => {
   switch (iconName) {
     case 'shield':
-      return <Shield className="w-4 h-4" />;
+      return <Shield className="h-4 w-4" />;
     case 'cpu':
-      return <Cpu className="w-4 h-4" />;
+      return <Cpu className="h-4 w-4" />;
     case 'sparkles':
-      return <Sparkles className="w-4 h-4" />;
+      return <Sparkles className="h-4 w-4" />;
     case 'wrench':
-      return <Wrench className="w-4 h-4" />;
+      return <Wrench className="h-4 w-4" />;
     case 'sword':
-      return <Sword className="w-4 h-4" />;
+      return <Sword className="h-4 w-4" />;
     default:
-      return <Grid className="w-4 h-4" />;
+      return <Grid className="h-4 w-4" />;
   }
 };
 
@@ -31,48 +31,52 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
   onSelectCategory,
 }) => {
   return (
-    <div className="w-full py-6 border-b border-chumbo-850 bg-chumbo-950/60 sticky top-20 z-30 backdrop-blur-md">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
-        <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar pb-1">
-          
-          {/* Opção 'Todas' */}
+    <section id="catalog" className="scroll-mt-24 bg-chumbo-950 pt-10">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="mb-5 flex items-end justify-between gap-4">
+          <div>
+            <p className="text-xs font-mono uppercase tracking-[0.2em] text-laser-400">Catálogo</p>
+            <h2 className="mt-1 text-2xl font-extrabold text-white sm:text-3xl">Encontre seu próximo item</h2>
+          </div>
+          <p className="hidden max-w-sm text-right text-sm text-slate-500 md:block">Navegue por categoria ou refine os resultados com os filtros abaixo.</p>
+        </div>
+
+        <nav aria-label="Categorias de produtos" className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
           <button
+            type="button"
             onClick={() => onSelectCategory('todas')}
-            className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
+            className={`flex items-center space-x-2 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-all ${
               activeCategory === 'todas'
-                ? 'bg-white text-chumbo-950 font-bold shadow-lg shadow-white/10'
-                : 'bg-chumbo-900 text-slate-400 hover:text-white hover:bg-chumbo-800 border border-chumbo-800'
+                ? 'bg-white font-bold text-chumbo-950'
+                : 'border border-chumbo-800 bg-chumbo-900/70 text-slate-400 hover:border-chumbo-700 hover:text-white'
             }`}
           >
-            <Grid className="w-4 h-4" />
-            <span>Todos os Produtos</span>
+            <Grid className="h-4 w-4" />
+            <span>Todos</span>
           </button>
 
-          {/* Categorias Dinâmicas do Backend */}
-          {categories.map((cat) => {
-            const isActive = activeCategory === cat.slug;
+          {categories.map((category) => {
+            const isActive = activeCategory === category.slug;
             return (
               <button
-                key={cat.id}
-                onClick={() => onSelectCategory(cat.slug)}
-                className={`flex items-center space-x-2.5 px-4 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
+                type="button"
+                key={category.id}
+                onClick={() => onSelectCategory(category.slug)}
+                className={`flex items-center space-x-2.5 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-all ${
                   isActive
-                    ? 'bg-white text-chumbo-950 font-bold shadow-lg shadow-white/10'
-                    : 'bg-chumbo-900 text-slate-400 hover:text-white hover:bg-chumbo-800 border border-chumbo-800'
+                    ? 'bg-white font-bold text-chumbo-950'
+                    : 'border border-chumbo-800 bg-chumbo-900/70 text-slate-400 hover:border-chumbo-700 hover:text-white'
                 }`}
               >
                 <span className={isActive ? 'text-chumbo-950' : 'text-laser-400'}>
-                  {getCategoryIcon(cat.icon)}
+                  {getCategoryIcon(category.icon)}
                 </span>
-                <span>{cat.name}</span>
+                <span>{category.name}</span>
               </button>
             );
           })}
-
-        </div>
-
+        </nav>
       </div>
-    </div>
+    </section>
   );
 };

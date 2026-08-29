@@ -15,7 +15,7 @@ interface ProductGridProps {
 export const ProductGrid: React.FC<ProductGridProps> = ({ products, isLoading, onOpenModal, categories = [], onSelectCategory, onClearFilters }) => {
   if (isLoading) {
     return (
-      <div id="catalog" className="py-20 text-center flex flex-col items-center justify-center space-y-4 scroll-mt-36">
+      <div className="py-20 text-center flex flex-col items-center justify-center space-y-4">
         <RefreshCw className="w-8 h-8 text-laser-400 animate-spin" />
         <p className="text-sm font-mono text-slate-400">Carregando catalogo da loja...</p>
       </div>
@@ -24,7 +24,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({ products, isLoading, o
 
   if (products.length === 0) {
     return (
-      <div id="catalog" className="py-20 text-center flex flex-col items-center justify-center space-y-4 scroll-mt-36">
+      <div className="py-20 text-center flex flex-col items-center justify-center space-y-4">
         <div className="w-16 h-16 rounded-2xl bg-chumbo-900 border border-chumbo-800 flex items-center justify-center text-slate-500">
           <Box className="w-8 h-8" />
         </div>
@@ -53,8 +53,11 @@ export const ProductGrid: React.FC<ProductGridProps> = ({ products, isLoading, o
   }
 
   return (
-    <section id="catalog" className="py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 scroll-mt-36">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+    <section className="mx-auto max-w-7xl px-4 pb-14 pt-8 sm:px-6 lg:px-8">
+      <div className="mb-5 flex items-center justify-between">
+        <p className="text-sm text-slate-400"><span className="font-bold text-white">{products.length}</span> {products.length === 1 ? 'produto' : 'produtos'}</p>
+      </div>
+      <div className="grid grid-cols-1 items-stretch gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {products.map((product) => (
           <ProductCard key={product.id} product={product} onOpenModal={onOpenModal} />
         ))}

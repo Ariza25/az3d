@@ -17,6 +17,8 @@ uploads/
 
 # Local tooling output
 graphify-out/
+frontend/test-results/
+frontend/playwright-report/
 
 # OS/editor
 .DS_Store

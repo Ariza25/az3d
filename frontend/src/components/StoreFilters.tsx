@@ -1,5 +1,5 @@
-import React from 'react';
-import { SlidersHorizontal } from 'lucide-react';
+import React, { useState } from 'react';
+import { ChevronDown, RotateCcw, SlidersHorizontal } from 'lucide-react';
 
 export type StoreSort = 'featured' | 'recent' | 'price_asc' | 'price_desc';
 export type AvailabilityFilter = 'all' | 'available' | 'low_stock' | 'out';
@@ -15,6 +15,7 @@ interface StoreFiltersProps {
   maxPrice: number;
   priceCeiling: number;
   onMaxPriceChange: (value: number) => void;
+  onClear: () => void;
 }
 
 export const StoreFilters: React.FC<StoreFiltersProps> = ({
@@ -28,53 +29,77 @@ export const StoreFilters: React.FC<StoreFiltersProps> = ({
   maxPrice,
   priceCeiling,
   onMaxPriceChange,
+  onClear,
 }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const activeFilterCount = Number(sortBy !== 'featured') + Number(materialFilter !== 'todos') + Number(availabilityFilter !== 'all') + Number(maxPrice < priceCeiling);
+
   return (
-    <section className="border-b border-chumbo-850 bg-chumbo-950/80">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        <div className="grid gap-3 lg:grid-cols-[auto_1fr_1fr_1fr_1.4fr] lg:items-end">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-400">
-            <SlidersHorizontal className="h-4 w-4 text-laser-400" />
-            Filtros
+    <section className="bg-chumbo-950 pt-3">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="rounded-2xl border border-chumbo-800 bg-chumbo-900/60 p-3 sm:p-4">
+          <div className="flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => setIsOpen((value) => !value)}
+              className="flex items-center gap-2 rounded-xl px-2 py-2 text-sm font-bold text-slate-200 hover:bg-chumbo-800 lg:pointer-events-none"
+              aria-expanded={isOpen}
+            >
+              <SlidersHorizontal className="h-4 w-4 text-laser-400" />
+              Filtros
+              {activeFilterCount > 0 && <span className="rounded-full bg-laser-400 px-2 py-0.5 text-[10px] text-chumbo-950">{activeFilterCount}</span>}
+              <ChevronDown className={`h-4 w-4 text-slate-500 transition lg:hidden ${isOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {activeFilterCount > 0 && (
+              <button type="button" onClick={onClear} className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-slate-400 hover:bg-chumbo-800 hover:text-white">
+                <RotateCcw className="h-3.5 w-3.5" />
+                Limpar
+              </button>
+            )}
           </div>
 
-          <Field label="Ordenar">
-            <select value={sortBy} onChange={(e) => onSortChange(e.target.value as StoreSort)} className="filter-input">
-              <option value="featured">Destaques</option>
-              <option value="recent">Mais recentes</option>
-              <option value="price_asc">Menor preco</option>
-              <option value="price_desc">Maior preco</option>
-            </select>
-          </Field>
+          <div className={`${isOpen ? 'grid' : 'hidden'} mt-3 gap-3 border-t border-chumbo-800 pt-4 sm:grid-cols-2 lg:grid lg:grid-cols-[1fr_1fr_1fr_1.35fr]`}>
+            <Field label="Ordenar por">
+              <select value={sortBy} onChange={(event) => onSortChange(event.target.value as StoreSort)} className="filter-input">
+                <option value="featured">Relevância</option>
+                <option value="recent">Mais recentes</option>
+                <option value="price_asc">Menor preço</option>
+                <option value="price_desc">Maior preço</option>
+              </select>
+            </Field>
 
-          <Field label="Material">
-            <select value={materialFilter} onChange={(e) => onMaterialChange(e.target.value)} className="filter-input">
-              <option value="todos">Todos</option>
-              {materialOptions.map((material) => (
-                <option key={material} value={material}>{material}</option>
-              ))}
-            </select>
-          </Field>
+            <Field label="Material">
+              <select value={materialFilter} onChange={(event) => onMaterialChange(event.target.value)} className="filter-input">
+                <option value="todos">Todos os materiais</option>
+                {materialOptions.map((material) => (
+                  <option key={material} value={material}>{material}</option>
+                ))}
+              </select>
+            </Field>
 
-          <Field label="Disponibilidade">
-            <select value={availabilityFilter} onChange={(e) => onAvailabilityChange(e.target.value as AvailabilityFilter)} className="filter-input">
-              <option value="all">Todos</option>
-              <option value="available">Disponiveis</option>
-              <option value="low_stock">Baixo estoque</option>
-              <option value="out">Esgotados</option>
-            </select>
-          </Field>
+            <Field label="Disponibilidade">
+              <select value={availabilityFilter} onChange={(event) => onAvailabilityChange(event.target.value as AvailabilityFilter)} className="filter-input">
+                <option value="all">Todos os itens</option>
+                <option value="available">Disponíveis</option>
+                <option value="low_stock">Últimas unidades</option>
+                <option value="out">Esgotados</option>
+              </select>
+            </Field>
 
-          <Field label={`Ate R$ ${maxPrice.toFixed(0)}`}>
-            <input
-              type="range"
-              min={0}
-              max={Math.max(1, priceCeiling)}
-              value={maxPrice}
-              onChange={(e) => onMaxPriceChange(Number(e.target.value))}
-              className="w-full accent-cyan-400"
-            />
-          </Field>
+            <Field label={`Preço máximo · ${moneyLabel(maxPrice)}`}>
+              <div className="flex h-[42px] items-center rounded-xl border border-chumbo-700 bg-chumbo-950 px-3">
+                <input
+                  type="range"
+                  min={0}
+                  max={Math.max(1, priceCeiling)}
+                  value={maxPrice}
+                  onChange={(event) => onMaxPriceChange(Number(event.target.value))}
+                  className="w-full accent-cyan-400"
+                  aria-label="Preço máximo"
+                />
+              </div>
+            </Field>
+          </div>
         </div>
       </div>
     </section>
@@ -87,3 +112,9 @@ const Field = ({ label, children }: { label: string; children: React.ReactNode }
     {children}
   </label>
 );
+
+const moneyLabel = (value: number) => new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL',
+  maximumFractionDigits: 0,
+}).format(value);
