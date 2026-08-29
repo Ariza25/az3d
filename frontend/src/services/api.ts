@@ -48,6 +48,7 @@ import {
   PlatformOverview,
   WebhookLogItem,
   ObservabilityHealth,
+  PlatformEnvironment,
   MercadoPagoPlatformConfig,
   MercadoPagoPlatformConfigInput,
   TenantPaymentAccountStatus,
@@ -543,26 +544,32 @@ export const api = {
     return body;
   },
 
-  getObservabilityHealth: async (tenantId?: number): Promise<ObservabilityHealth> => {
-    const params = new URLSearchParams();
-    if (tenantId) params.append('tenant_id', String(tenantId));
-    const res = await fetch(`${API_BASE_URL}/admin/observability/health?${params.toString()}`, {
-      headers: getAdminHeaders(tenantId),
+  getObservabilityHealth: async (): Promise<ObservabilityHealth> => {
+    const res = await fetch(`${API_BASE_URL}/admin/platform/observability`, {
+      headers: getAdminHeaders(),
     });
     const body = await res.json();
     if (!res.ok) throw new Error(body.error || 'Erro ao carregar saude operacional');
     return body;
   },
 
-  getWebhookLogs: async (tenantId?: number, limit = 100): Promise<WebhookLogItem[]> => {
+  getWebhookLogs: async (limit = 100): Promise<WebhookLogItem[]> => {
     const params = new URLSearchParams();
     params.append('limit', String(limit));
-    if (tenantId) params.append('tenant_id', String(tenantId));
-    const res = await fetch(`${API_BASE_URL}/admin/observability/webhooks?${params.toString()}`, {
-      headers: getAdminHeaders(tenantId),
+    const res = await fetch(`${API_BASE_URL}/admin/platform/outbox?${params.toString()}`, {
+      headers: getAdminHeaders(),
     });
     const body = await res.json();
     if (!res.ok) throw new Error(body.error || 'Erro ao carregar webhooks');
+    return body;
+  },
+
+  getPlatformEnvironment: async (): Promise<PlatformEnvironment> => {
+    const res = await fetch(`${API_BASE_URL}/admin/platform/environment`, {
+      headers: getAdminHeaders(),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Erro ao carregar ambiente da plataforma');
     return body;
   },
 

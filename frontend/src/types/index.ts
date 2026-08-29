@@ -783,6 +783,25 @@ export interface ObservabilityHealth {
   checked_at: string;
 }
 
+export interface EnvironmentVariableStatus {
+  key: string;
+  category: string;
+  configured: boolean;
+  required: boolean;
+  description: string;
+}
+
+export interface PlatformEnvironment {
+  environment: string;
+  service: string;
+  version: string;
+  database_required: boolean;
+  max_upload_mb: number;
+  tracking_sync_interval_minutes: number;
+  variables: EnvironmentVariableStatus[];
+  checked_at: string;
+}
+
 export interface MercadoPagoPlatformConfig {
   id?: number;
   client_id: string;

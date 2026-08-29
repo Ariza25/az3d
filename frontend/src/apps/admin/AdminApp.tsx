@@ -3,6 +3,7 @@ import { ArrowLeft, Layers, LockKeyhole, ShieldAlert } from 'lucide-react';
 import { AdminModal } from '../../components/AdminModal';
 import { LoginModal } from '../../components/LoginModal';
 import { useAuth } from '../../context/AuthContext';
+import { MasterAdminConsole } from '../../features/admin/components/MasterAdminConsole';
 import { useTenantCatalog } from '../../shared/hooks/useTenantCatalog';
 import { withBasePath } from '../../shared/basePath';
 
@@ -11,44 +12,26 @@ const goToStore = () => {
   window.dispatchEvent(new PopStateEvent('popstate'));
 };
 
+const isTenantAdminRole = (role?: string) => role === 'admin' || role === 'tenant_admin';
+
 export const AdminApp: React.FC = () => {
   const { user, isAuthenticated, isLoading } = useAuth();
-  const isMasterAdmin = user?.role === 'master_admin';
-  const {
-    tenants,
-    activeTenant,
-    categories,
-    onSelectTenant,
-    refreshProducts,
-  } = useTenantCatalog({ lockedTenantId: isMasterAdmin ? undefined : user?.tenant_id });
   const [isLoginOpen, setIsLoginOpen] = useState(false);
-  const scopedTenants = user?.tenant_id && !isMasterAdmin
-    ? tenants.filter((tenant) => tenant.id === user.tenant_id)
-    : tenants;
-  const scopedActiveTenant = user?.tenant_id && !isMasterAdmin
-    ? activeTenant?.id === user.tenant_id
-      ? activeTenant
-      : scopedTenants[0] || null
-    : activeTenant;
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-chumbo-950 text-slate-100 flex items-center justify-center">
-        <div className="text-xs font-mono uppercase tracking-widest text-slate-400">Validando sessao administrativa...</div>
+      <div className="flex min-h-screen items-center justify-center bg-chumbo-950 text-slate-100">
+        <div className="text-xs font-mono uppercase tracking-widest text-slate-400">Validando sessão administrativa...</div>
       </div>
     );
   }
 
-  if (!isAuthenticated || (user?.role !== 'admin' && user?.role !== 'tenant_admin' && user?.role !== 'master_admin')) {
+  if (!isAuthenticated || (user?.role !== 'master_admin' && !isTenantAdminRole(user?.role))) {
     return (
       <div className="min-h-screen bg-chumbo-950 text-slate-100">
         <header className="border-b border-chumbo-800 bg-chumbo-950/90">
           <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-            <button
-              type="button"
-              onClick={goToStore}
-              className="flex items-center space-x-3 text-left"
-            >
+            <button type="button" onClick={goToStore} className="flex items-center space-x-3 text-left">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-slate-100 to-chumbo-600 shadow-lg">
                 <Layers className="h-6 w-6 text-chumbo-950 stroke-[2.5]" />
               </div>
@@ -56,17 +39,10 @@ export const AdminApp: React.FC = () => {
                 <span className="flex items-center gap-1 text-2xl font-extrabold tracking-wider text-white">
                   AZ<span className="font-mono text-laser-400">3D</span>
                 </span>
-                <span className="block -mt-1 text-[10px] font-medium uppercase tracking-widest text-slate-400">
-                  Admin Console
-                </span>
+                <span className="-mt-1 block text-[10px] font-medium uppercase tracking-widest text-slate-400">Admin Console</span>
               </div>
             </button>
-
-            <button
-              type="button"
-              onClick={goToStore}
-              className="flex items-center gap-2 rounded-xl border border-chumbo-700 bg-chumbo-900 px-4 py-2 text-xs font-bold text-slate-200 transition-colors hover:bg-chumbo-800"
-            >
+            <button type="button" onClick={goToStore} className="flex items-center gap-2 rounded-xl border border-chumbo-700 bg-chumbo-900 px-4 py-2 text-xs font-bold text-slate-200 transition-colors hover:bg-chumbo-800">
               <ArrowLeft className="h-4 w-4" />
               <span>Voltar para loja</span>
             </button>
@@ -79,16 +55,12 @@ export const AdminApp: React.FC = () => {
               <LockKeyhole className="h-6 w-6" />
             </div>
             <h1 className="text-2xl font-extrabold text-white">Acesso administrativo</h1>
-            <p className="mt-2 text-sm text-slate-400">
-              Entre com uma conta administradora para gerenciar produtos, pedidos, marketplaces e precificacao.
+            <p className="mt-2 text-sm leading-6 text-slate-400">
+              Contas de tenant administram a loja. Contas master acessam somente o plano de controle da plataforma.
             </p>
-            <button
-              type="button"
-              onClick={() => setIsLoginOpen(true)}
-              className="mt-6 flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-chumbo-950 transition-colors hover:bg-slate-200"
-            >
+            <button type="button" onClick={() => setIsLoginOpen(true)} className="mt-6 flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-chumbo-950 transition-colors hover:bg-slate-200">
               <ShieldAlert className="h-4 w-4" />
-              <span>Entrar como admin</span>
+              <span>Entrar no console</span>
             </button>
           </div>
         </main>
@@ -97,10 +69,10 @@ export const AdminApp: React.FC = () => {
           isOpen={isLoginOpen}
           onClose={() => setIsLoginOpen(false)}
           onSwitchToRegister={() => setIsLoginOpen(false)}
-          title="Acesso Administrativo"
-          subtitle="Login exclusivo para lojistas e operadores do tenant"
-          submitLabel="Entrar no Admin"
-          loadingLabel="Validando admin..."
+          title="Acesso administrativo"
+          subtitle="O painel será definido automaticamente pelo perfil da conta"
+          submitLabel="Entrar no console"
+          loadingLabel="Validando perfil..."
           showRegisterLink={false}
           googleScope="admin"
           initialAccountType="seller"
@@ -109,14 +81,26 @@ export const AdminApp: React.FC = () => {
     );
   }
 
+  if (user?.role === 'master_admin') {
+    return <MasterAdminConsole onClose={goToStore} />;
+  }
+
+  return <TenantAdminConsole tenantId={user?.tenant_id} />;
+};
+
+const TenantAdminConsole: React.FC<{ tenantId?: number }> = ({ tenantId }) => {
+  const {
+    activeTenant,
+    categories,
+    refreshProducts,
+  } = useTenantCatalog({ lockedTenantId: tenantId });
+
   return (
     <AdminModal
       isOpen
       variant="page"
       onClose={goToStore}
-      activeTenant={scopedActiveTenant}
-      tenants={scopedTenants}
-      onSelectTenant={onSelectTenant}
+      activeTenant={activeTenant}
       categories={categories}
       onRefreshProducts={refreshProducts}
     />

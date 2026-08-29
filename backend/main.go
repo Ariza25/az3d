@@ -58,7 +58,7 @@ func main() {
 	marketplaceHandler := handlers.NewMarketplaceHandler()
 	carrierHandler := handlers.NewCarrierHandler(cfg)
 	shipmentHandler := handlers.NewShipmentHandler(cfg)
-	platformHandler := handlers.NewPlatformHandler()
+	platformHandler := handlers.NewPlatformHandler(cfg)
 	handlers.StartTrackingSyncJob(cfg)
 
 	r.Static("/uploads", "./uploads")
@@ -100,7 +100,7 @@ func main() {
 		}
 
 		admin := api.Group("/admin")
-		admin.Use(middleware.AuthMiddleware(cfg.JWTSecret), middleware.AdminMiddleware())
+		admin.Use(middleware.AuthMiddleware(cfg.JWTSecret), middleware.TenantAdminMiddleware())
 		{
 			admin.GET("/products", productHandler.GetAdminProducts)
 			admin.POST("/products", productHandler.CreateProduct)
@@ -109,9 +109,6 @@ func main() {
 			admin.GET("/stock-alerts", productHandler.GetStockAlerts)
 			admin.GET("/stock-movements", productHandler.GetStockMovements)
 			admin.POST("/stock-adjustments", productHandler.AdjustStock)
-			admin.GET("/platform/overview", platformHandler.GetPlatformOverview)
-			admin.GET("/observability/health", platformHandler.GetObservabilityHealth)
-			admin.GET("/observability/webhooks", platformHandler.GetWebhookLogs)
 			admin.POST("/uploads/products", productHandler.UploadProductImage)
 			admin.POST("/categories", productHandler.CreateCategory)
 			admin.GET("/tenant/settings", tenantSettingsHandler.GetTenantSettings)
@@ -144,8 +141,6 @@ func main() {
 			admin.POST("/payments/mercadopago/oauth/start", mercadoPagoHandler.StartOAuth)
 			admin.POST("/payments/mercadopago/oauth/refresh", mercadoPagoHandler.RefreshOAuth)
 			admin.DELETE("/payments/mercadopago/oauth", mercadoPagoHandler.DisconnectOAuth)
-			admin.GET("/platform/payments/mercadopago", mercadoPagoHandler.GetPlatformConfig)
-			admin.PUT("/platform/payments/mercadopago", mercadoPagoHandler.SavePlatformConfig)
 
 			admin.GET("/marketplaces", marketplaceHandler.GetMarketplaceIntegrations)
 			admin.POST("/marketplaces", marketplaceHandler.SaveMarketplaceIntegration)
@@ -175,6 +170,17 @@ func main() {
 			admin.POST("/shipments", shipmentHandler.SaveShipment)
 			admin.POST("/shipments/:id/sync", shipmentHandler.SyncShipment)
 			admin.POST("/shipments/sync", shipmentHandler.SyncTracking)
+		}
+
+		platform := api.Group("/admin/platform")
+		platform.Use(middleware.AuthMiddleware(cfg.JWTSecret), middleware.MasterAdminMiddleware())
+		{
+			platform.GET("/overview", platformHandler.GetPlatformOverview)
+			platform.GET("/environment", platformHandler.GetPlatformEnvironment)
+			platform.GET("/observability", platformHandler.GetObservabilityHealth)
+			platform.GET("/outbox", platformHandler.GetWebhookLogs)
+			platform.GET("/payments/mercadopago", mercadoPagoHandler.GetPlatformConfig)
+			platform.PUT("/payments/mercadopago", mercadoPagoHandler.SavePlatformConfig)
 		}
 
 		api.POST("/webhooks/marketplaces/:provider", marketplaceHandler.ReceiveMarketplaceWebhook)

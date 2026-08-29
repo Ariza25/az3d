@@ -43,12 +43,34 @@ func AuthMiddleware(jwtSecret string) gin.HandlerFunc {
 	}
 }
 
-// AdminMiddleware garante que apenas usuários com role 'admin' acessem certas rotas
-func AdminMiddleware() gin.HandlerFunc {
+// TenantAdminMiddleware protege a operação de uma única loja.
+// O role "admin" é mantido como alias legado de tenant_admin.
+func TenantAdminMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		role, exists := c.Get("userRole")
-		if !exists || (role != "admin" && role != "tenant_admin" && role != "master_admin") {
+		if !exists || (role != "admin" && role != "tenant_admin") {
 			c.JSON(http.StatusForbidden, gin.H{"error": "Acesso negado: Requer privilégios de Administrador"})
+			c.Abort()
+			return
+		}
+		tenantValue, tenantExists := c.Get("tenantID")
+		tenantID, tenantValid := tenantValue.(uint)
+		if !tenantExists || !tenantValid || tenantID == 0 {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Acesso negado: conta administrativa sem tenant vinculado"})
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
+// MasterAdminMiddleware protege exclusivamente o plano de controle da
+// plataforma. Um master nao opera catalogo ou configuracoes de tenants.
+func MasterAdminMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role, exists := c.Get("userRole")
+		if !exists || role != "master_admin" {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Acesso negado: requer privilegios de master_admin"})
 			c.Abort()
 			return
 		}

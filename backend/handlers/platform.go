@@ -9,16 +9,38 @@ import (
 	"strings"
 	"time"
 
+	"az3d-backend/config"
 	"az3d-backend/database"
 	"az3d-backend/models"
 
 	"github.com/gin-gonic/gin"
 )
 
-type PlatformHandler struct{}
+type PlatformHandler struct {
+	cfg *config.Config
+}
 
-func NewPlatformHandler() *PlatformHandler {
-	return &PlatformHandler{}
+func NewPlatformHandler(cfg *config.Config) *PlatformHandler {
+	return &PlatformHandler{cfg: cfg}
+}
+
+type EnvironmentVariableStatus struct {
+	Key         string `json:"key"`
+	Category    string `json:"category"`
+	Configured  bool   `json:"configured"`
+	Required    bool   `json:"required"`
+	Description string `json:"description"`
+}
+
+type PlatformEnvironment struct {
+	Environment      string                      `json:"environment"`
+	Service          string                      `json:"service"`
+	Version          string                      `json:"version"`
+	DatabaseRequired bool                        `json:"database_required"`
+	MaxUploadMB      int64                       `json:"max_upload_mb"`
+	TrackingInterval int                         `json:"tracking_sync_interval_minutes"`
+	Variables        []EnvironmentVariableStatus `json:"variables"`
+	CheckedAt        time.Time                   `json:"checked_at"`
 }
 
 type PlatformTenantOverview struct {
@@ -231,6 +253,42 @@ func (h *PlatformHandler) GetObservabilityHealth(c *gin.Context) {
 		"mercado_pago_webhook_secret":     strings.TrimSpace(mercadoPagoConfig.EncryptedWebhookSecret) != "",
 		"correios_base_configured":        strings.TrimSpace(os.Getenv("CORREIOS_API_BASE_URL")) != "",
 		"checked_at":                      time.Now(),
+	})
+}
+
+func (h *PlatformHandler) GetPlatformEnvironment(c *gin.Context) {
+	if !isMasterAdmin(c) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Apenas master_admin pode acessar o ambiente da plataforma"})
+		return
+	}
+
+	cfg := h.cfg
+	if cfg == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Configuracao da plataforma indisponivel"})
+		return
+	}
+
+	jwtConfigured := strings.TrimSpace(cfg.JWTSecret) != "" && cfg.JWTSecret != "az3d_default_jwt_secret_key"
+	variables := []EnvironmentVariableStatus{
+		{Key: "DATABASE_URL", Category: "database", Configured: strings.TrimSpace(cfg.DatabaseURL) != "", Required: cfg.DatabaseRequired, Description: "Conexao principal com o banco de dados"},
+		{Key: "JWT_SECRET", Category: "security", Configured: jwtConfigured, Required: true, Description: "Assinatura das sessoes administrativas"},
+		{Key: "CREDENTIAL_ENCRYPTION_KEY", Category: "security", Configured: len(strings.TrimSpace(cfg.CredentialEncryptionKey)) >= 32, Required: true, Description: "Criptografia de credenciais de integracoes"},
+		{Key: "CORS_ALLOWED_ORIGINS", Category: "network", Configured: len(cfg.CORSOrigins) > 0, Required: true, Description: "Origens autorizadas a consumir a API"},
+		{Key: "FRONTEND_BASE_URL", Category: "network", Configured: strings.TrimSpace(cfg.FrontendBaseURL) != "", Required: true, Description: "URL publica usada nos retornos OAuth"},
+		{Key: "GOOGLE_OAUTH", Category: "authentication", Configured: strings.TrimSpace(cfg.GoogleOAuthClientID) != "" && strings.TrimSpace(cfg.GoogleOAuthClientSecret) != "", Required: false, Description: "Login administrativo via Google"},
+		{Key: "CORREIOS_API_BASE_URL", Category: "integrations", Configured: strings.TrimSpace(cfg.CorreiosAPIBaseURL) != "", Required: false, Description: "Endpoint base para rastreamento"},
+		{Key: "ADM_LOGIN", Category: "bootstrap", Configured: strings.TrimSpace(cfg.AdminLogin) != "" && cfg.AdminPassword != "", Required: false, Description: "Conta master criada no bootstrap"},
+	}
+
+	c.JSON(http.StatusOK, PlatformEnvironment{
+		Environment:      cfg.Env,
+		Service:          "AZ3D API",
+		Version:          "1.0.0",
+		DatabaseRequired: cfg.DatabaseRequired,
+		MaxUploadMB:      cfg.MaxUploadBytes / (1024 * 1024),
+		TrackingInterval: cfg.TrackingSyncIntervalMin,
+		Variables:        variables,
+		CheckedAt:        time.Now(),
 	})
 }
 

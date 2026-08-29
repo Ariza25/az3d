@@ -11,22 +11,15 @@ import {
   StockMovement,
   TenantCarrierAccount,
   OrderShipment,
-  CarrierHealthItem,
   StockAlert,
-  PlatformOverview,
-  WebhookLogItem,
-  ObservabilityHealth,
 } from '../types';
 import { api } from '../services/api';
-import { useAuth } from '../context/AuthContext';
 import { ProductFormModal } from './ProductFormModal';
 import { PricingCalculator } from './PricingCalculator';
 import { PricingManagementPanel } from './PricingManagementPanel';
 import { FinancePanel } from './FinancePanel';
 import { MarketplaceConnectionsPanel } from './MarketplaceConnectionsPanel';
 import { AdminDashboard } from '../features/admin/components/AdminDashboard';
-import { AdminMasterOverview } from '../features/admin/components/AdminMasterOverview';
-import { AdminObservability } from '../features/admin/components/AdminObservability';
 import { AdminInventory } from '../features/admin/components/AdminInventory';
 import { MercadoPagoSettings } from '../features/admin/components/MercadoPagoSettings';
 import { Button, SearchInput } from './ui';
@@ -49,7 +42,6 @@ import {
   BarChart3,
   TrendingUp,
   Truck,
-  ShieldCheck,
   Activity,
   Clock,
 } from 'lucide-react';
@@ -98,8 +90,6 @@ interface AdminModalProps {
   onClose: () => void;
   variant?: 'modal' | 'page';
   activeTenant: Tenant | null;
-  tenants: Tenant[];
-  onSelectTenant: (tenant: Tenant) => void;
   categories: Category[];
   onRefreshProducts: () => void;
 }
@@ -109,14 +99,10 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   onClose,
   variant = 'modal',
   activeTenant,
-  tenants,
-  onSelectTenant,
   categories,
   onRefreshProducts,
 }) => {
-  const { user } = useAuth();
-  const isMasterAdmin = user?.role === 'master_admin';
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'master' | 'observability' | 'products' | 'categories' | 'orders' | 'inventory' | 'finance' | 'pricing' | 'settings' | 'tenants' | 'marketplaces' | 'carriers'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'categories' | 'orders' | 'inventory' | 'finance' | 'pricing' | 'settings' | 'marketplaces' | 'carriers'>('dashboard');
   
   // Estados para Produtos
   const [products, setProducts] = useState<Product[]>([]);
@@ -138,7 +124,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [stockAdjustment, setStockAdjustment] = useState({ product_id: 0, color_name: '', stock_qty: 0, reason: '' });
   const [carrierAccounts, setCarrierAccounts] = useState<TenantCarrierAccount[]>([]);
   const [shipments, setShipments] = useState<OrderShipment[]>([]);
-  const [carrierHealth, setCarrierHealth] = useState<CarrierHealthItem[]>([]);
   const [carrierForm, setCarrierForm] = useState({
     provider: 'correios',
     account_name: 'Correios',
@@ -161,13 +146,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [marketplaces, setMarketplaces] = useState<MarketplaceIntegration[]>([]);
   const [mappings, setMappings] = useState<MarketplaceProductMapping[]>([]);
   const [syncingProduct, setSyncingProduct] = useState<{ productId: number; provider: string } | null>(null);
-  const [platformOverview, setPlatformOverview] = useState<PlatformOverview | null>(null);
-  const [webhookLogs, setWebhookLogs] = useState<WebhookLogItem[]>([]);
-  const [observabilityHealth, setObservabilityHealth] = useState<ObservabilityHealth | null>(null);
 
   // Estados gerais
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const canSwitchTenants = tenants.length > 1;
 
   // Carregar produtos e pedidos do tenant ativo
   useEffect(() => {
@@ -175,12 +156,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       loadTenantData();
     }
   }, [isOpen, activeTenant]);
-
-  useEffect(() => {
-    if (!canSwitchTenants && activeTab === 'tenants') {
-      setActiveTab('products');
-    }
-  }, [activeTab, canSwitchTenants]);
 
   useEffect(() => {
     if (stockAdjustment.product_id || products.length === 0) return;
@@ -197,7 +172,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const loadTenantData = async () => {
     if (!activeTenant) return;
     try {
-      const [prods, ords, mkts, maps, settings, movements, alerts, carriers, loadedShipments, health, platform, obsHealth, webhooks] = await Promise.all([
+      const [prods, ords, mkts, maps, settings, movements, alerts, carriers, loadedShipments] = await Promise.all([
         api.getAdminProducts(activeTenant.id),
         api.getAdminOrders(activeTenant.id).catch(() => []),
         api.getMarketplaces(activeTenant.id).catch(() => []),
@@ -207,10 +182,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         api.getStockAlerts(activeTenant.id).catch(() => []),
         api.getCarrierAccounts(activeTenant.id).catch(() => []),
         api.getShipments(activeTenant.id).catch(() => []),
-        api.getCarrierHealth(activeTenant.id).catch(() => []),
-        isMasterAdmin ? api.getPlatformOverview().catch(() => null) : Promise.resolve(null),
-        api.getObservabilityHealth(isMasterAdmin ? undefined : activeTenant.id).catch(() => null),
-        api.getWebhookLogs(isMasterAdmin ? undefined : activeTenant.id, 80).catch(() => []),
       ]);
       setProducts(prods);
       setOrders(ords);
@@ -221,10 +192,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       setStockAlerts(alerts);
       setCarrierAccounts(carriers);
       setShipments(loadedShipments);
-      setCarrierHealth(health);
-      setPlatformOverview(platform);
-      setObservabilityHealth(obsHealth);
-      setWebhookLogs(webhooks);
       setShipmentForm((prev) => ({ ...prev, order_id: prev.order_id || ords[0]?.id || 0 }));
     } catch (err: any) {
       console.error('Erro ao carregar dados do admin:', err);
@@ -467,7 +434,18 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     ? stockMovements.filter((movement) => movement.product_id === stockMovementProductId)
     : stockMovements;
   const stockAdjustmentProduct = products.find((product) => product.id === stockAdjustment.product_id) || products[0];
-  const integrationProblems = carrierHealth.filter((item) => item.last_error || !item.is_connected || !item.is_active).length;
+  const tenantNavigation = [
+    { id: 'dashboard' as const, label: 'Visão geral', hint: 'Resumo da operação', icon: BarChart3 },
+    { id: 'products' as const, label: 'Produtos', hint: `${products.length} cadastrados`, icon: Package },
+    { id: 'categories' as const, label: 'Categorias', hint: `${categories.length} grupos`, icon: Tag },
+    { id: 'orders' as const, label: 'Pedidos', hint: `${orders.length} vendas`, icon: ShoppingBag },
+    { id: 'inventory' as const, label: 'Estoque', hint: `${lowStockItems.length} alertas`, icon: Package },
+    { id: 'pricing' as const, label: 'Precificação', hint: 'Custos e margens', icon: Calculator },
+    { id: 'finance' as const, label: 'Financeiro', hint: 'Receita e resultado', icon: TrendingUp },
+    { id: 'marketplaces' as const, label: 'Marketplaces', hint: `${marketplaces.length} canais`, icon: ShoppingCart },
+    { id: 'carriers' as const, label: 'Transportadoras', hint: `${carrierAccounts.length} contas`, icon: Truck },
+    { id: 'settings' as const, label: 'Configurações', hint: 'Loja e pagamentos', icon: Settings },
+  ];
 
   return (
     <div className={variant === 'page'
@@ -489,38 +467,21 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h2 className="text-xl font-extrabold text-white">Painel Administrativo da Loja</h2>
-                <span className="bg-emerald-500/20 text-emerald-400 text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border border-emerald-500/30 uppercase">
-                  Tenant #{activeTenant?.id}
+                <h2 className="text-xl font-extrabold text-white">Gestão da loja</h2>
+                <span className="bg-emerald-500/15 text-emerald-300 text-[9px] font-mono font-bold px-2 py-1 rounded-md border border-emerald-500/25 uppercase tracking-wider">
+                  tenant_admin
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                Loja Ativa: <strong className="text-white">{activeTenant?.name}</strong>
+                Operação de <strong className="text-white">{activeTenant?.name}</strong> · Tenant #{activeTenant?.id}
               </p>
             </div>
           </div>
 
           <div className="flex items-center space-x-3">
-            {canSwitchTenants ? (
-            <select
-              value={activeTenant?.id}
-              onChange={(e) => {
-                const t = tenants.find((item) => item.id === parseInt(e.target.value));
-                if (t) onSelectTenant(t);
-              }}
-              className="bg-chumbo-900 border border-chumbo-700 text-xs font-mono text-white rounded-xl px-3 py-2 focus:outline-none focus:border-laser-400"
-            >
-              {tenants.map((t) => (
-                <option key={t.id} value={t.id}>
-                  🏬 {t.name} (Tenant #{t.id})
-                </option>
-              ))}
-            </select>
-            ) : (
-              <span className="bg-chumbo-900 border border-chumbo-700 text-xs font-mono text-white rounded-xl px-3 py-2">
-                {activeTenant?.name || 'Loja'} #{activeTenant?.id}
-              </span>
-            )}
+            <span className="bg-chumbo-900 border border-chumbo-700 text-xs font-mono text-white rounded-xl px-3 py-2">
+              {activeTenant?.name || 'Loja'} #{activeTenant?.id}
+            </span>
 
             <button
               onClick={onClose}
@@ -531,168 +492,32 @@ export const AdminModal: React.FC<AdminModalProps> = ({
           </div>
         </div>
 
-        {/* Abas do Painel */}
-        <div className="bg-chumbo-950/80 px-6 border-b border-chumbo-800 flex items-center space-x-4 overflow-x-auto text-xs font-mono">
-          <button
-            onClick={() => setActiveTab('dashboard')}
-            className={`py-3 px-4 border-b-2 flex items-center space-x-2 font-bold transition-all ${
-              activeTab === 'dashboard'
-                ? 'border-laser-400 text-laser-400'
-                : 'border-transparent text-slate-400 hover:text-white'
-            }`}
-          >
-            <BarChart3 className="w-4 h-4" />
-            <span>Dashboard</span>
-          </button>
-
-          {isMasterAdmin && (
-          <button
-            onClick={() => setActiveTab('master')}
-            className={`py-3 px-4 border-b-2 flex items-center space-x-2 font-bold transition-all ${
-              activeTab === 'master'
-                ? 'border-laser-400 text-laser-400'
-                : 'border-transparent text-slate-400 hover:text-white'
-            }`}
-          >
-            <ShieldCheck className="w-4 h-4" />
-            <span>Master</span>
-          </button>
-          )}
-
-          <button
-            onClick={() => setActiveTab('observability')}
-            className={`py-3 px-4 border-b-2 flex items-center space-x-2 font-bold transition-all ${
-              activeTab === 'observability'
-                ? 'border-laser-400 text-laser-400'
-                : 'border-transparent text-slate-400 hover:text-white'
-            }`}
-          >
-            <Activity className="w-4 h-4" />
-            <span>Observabilidade</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('products')}
-            className={`py-3 px-4 border-b-2 flex items-center space-x-2 font-bold transition-all ${
-              activeTab === 'products'
-                ? 'border-laser-400 text-laser-400'
-                : 'border-transparent text-slate-400 hover:text-white'
-            }`}
-          >
-            <Package className="w-4 h-4" />
-            <span>Produtos ({products.length})</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('categories')}
-            className={`py-3 px-4 border-b-2 flex items-center space-x-2 font-bold transition-all ${
-              activeTab === 'categories'
-                ? 'border-laser-400 text-laser-400'
-                : 'border-transparent text-slate-400 hover:text-white'
-            }`}
-          >
-            <Tag className="w-4 h-4" />
-            <span>Categorias ({categories.length})</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('orders')}
-            className={`py-3 px-4 border-b-2 flex items-center space-x-2 font-bold transition-all ${
-              activeTab === 'orders'
-                ? 'border-laser-400 text-laser-400'
-                : 'border-transparent text-slate-400 hover:text-white'
-            }`}
-          >
-            <ShoppingBag className="w-4 h-4" />
-            <span>Vendas / Pedidos ({orders.length})</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('inventory')}
-            className={`py-3 px-4 border-b-2 flex items-center space-x-2 font-bold transition-all ${
-              activeTab === 'inventory'
-                ? 'border-laser-400 text-laser-400'
-                : 'border-transparent text-slate-400 hover:text-white'
-            }`}
-          >
-            <Package className="w-4 h-4" />
-            <span>Estoque</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('pricing')}
-            className={`py-3 px-4 border-b-2 flex items-center space-x-2 font-bold transition-all ${
-              activeTab === 'pricing'
-                ? 'border-laser-400 text-laser-400'
-                : 'border-transparent text-slate-400 hover:text-white'
-            }`}
-          >
-            <Calculator className="w-4 h-4" />
-            <span>Precificacao</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('finance')}
-            className={`py-3 px-4 border-b-2 flex items-center space-x-2 font-bold transition-all ${
-              activeTab === 'finance'
-                ? 'border-laser-400 text-laser-400'
-                : 'border-transparent text-slate-400 hover:text-white'
-            }`}
-          >
-            <TrendingUp className="w-4 h-4" />
-            <span>Financeiro</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('carriers')}
-            className={`py-3 px-4 border-b-2 flex items-center space-x-2 font-bold transition-all ${
-              activeTab === 'carriers'
-                ? 'border-laser-400 text-laser-400'
-                : 'border-transparent text-slate-400 hover:text-white'
-            }`}
-          >
-            <Truck className="w-4 h-4" />
-            <span>Transportadoras ({carrierAccounts.length})</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('settings')}
-            className={`py-3 px-4 border-b-2 flex items-center space-x-2 font-bold transition-all ${
-              activeTab === 'settings'
-                ? 'border-laser-400 text-laser-400'
-                : 'border-transparent text-slate-400 hover:text-white'
-            }`}
-          >
-            <Settings className="w-4 h-4" />
-            <span>Configuracoes</span>
-          </button>
-
-          {canSwitchTenants && (
-          <button
-            onClick={() => setActiveTab('tenants')}
-            className={`py-3 px-4 border-b-2 flex items-center space-x-2 font-bold transition-all ${
-              activeTab === 'tenants'
-                ? 'border-laser-400 text-laser-400'
-                : 'border-transparent text-slate-400 hover:text-white'
-            }`}
-          >
-            <Store className="w-4 h-4" />
-            <span>Tenants ({tenants.length})</span>
-          </button>
-          )}
-
-          <button
-            onClick={() => setActiveTab('marketplaces')}
-            className={`py-3 px-4 border-b-2 flex items-center space-x-2 font-bold transition-all ${
-              activeTab === 'marketplaces'
-                ? 'border-laser-400 text-laser-400'
-                : 'border-transparent text-slate-400 hover:text-white'
-            }`}
-          >
-            <ShoppingCart className="w-4 h-4" />
-            <span>Marketplaces ({marketplaces.length})</span>
-          </button>
-        </div>
+        <nav aria-label="Navegação da gestão da loja" className="border-b border-chumbo-800 bg-chumbo-950/80 px-4 py-4 sm:px-6">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+            {tenantNavigation.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setActiveTab(item.id)}
+                  className={`flex min-w-0 items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-colors ${
+                    isActive
+                      ? 'border-laser-500/40 bg-laser-500/10 text-white'
+                      : 'border-chumbo-800 bg-chumbo-900/60 text-slate-400 hover:border-chumbo-700 hover:text-white'
+                  }`}
+                >
+                  <Icon className={`h-4 w-4 shrink-0 ${isActive ? 'text-laser-400' : 'text-slate-500'}`} />
+                  <span className="min-w-0">
+                    <strong className="block truncate text-xs">{item.label}</strong>
+                    <span className="mt-0.5 block truncate text-[9px] font-normal text-slate-600">{item.hint}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </nav>
 
         {/* Notificações e Feedback */}
         {message && (
@@ -721,29 +546,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
               activeProducts={activeProducts}
               lowStockProducts={lowStockProducts}
               orderStatusLabels={ORDER_STATUS_LABELS}
-            />
-          )}
-
-          {activeTab === 'master' && isMasterAdmin && (
-            <AdminMasterOverview
-              activeTenant={activeTenant}
-              tenants={tenants}
-              platformOverview={platformOverview}
-              pendingOrders={pendingOrders}
-              lowStockCount={lowStockItems.length}
-              marketplaceAccountsCount={marketplaces.length}
-              carrierAccountsCount={carrierAccounts.length}
-              integrationProblems={integrationProblems}
-              onSelectTenant={onSelectTenant}
-            />
-          )}
-
-          {activeTab === 'observability' && (
-            <AdminObservability
-              health={observabilityHealth}
-              webhookLogs={webhookLogs}
-              carrierHealth={carrierHealth}
-              onRefresh={loadTenantData}
             />
           )}
 
@@ -1311,7 +1113,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                 <p className="mt-1 text-xs text-slate-400">Identidade da vitrine, formas de entrega e presets usados como base para precificacao.</p>
               </div>
 
-              {activeTenant && <MercadoPagoSettings tenantId={activeTenant.id} isMasterAdmin={isMasterAdmin} />}
+              {activeTenant && <MercadoPagoSettings tenantId={activeTenant.id} />}
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-1.5">
@@ -1374,52 +1176,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
               <button onClick={handleSaveTenantSettings} className="rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-chumbo-950 hover:bg-slate-200">
                 Salvar configuracoes
               </button>
-            </div>
-          )}
-
-          {/* TAB 5: TENANTS / LOJAS */}
-          {activeTab === 'tenants' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-white">Lojas (Tenants) Disponíveis no Sistema</h3>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {tenants.map((t) => (
-                  <div
-                    key={t.id}
-                    className={`p-5 rounded-2xl border transition-all ${
-                      activeTenant?.id === t.id
-                        ? 'bg-laser-500/10 border-laser-500/40 text-white'
-                        : 'bg-chumbo-950/60 border-chumbo-800 text-slate-300 hover:border-chumbo-700'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-extrabold text-base text-white flex items-center space-x-2">
-                        <Store className="w-5 h-5 text-laser-400" />
-                        <span>{t.name}</span>
-                      </span>
-                      {activeTenant?.id === t.id && (
-                        <span className="bg-laser-400 text-chumbo-950 font-mono font-bold text-[10px] px-2 py-0.5 rounded-full">
-                          LOJA ATIVA
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-slate-400 font-mono">Slug: {t.slug} • Tenant ID #{t.id}</p>
-                    
-                    <button
-                      onClick={() => onSelectTenant(t)}
-                      className={`mt-4 w-full py-2 rounded-xl font-bold text-xs transition-all ${
-                        activeTenant?.id === t.id
-                          ? 'bg-chumbo-800 text-slate-300 cursor-default'
-                          : 'bg-white text-chumbo-950 hover:bg-slate-200'
-                      }`}
-                    >
-                      {activeTenant?.id === t.id ? 'Loja Selecionada' : 'Alternar para esta Loja'}
-                    </button>
-                  </div>
-                ))}
-              </div>
             </div>
           )}
 

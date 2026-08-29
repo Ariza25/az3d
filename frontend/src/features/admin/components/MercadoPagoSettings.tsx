@@ -1,72 +1,28 @@
 import React, { useEffect, useState } from 'react';
-import { CreditCard, Link2, RefreshCw, ShieldCheck, Unplug } from 'lucide-react';
+import { CreditCard, Link2, RefreshCw, Unplug } from 'lucide-react';
 import { api } from '../../../services/api';
-import type { MercadoPagoPlatformConfigInput, TenantPaymentAccountStatus } from '../../../types';
+import type { TenantPaymentAccountStatus } from '../../../types';
 import { Button, Card } from '../../../components/ui';
 
 interface MercadoPagoSettingsProps {
   tenantId: number;
-  isMasterAdmin: boolean;
 }
 
-const emptyPlatformConfig: MercadoPagoPlatformConfigInput = {
-  client_id: '',
-  client_secret: '',
-  redirect_uri: '',
-  webhook_secret: '',
-};
-
-export const MercadoPagoSettings: React.FC<MercadoPagoSettingsProps> = ({ tenantId, isMasterAdmin }) => {
+export const MercadoPagoSettings: React.FC<MercadoPagoSettingsProps> = ({ tenantId }) => {
   const [status, setStatus] = useState<TenantPaymentAccountStatus | null>(null);
-  const [platform, setPlatform] = useState(emptyPlatformConfig);
-  const [savedSecrets, setSavedSecrets] = useState({ client: false, webhook: false });
   const [busy, setBusy] = useState('');
   const [feedback, setFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
     void load();
-  }, [tenantId, isMasterAdmin]);
+  }, [tenantId]);
 
   async function load() {
     setFeedback(null);
     try {
-      const [tenantStatus, platformConfig] = await Promise.all([
-        api.getTenantMercadoPagoStatus(tenantId),
-        isMasterAdmin ? api.getMercadoPagoPlatformConfig().catch(() => null) : Promise.resolve(null),
-      ]);
-      setStatus(tenantStatus);
-      if (platformConfig) {
-        setPlatform((current) => ({
-          ...current,
-          client_id: platformConfig.client_id || '',
-          redirect_uri: platformConfig.redirect_uri || '',
-          client_secret: '',
-          webhook_secret: '',
-        }));
-        setSavedSecrets({
-          client: platformConfig.client_secret_configured,
-          webhook: platformConfig.webhook_secret_configured,
-        });
-      }
+      setStatus(await api.getTenantMercadoPagoStatus(tenantId));
     } catch (error) {
       setFeedback({ tone: 'error', text: error instanceof Error ? error.message : 'Erro ao carregar Mercado Pago' });
-    }
-  }
-
-  async function savePlatform(event: React.FormEvent) {
-    event.preventDefault();
-    setBusy('platform');
-    setFeedback(null);
-    try {
-      const saved = await api.saveMercadoPagoPlatformConfig(platform);
-      setSavedSecrets({ client: saved.client_secret_configured, webhook: saved.webhook_secret_configured });
-      setPlatform((current) => ({ ...current, client_secret: '', webhook_secret: '' }));
-      setFeedback({ tone: 'success', text: 'Aplicacao OAuth do Mercado Pago salva com seguranca.' });
-      await load();
-    } catch (error) {
-      setFeedback({ tone: 'error', text: error instanceof Error ? error.message : 'Erro ao salvar Mercado Pago' });
-    } finally {
-      setBusy('');
     }
   }
 
@@ -120,25 +76,6 @@ export const MercadoPagoSettings: React.FC<MercadoPagoSettingsProps> = ({ tenant
         </div>
       )}
 
-      {isMasterAdmin && (
-        <Card asForm onSubmit={savePlatform}>
-          <div className="flex items-start gap-3">
-            <ShieldCheck className="mt-0.5 h-5 w-5 text-laser-400" />
-            <div>
-              <h4 className="text-sm font-bold text-white">Aplicacao OAuth da plataforma</h4>
-              <p className="mt-1 text-xs text-slate-400">Configuracao global visivel apenas ao master_admin. Os segredos sao criptografados no banco.</p>
-            </div>
-          </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <Field label="Client ID" value={platform.client_id} onChange={(value) => setPlatform((current) => ({ ...current, client_id: value }))} />
-            <Field label="Redirect URI" value={platform.redirect_uri} placeholder="https://api.seudominio.com/api/payments/mercadopago/oauth/callback" onChange={(value) => setPlatform((current) => ({ ...current, redirect_uri: value }))} />
-            <Field label="Client Secret" password value={platform.client_secret} placeholder={savedSecrets.client ? 'Segredo salvo; preencha apenas para trocar' : 'Client Secret da aplicacao'} onChange={(value) => setPlatform((current) => ({ ...current, client_secret: value }))} />
-            <Field label="Segredo do webhook" password value={platform.webhook_secret} placeholder={savedSecrets.webhook ? 'Segredo salvo; preencha apenas para trocar' : 'Secret das notificacoes Mercado Pago'} onChange={(value) => setPlatform((current) => ({ ...current, webhook_secret: value }))} />
-          </div>
-          <Button className="mt-4" loading={busy === 'platform'} type="submit" variant="primary">Salvar aplicacao OAuth</Button>
-        </Card>
-      )}
-
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -172,16 +109,3 @@ export const MercadoPagoSettings: React.FC<MercadoPagoSettingsProps> = ({ tenant
     </div>
   );
 };
-
-const Field: React.FC<{ label: string; value: string; onChange: (value: string) => void; placeholder?: string; password?: boolean }> = ({ label, value, onChange, placeholder, password }) => (
-  <label className="space-y-1.5">
-    <span className="text-xs font-mono uppercase text-slate-400">{label}</span>
-    <input
-      className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-4 py-2.5 text-sm text-white focus:border-laser-400 focus:outline-none"
-      onChange={(event) => onChange(event.target.value)}
-      placeholder={placeholder}
-      type={password ? 'password' : 'text'}
-      value={value}
-    />
-  </label>
-);
