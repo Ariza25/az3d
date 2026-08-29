@@ -24,6 +24,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@v5
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -39,15 +43,11 @@ jobs:
         working-directory: frontend
         env:
           VITE_API_BASE_URL: https://az3d-backend-c5qsgfjbpa-rj.a.run.app/api
+          VITE_BASE_PATH: ${{ steps.pages.outputs.base_path || '/' }}
         run: npm run build:pages
 
       - name: Add SPA fallback
         run: cp frontend/dist/index.html frontend/dist/404.html
-
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
