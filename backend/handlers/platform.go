@@ -60,6 +60,8 @@ type PlatformTenantOverview struct {
 	ExternalOrdersCount    int64      `json:"external_orders_count"`
 	MarketplaceErrorsCount int64      `json:"marketplace_errors_count"`
 	CarrierErrorsCount     int64      `json:"carrier_errors_count"`
+	MercadoLivreConnected  bool       `json:"mercadolivre_connected"`
+	MercadoPagoConnected   bool       `json:"mercadopago_connected"`
 	LastOrderAt            *time.Time `json:"last_order_at,omitempty"`
 	LastMarketplaceSyncAt  *time.Time `json:"last_marketplace_sync_at,omitempty"`
 	LastCarrierSyncAt      *time.Time `json:"last_carrier_sync_at,omitempty"`
@@ -129,6 +131,16 @@ func (h *PlatformHandler) GetPlatformOverview(c *gin.Context) {
 		row.LowStockCount += lowColorStock
 		database.DB.Model(&models.MarketplaceAccount{}).Where("tenant_id = ?", tenant.ID).Count(&row.MarketplaceAccounts)
 		database.DB.Model(&models.MarketplaceAccount{}).Where("tenant_id = ? AND is_active = ?", tenant.ID, true).Count(&row.ActiveMarketplaceCount)
+		var mercadoLivreCount int64
+		database.DB.Model(&models.MarketplaceAccount{}).
+			Where("tenant_id = ? AND provider = ? AND is_connected = ?", tenant.ID, mercadoLivreProvider, true).
+			Count(&mercadoLivreCount)
+		row.MercadoLivreConnected = mercadoLivreCount > 0
+		var mercadoPagoCount int64
+		database.DB.Model(&models.TenantPaymentAccount{}).
+			Where("tenant_id = ? AND provider = ? AND status = ?", tenant.ID, mercadoPagoProvider, mercadoPagoConnectedState).
+			Count(&mercadoPagoCount)
+		row.MercadoPagoConnected = mercadoPagoCount > 0
 		database.DB.Model(&models.TenantCarrierAccount{}).Where("tenant_id = ?", tenant.ID).Count(&row.CarrierAccounts)
 		database.DB.Model(&models.TenantCarrierAccount{}).Where("tenant_id = ? AND is_active = ?", tenant.ID, true).Count(&row.ActiveCarrierCount)
 		database.DB.Model(&models.TenantCarrierAccount{}).Where("tenant_id = ? AND is_connected = ?", tenant.ID, true).Count(&row.ConnectedCarrierCount)

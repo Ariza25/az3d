@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"az3d-backend/config"
 	"az3d-backend/database"
 	"az3d-backend/internal/marketplaces"
 	"az3d-backend/internal/marketplaces/amazon"
@@ -27,10 +28,16 @@ import (
 	"gorm.io/gorm"
 )
 
-type MarketplaceHandler struct{}
+type MarketplaceHandler struct {
+	cfg *config.Config
+}
 
-func NewMarketplaceHandler() *MarketplaceHandler {
-	return &MarketplaceHandler{}
+func NewMarketplaceHandler(configs ...*config.Config) *MarketplaceHandler {
+	var cfg *config.Config
+	if len(configs) > 0 {
+		cfg = configs[0]
+	}
+	return &MarketplaceHandler{cfg: cfg}
 }
 
 func marketplaceConnectorRegistry() marketplaces.Registry {
@@ -396,6 +403,10 @@ func (h *MarketplaceHandler) StartMarketplaceOAuth(c *gin.Context) {
 		return
 	}
 	provider := normalizeProvider(input.Provider)
+	if provider == mercadoLivreProvider {
+		h.startMercadoLivreOAuth(c, tenantID)
+		return
+	}
 	redirectURI := strings.TrimSpace(input.RedirectURI)
 	state := safeState(tenantID, provider)
 
@@ -422,17 +433,6 @@ func (h *MarketplaceHandler) StartMarketplaceOAuth(c *gin.Context) {
 
 func buildMarketplaceAuthURL(provider string, redirectURI string, state string) (string, []string) {
 	switch provider {
-	case "mercadolivre":
-		clientID := os.Getenv("MELI_CLIENT_ID")
-		if clientID == "" || redirectURI == "" {
-			return "", missingEnv(map[string]string{"MELI_CLIENT_ID": clientID, "redirect_uri": redirectURI})
-		}
-		params := url.Values{}
-		params.Set("response_type", "code")
-		params.Set("client_id", clientID)
-		params.Set("redirect_uri", redirectURI)
-		params.Set("state", state)
-		return "https://auth.mercadolivre.com.br/authorization?" + params.Encode(), nil
 	case "shopee":
 		partnerID := os.Getenv("SHOPEE_PARTNER_ID")
 		partnerKey := os.Getenv("SHOPEE_PARTNER_KEY")
@@ -491,6 +491,10 @@ func (h *MarketplaceHandler) CompleteMarketplaceOAuth(c *gin.Context) {
 		return
 	}
 	provider := normalizeProvider(input.Provider)
+	if provider == mercadoLivreProvider {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Use o callback OAuth seguro do Mercado Livre; o codigo nao pode ser registrado manualmente"})
+		return
+	}
 
 	var account models.MarketplaceAccount
 	err := database.DB.Where("tenant_id = ? AND provider = ?", tenantID, provider).First(&account).Error
@@ -600,7 +604,7 @@ func (h *MarketplaceHandler) RefreshMarketplaceTokens(c *gin.Context) {
 	results := make([]gin.H, 0, len(accounts))
 	refreshed := 0
 	for i := range accounts {
-		if err := refreshMarketplaceAccountToken(c.Request.Context(), &accounts[i], true); err != nil {
+		if err := h.refreshMarketplaceAccountToken(c.Request.Context(), &accounts[i], true); err != nil {
 			results = append(results, gin.H{"provider": accounts[i].Provider, "status": accounts[i].SyncStatus, "message": accounts[i].LastError})
 			continue
 		}
@@ -629,7 +633,7 @@ func (h *MarketplaceHandler) TestMarketplaceConnection(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Conta de marketplace nao encontrada"})
 		return
 	}
-	if err := ensureFreshMarketplaceToken(c.Request.Context(), &account); err != nil {
+	if err := h.ensureFreshMarketplaceToken(c.Request.Context(), &account); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": account.LastError})
 		return
 	}
@@ -656,7 +660,7 @@ func (h *MarketplaceHandler) TestMarketplaceConnection(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Conexao testada com sucesso.", "account": account})
 }
 
-func ensureFreshMarketplaceToken(ctx context.Context, account *models.MarketplaceAccount) error {
+func (h *MarketplaceHandler) ensureFreshMarketplaceToken(ctx context.Context, account *models.MarketplaceAccount) error {
 	if account.TokenExpiresAt == nil {
 		if strings.TrimSpace(account.AccessToken) == "" {
 			account.SyncStatus = "pending_credentials"
@@ -665,17 +669,17 @@ func ensureFreshMarketplaceToken(ctx context.Context, account *models.Marketplac
 			return errors.New(account.LastError)
 		}
 		if strings.TrimSpace(account.RefreshToken) != "" {
-			return refreshMarketplaceAccountToken(ctx, account, true)
+			return h.refreshMarketplaceAccountToken(ctx, account, true)
 		}
 		return nil
 	}
 	if account.TokenExpiresAt.After(time.Now().Add(10 * time.Minute)) {
 		return nil
 	}
-	return refreshMarketplaceAccountToken(ctx, account, false)
+	return h.refreshMarketplaceAccountToken(ctx, account, false)
 }
 
-func refreshMarketplaceAccountToken(ctx context.Context, account *models.MarketplaceAccount, force bool) error {
+func (h *MarketplaceHandler) refreshMarketplaceAccountToken(ctx context.Context, account *models.MarketplaceAccount, force bool) error {
 	if !force && account.TokenExpiresAt != nil && account.TokenExpiresAt.After(time.Now().Add(10*time.Minute)) {
 		return nil
 	}
@@ -686,7 +690,18 @@ func refreshMarketplaceAccountToken(ctx context.Context, account *models.Marketp
 		_ = database.DB.Save(account).Error
 		return errors.New(account.LastError)
 	}
-	token, err := connector.RefreshAccessToken(ctx, marketplaceAccountFromModel(*account))
+	connectorAccount := marketplaceAccountFromModel(*account)
+	if account.Provider == mercadoLivreProvider {
+		var credentialsErr error
+		connectorAccount, credentialsErr = h.mercadoLivreConnectorAccount(*account)
+		if credentialsErr != nil {
+			account.SyncStatus = "platform_config_error"
+			account.LastError = "Aplicacao Mercado Livre nao configurada pelo master_admin."
+			_ = database.DB.Save(account).Error
+			return credentialsErr
+		}
+	}
+	token, err := connector.RefreshAccessToken(ctx, connectorAccount)
 	if err != nil {
 		account.SyncStatus = "token_refresh_error"
 		account.LastError = marketplaceConnectorErrorMessage(err)
@@ -1138,7 +1153,7 @@ func (h *MarketplaceHandler) SyncMarketplaceProducts(c *gin.Context) {
 			})
 			continue
 		}
-		if err := ensureFreshMarketplaceToken(c.Request.Context(), &accounts[i]); err != nil {
+		if err := h.ensureFreshMarketplaceToken(c.Request.Context(), &accounts[i]); err != nil {
 			results = append(results, gin.H{
 				"provider": accounts[i].Provider,
 				"status":   accounts[i].SyncStatus,
@@ -1242,7 +1257,7 @@ func marketplaceConnectorErrorMessage(err error) string {
 	case errors.Is(err, marketplaces.ErrMissingCredentials):
 		return "Configure access token, seller/shop id e marketplace antes de importar catalogo real."
 	case errors.Is(err, marketplaces.ErrNotConfigured):
-		return "Configure as variaveis de ambiente do conector antes de importar catalogo real."
+		return "Configure a aplicacao global do marketplace no painel master antes de importar catalogo real."
 	default:
 		return err.Error()
 	}
@@ -1362,7 +1377,7 @@ func (h *MarketplaceHandler) SyncMarketplaceOrders(c *gin.Context) {
 			})
 			continue
 		}
-		if err := ensureFreshMarketplaceToken(c.Request.Context(), &accounts[i]); err != nil {
+		if err := h.ensureFreshMarketplaceToken(c.Request.Context(), &accounts[i]); err != nil {
 			results = append(results, gin.H{
 				"provider":        accounts[i].Provider,
 				"status":          accounts[i].SyncStatus,

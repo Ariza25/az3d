@@ -55,7 +55,7 @@ func main() {
 	tenantHandler := handlers.NewTenantHandler()
 	tenantSettingsHandler := handlers.NewTenantSettingsHandler()
 	pricingHandler := handlers.NewPricingHandler()
-	marketplaceHandler := handlers.NewMarketplaceHandler()
+	marketplaceHandler := handlers.NewMarketplaceHandler(cfg)
 	carrierHandler := handlers.NewCarrierHandler(cfg)
 	shipmentHandler := handlers.NewShipmentHandler(cfg)
 	platformHandler := handlers.NewPlatformHandler(cfg)
@@ -86,6 +86,7 @@ func main() {
 		api.GET("/products/:id/reviews", productHandler.GetProductReviews)
 		api.GET("/tenant/settings", tenantSettingsHandler.GetTenantSettings)
 		api.GET("/payments/mercadopago/oauth/callback", mercadoPagoHandler.OAuthCallback)
+		api.GET("/marketplaces/mercadolivre/oauth/callback", marketplaceHandler.MercadoLivreOAuthCallback)
 
 		protected := api.Group("")
 		protected.Use(middleware.AuthMiddleware(cfg.JWTSecret))
@@ -181,6 +182,10 @@ func main() {
 			platform.GET("/outbox", platformHandler.GetWebhookLogs)
 			platform.GET("/payments/mercadopago", mercadoPagoHandler.GetPlatformConfig)
 			platform.PUT("/payments/mercadopago", mercadoPagoHandler.SavePlatformConfig)
+			platform.POST("/tenants/:tenant_id/payments/mercadopago/oauth/start", mercadoPagoHandler.StartOAuthForTenant)
+			platform.GET("/marketplaces/mercadolivre", marketplaceHandler.GetMercadoLivrePlatformConfig)
+			platform.PUT("/marketplaces/mercadolivre", marketplaceHandler.SaveMercadoLivrePlatformConfig)
+			platform.POST("/tenants/:tenant_id/marketplaces/mercadolivre/oauth/start", marketplaceHandler.StartMercadoLivreOAuthForTenant)
 		}
 
 		api.POST("/webhooks/marketplaces/:provider", marketplaceHandler.ReceiveMarketplaceWebhook)

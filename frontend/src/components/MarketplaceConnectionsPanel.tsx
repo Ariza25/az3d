@@ -620,24 +620,26 @@ export const MarketplaceConnectionsPanel: React.FC<MarketplaceConnectionsPanelPr
                 </a>
               )}
 
-              <div className="mt-3 grid grid-cols-1 gap-2">
-                <input
-                  value={oauthCodes[provider.id]?.code || ''}
-                  onChange={(event) =>
-                    setOauthCodes((prev) => ({ ...prev, [provider.id]: { code: event.target.value, shop_id: prev[provider.id]?.shop_id || '', seller_id: prev[provider.id]?.seller_id || '' } }))
-                  }
-                  placeholder="Codigo OAuth do callback"
-                  className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white focus:outline-none focus:border-laser-400"
-                />
-                <button
-                  type="button"
-                  onClick={() => completeOAuth(provider.id)}
-                  disabled={isBusy}
-                  className="rounded-xl border border-chumbo-700 px-3 py-2 text-[10px] font-bold text-slate-200 hover:bg-chumbo-800 disabled:opacity-60"
-                >
-                  Registrar callback
-                </button>
-              </div>
+              {provider.id !== 'mercadolivre' && (
+                <div className="mt-3 grid grid-cols-1 gap-2">
+                  <input
+                    value={oauthCodes[provider.id]?.code || ''}
+                    onChange={(event) =>
+                      setOauthCodes((prev) => ({ ...prev, [provider.id]: { code: event.target.value, shop_id: prev[provider.id]?.shop_id || '', seller_id: prev[provider.id]?.seller_id || '' } }))
+                    }
+                    placeholder="Codigo OAuth do callback"
+                    className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white focus:outline-none focus:border-laser-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => completeOAuth(provider.id)}
+                    disabled={isBusy}
+                    className="rounded-xl border border-chumbo-700 px-3 py-2 text-[10px] font-bold text-slate-200 hover:bg-chumbo-800 disabled:opacity-60"
+                  >
+                    Registrar callback
+                  </button>
+                </div>
+              )}
 
               <div className="mt-3 space-y-1 text-[10px] leading-relaxed text-slate-400">
                 <p>{tokenStatus}</p>

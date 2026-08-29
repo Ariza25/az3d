@@ -18,6 +18,22 @@ import (
 
 var DB *gorm.DB
 
+// OpenExistingDB opens the platform database without migrations or bootstrap.
+// It is intended for auxiliary processes such as the tenant-scoped MCP server.
+func OpenExistingDB(cfg *config.Config) (*gorm.DB, error) {
+	dsn := cfg.DatabaseURL
+	if dsn == "" {
+		dsn = fmt.Sprintf(
+			"host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=UTC",
+			cfg.DBHost, cfg.DBUser, cfg.DBPassword, cfg.DBName, cfg.DBPort, cfg.DBSSLMode,
+		)
+	}
+	return gorm.Open(postgres.Open(dsn), &gorm.Config{
+		Logger:                                   logger.Default.LogMode(logger.Warn),
+		DisableForeignKeyConstraintWhenMigrating: true,
+	})
+}
+
 func InitDB(cfg *config.Config) *gorm.DB {
 	var db *gorm.DB
 	var err error
@@ -117,6 +133,8 @@ func InitDB(cfg *config.Config) *gorm.DB {
 		&models.MercadoPagoPlatformConfig{},
 		&models.TenantPaymentAccount{},
 		&models.PaymentOAuthSession{},
+		&models.MercadoLivrePlatformConfig{},
+		&models.MarketplaceOAuthSession{},
 	)
 
 	if err != nil {

@@ -167,9 +167,25 @@ func (h *MercadoPagoHandler) GetTenantStatus(c *gin.Context) {
 }
 
 func (h *MercadoPagoHandler) StartOAuth(c *gin.Context) {
-	tenantID := getTenantID(c)
+	h.startOAuthForTenant(c, getTenantID(c))
+}
+
+func (h *MercadoPagoHandler) StartOAuthForTenant(c *gin.Context) {
+	tenantID64, err := strconv.ParseUint(strings.TrimSpace(c.Param("tenant_id")), 10, 64)
+	if err != nil || tenantID64 == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tenant invalido"})
+		return
+	}
+	h.startOAuthForTenant(c, uint(tenantID64))
+}
+
+func (h *MercadoPagoHandler) startOAuthForTenant(c *gin.Context, tenantID uint) {
 	if tenantID == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Tenant invalido"})
+		return
+	}
+	if !tenantExists(tenantID) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Tenant nao encontrado"})
 		return
 	}
 	platform, err := h.loadPlatformConfig()

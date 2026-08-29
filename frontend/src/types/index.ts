@@ -737,6 +737,8 @@ export interface PlatformTenantOverview {
   external_orders_count: number;
   marketplace_errors_count: number;
   carrier_errors_count: number;
+  mercadolivre_connected: boolean;
+  mercadopago_connected: boolean;
   last_order_at?: string;
   last_marketplace_sync_at?: string;
   last_carrier_sync_at?: string;
@@ -817,6 +819,26 @@ export interface MercadoPagoPlatformConfigInput {
   client_secret: string;
   redirect_uri: string;
   webhook_secret: string;
+}
+
+export interface MercadoLivrePlatformConfig {
+  id?: number;
+  client_id: string;
+  redirect_uri: string;
+  client_secret_configured: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface MercadoLivrePlatformConfigInput {
+  client_id: string;
+  client_secret: string;
+  redirect_uri: string;
+}
+
+export interface MasterOAuthStartResponse {
+  authorization_url: string;
+  auth_url?: string;
 }
 
 export interface TenantPaymentAccountStatus {

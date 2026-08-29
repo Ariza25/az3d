@@ -2,21 +2,20 @@ package mcpserver
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"az3d-backend/internal/marketplaces"
+	"az3d-backend/models"
 	"az3d-backend/utils"
+
+	"gorm.io/gorm"
 )
 
-var ErrMELICredentialsMissing = errors.New("configure MELI_ACCESS_TOKEN e MELI_SELLER_ID antes de usar o MCP")
-var ErrTokenPersistenceMissing = errors.New("configure MELI_TOKEN_STORE_PATH e CREDENTIAL_ENCRYPTION_KEY antes de renovar tokens")
+var ErrMELIAccountMissing = errors.New("conta Mercado Livre nao autorizada para o tenant selecionado")
 
 type AccountSource interface {
 	Account(context.Context) (marketplaces.Account, error)
@@ -27,157 +26,129 @@ type RefreshingAccountSource interface {
 	Refresh(context.Context) (marketplaces.Account, error)
 }
 
-// EnvironmentAccountSource keeps credentials in memory and serializes token
-// refreshes. It never writes tokens to stdout, logs or the repository.
-type EnvironmentAccountSource struct {
+// DatabaseAccountSource uses the same tenant-scoped OAuth grant as the AZ3D
+// backend. The MCP never owns a second token store or asks for OAuth secrets.
+type DatabaseAccountSource struct {
 	mu        sync.Mutex
+	db        *gorm.DB
 	connector marketplaces.Connector
-	account   marketplaces.Account
-	expiresAt time.Time
-	storePath string
+	tenantID  uint
 	secret    string
-	loadErr   error
 }
 
-func NewEnvironmentAccountSource(connector marketplaces.Connector) *EnvironmentAccountSource {
-	var expiresAt time.Time
-	if raw := strings.TrimSpace(os.Getenv("MELI_TOKEN_EXPIRES_AT")); raw != "" {
-		expiresAt, _ = time.Parse(time.RFC3339, raw)
-	}
-	source := &EnvironmentAccountSource{
-		connector: connector,
-		account: marketplaces.Account{
-			Provider:     "mercadolivre",
-			AccountName:  "AZ 3D Studio",
-			SellerID:     strings.TrimSpace(os.Getenv("MELI_SELLER_ID")),
-			Marketplace:  "MLB",
-			AccessToken:  strings.TrimSpace(os.Getenv("MELI_ACCESS_TOKEN")),
-			RefreshToken: strings.TrimSpace(os.Getenv("MELI_REFRESH_TOKEN")),
-		},
-		expiresAt: expiresAt,
-		storePath: strings.TrimSpace(os.Getenv("MELI_TOKEN_STORE_PATH")),
-		secret:    strings.TrimSpace(os.Getenv("CREDENTIAL_ENCRYPTION_KEY")),
-	}
-	source.loadPersistedCredentials()
-	return source
+func NewDatabaseAccountSource(db *gorm.DB, connector marketplaces.Connector, tenantID uint, encryptionKey string) *DatabaseAccountSource {
+	return &DatabaseAccountSource{db: db, connector: connector, tenantID: tenantID, secret: strings.TrimSpace(encryptionKey)}
 }
 
-func (s *EnvironmentAccountSource) Account(ctx context.Context) (marketplaces.Account, error) {
+func (s *DatabaseAccountSource) Account(ctx context.Context) (marketplaces.Account, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.loadErr != nil {
-		return marketplaces.Account{}, s.loadErr
+	model, account, err := s.load(ctx)
+	if err != nil {
+		return marketplaces.Account{}, err
 	}
-	if strings.TrimSpace(s.account.SellerID) == "" {
-		return marketplaces.Account{}, ErrMELICredentialsMissing
+	if model.TokenExpiresAt != nil && !model.TokenExpiresAt.After(time.Now().UTC().Add(10*time.Minute)) {
+		return s.refreshLocked(ctx, &model, account)
 	}
-	if strings.TrimSpace(s.account.AccessToken) == "" {
-		return s.refreshLocked(ctx)
-	}
-	if !s.expiresAt.IsZero() && !s.expiresAt.After(time.Now().Add(10*time.Minute)) {
-		return s.refreshLocked(ctx)
-	}
-	return s.account, nil
+	return account, nil
 }
 
-func (s *EnvironmentAccountSource) Refresh(ctx context.Context) (marketplaces.Account, error) {
+func (s *DatabaseAccountSource) Refresh(ctx context.Context) (marketplaces.Account, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.refreshLocked(ctx)
+
+	model, account, err := s.load(ctx)
+	if err != nil {
+		return marketplaces.Account{}, err
+	}
+	return s.refreshLocked(ctx, &model, account)
 }
 
-func (s *EnvironmentAccountSource) refreshLocked(ctx context.Context) (marketplaces.Account, error) {
-	if s.connector == nil || strings.TrimSpace(s.account.RefreshToken) == "" {
-		return marketplaces.Account{}, ErrMELICredentialsMissing
+func (s *DatabaseAccountSource) load(ctx context.Context) (models.MarketplaceAccount, marketplaces.Account, error) {
+	if s.db == nil || s.tenantID == 0 || len(s.secret) < 32 {
+		return models.MarketplaceAccount{}, marketplaces.Account{}, ErrMELIAccountMissing
 	}
-	if s.storePath == "" || len(s.secret) < 32 {
-		return marketplaces.Account{}, ErrTokenPersistenceMissing
+	var model models.MarketplaceAccount
+	if err := s.db.WithContext(ctx).
+		Where("tenant_id = ? AND provider = ? AND is_active = ?", s.tenantID, "mercadolivre", true).
+		First(&model).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return model, marketplaces.Account{}, ErrMELIAccountMissing
+		}
+		return model, marketplaces.Account{}, err
 	}
-	token, err := s.connector.RefreshAccessToken(ctx, s.account)
+	if !model.IsConnected || strings.TrimSpace(model.SellerID) == "" {
+		return model, marketplaces.Account{}, ErrMELIAccountMissing
+	}
+
+	var platform models.MercadoLivrePlatformConfig
+	if err := s.db.WithContext(ctx).First(&platform, 1).Error; err != nil {
+		return model, marketplaces.Account{}, fmt.Errorf("aplicacao Mercado Livre nao configurada: %w", err)
+	}
+	clientSecret, err := utils.DecryptString(platform.EncryptedClientSecret, s.secret)
+	if err != nil {
+		return model, marketplaces.Account{}, errors.New("nao foi possivel descriptografar a aplicacao Mercado Livre")
+	}
+	account := marketplaces.Account{
+		Provider: model.Provider, AccountName: model.AccountName, SellerID: model.SellerID,
+		ShopID: model.ShopID, Marketplace: model.Marketplace, AccessToken: model.AccessToken,
+		RefreshToken: model.RefreshToken, OAuthClientID: platform.ClientID, OAuthClientSecret: clientSecret,
+	}
+	if strings.TrimSpace(account.AccessToken) == "" && strings.TrimSpace(account.RefreshToken) == "" {
+		return model, marketplaces.Account{}, ErrMELIAccountMissing
+	}
+	return model, account, nil
+}
+
+func (s *DatabaseAccountSource) refreshLocked(ctx context.Context, model *models.MarketplaceAccount, account marketplaces.Account) (marketplaces.Account, error) {
+	if s.connector == nil || strings.TrimSpace(account.RefreshToken) == "" {
+		return marketplaces.Account{}, ErrMELIAccountMissing
+	}
+	token, err := s.connector.RefreshAccessToken(ctx, account)
 	if err != nil {
 		return marketplaces.Account{}, err
 	}
 	if token.AccessToken != "" {
-		s.account.AccessToken = token.AccessToken
+		account.AccessToken = token.AccessToken
+		model.AccessToken = token.AccessToken
 	}
 	if token.RefreshToken != "" {
-		s.account.RefreshToken = token.RefreshToken
+		account.RefreshToken = token.RefreshToken
+		model.RefreshToken = token.RefreshToken
 	}
 	if token.SellerID != "" {
-		s.account.SellerID = token.SellerID
+		account.SellerID = token.SellerID
+		model.SellerID = token.SellerID
 	}
-	s.expiresAt = token.ExpiresAt
-	if err := s.persistCredentialsLocked(); err != nil {
-		return marketplaces.Account{}, fmt.Errorf("token renovado, mas nao foi possivel persisti-lo com seguranca: %w", err)
+	expiresAt := token.ExpiresAt
+	if expiresAt.IsZero() && token.ExpiresIn > 0 {
+		expiresAt = time.Now().UTC().Add(time.Duration(token.ExpiresIn) * time.Second)
 	}
-	return s.account, nil
+	if !expiresAt.IsZero() {
+		model.TokenExpiresAt = &expiresAt
+	}
+	model.IsConnected = true
+	model.SyncStatus = "connected"
+	model.LastError = ""
+	if err := s.db.WithContext(ctx).Save(model).Error; err != nil {
+		return marketplaces.Account{}, fmt.Errorf("token renovado, mas nao foi salvo no tenant: %w", err)
+	}
+	return account, nil
 }
 
-type persistedMELICredentials struct {
-	AccessToken  string    `json:"access_token"`
-	RefreshToken string    `json:"refresh_token"`
-	SellerID     string    `json:"seller_id"`
-	ExpiresAt    time.Time `json:"expires_at"`
+type DoctorResult struct {
+	SellerID    string
+	Marketplace string
 }
 
-func (s *EnvironmentAccountSource) loadPersistedCredentials() {
-	if s.storePath == "" {
-		return
-	}
-	if len(s.secret) < 32 {
-		s.loadErr = ErrTokenPersistenceMissing
-		return
-	}
-	raw, err := os.ReadFile(s.storePath)
-	if errors.Is(err, os.ErrNotExist) {
-		return
-	}
+func RunDoctor(ctx context.Context, connector marketplaces.Connector, accounts AccountSource) (DoctorResult, error) {
+	account, err := accounts.Account(ctx)
 	if err != nil {
-		s.loadErr = fmt.Errorf("erro ao ler token store: %w", err)
-		return
+		return DoctorResult{}, err
 	}
-	decrypted, err := utils.DecryptString(strings.TrimSpace(string(raw)), s.secret)
-	if err != nil {
-		s.loadErr = errors.New("nao foi possivel descriptografar o token store")
-		return
+	if err := connector.TestConnection(ctx, account); err != nil {
+		return DoctorResult{}, err
 	}
-	var persisted persistedMELICredentials
-	if err := json.Unmarshal([]byte(decrypted), &persisted); err != nil {
-		s.loadErr = errors.New("token store possui formato invalido")
-		return
-	}
-	if persisted.AccessToken != "" {
-		s.account.AccessToken = persisted.AccessToken
-	}
-	if persisted.RefreshToken != "" {
-		s.account.RefreshToken = persisted.RefreshToken
-	}
-	if persisted.SellerID != "" {
-		s.account.SellerID = persisted.SellerID
-	}
-	if !persisted.ExpiresAt.IsZero() {
-		s.expiresAt = persisted.ExpiresAt
-	}
-}
-
-func (s *EnvironmentAccountSource) persistCredentialsLocked() error {
-	persisted := persistedMELICredentials{
-		AccessToken:  s.account.AccessToken,
-		RefreshToken: s.account.RefreshToken,
-		SellerID:     s.account.SellerID,
-		ExpiresAt:    s.expiresAt,
-	}
-	raw, err := json.Marshal(persisted)
-	if err != nil {
-		return err
-	}
-	encrypted, err := utils.EncryptString(string(raw), s.secret)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(s.storePath), 0o700); err != nil {
-		return err
-	}
-	return os.WriteFile(s.storePath, []byte(encrypted), 0o600)
+	return DoctorResult{SellerID: account.SellerID, Marketplace: account.Marketplace}, nil
 }

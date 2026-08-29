@@ -51,6 +51,9 @@ import {
   PlatformEnvironment,
   MercadoPagoPlatformConfig,
   MercadoPagoPlatformConfigInput,
+  MercadoLivrePlatformConfig,
+  MercadoLivrePlatformConfigInput,
+  MasterOAuthStartResponse,
   TenantPaymentAccountStatus,
 } from '../types';
 
@@ -118,6 +121,40 @@ export const api = {
     });
     const body = await res.json();
     if (!res.ok) throw new Error(body.error || 'Erro ao salvar aplicacao Mercado Pago');
+    return body;
+  },
+
+  getMercadoLivrePlatformConfig: async (): Promise<MercadoLivrePlatformConfig> => {
+    const res = await fetch(`${API_BASE_URL}/admin/platform/marketplaces/mercadolivre`, { headers: getAdminHeaders() });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Erro ao carregar aplicacao Mercado Livre');
+    return body;
+  },
+
+  saveMercadoLivrePlatformConfig: async (input: MercadoLivrePlatformConfigInput): Promise<MercadoLivrePlatformConfig> => {
+    const res = await fetch(`${API_BASE_URL}/admin/platform/marketplaces/mercadolivre`, {
+      method: 'PUT', headers: getAdminHeaders(), body: JSON.stringify(input),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Erro ao salvar aplicacao Mercado Livre');
+    return body;
+  },
+
+  startMasterMercadoLivreOAuth: async (tenantId: number): Promise<MasterOAuthStartResponse> => {
+    const res = await fetch(`${API_BASE_URL}/admin/platform/tenants/${tenantId}/marketplaces/mercadolivre/oauth/start`, {
+      method: 'POST', headers: getAdminHeaders(),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Erro ao iniciar autorizacao Mercado Livre');
+    return body;
+  },
+
+  startMasterMercadoPagoOAuth: async (tenantId: number): Promise<MasterOAuthStartResponse> => {
+    const res = await fetch(`${API_BASE_URL}/admin/platform/tenants/${tenantId}/payments/mercadopago/oauth/start`, {
+      method: 'POST', headers: getAdminHeaders(),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Erro ao iniciar autorizacao Mercado Pago');
     return body;
   },
 

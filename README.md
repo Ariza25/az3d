@@ -282,20 +282,30 @@ O backend inclui um servidor MCP local em Go que usa o conector oficial da API d
 - `meli_list_orders`: lista pedidos pagos recentes sem dados pessoais do comprador;
 - `meli_sales_summary`: resume faturamento, taxas, frete, descontos e unidades vendidas.
 
-Configure as credenciais somente no ambiente local. Nunca grave tokens no `config.toml` do Codex nem no repositorio:
+O OAuth faz parte da propria plataforma multi-tenant. Nao configure `MELI_CLIENT_ID`, `MELI_CLIENT_SECRET`, access token ou refresh token no ambiente do MCP:
 
-```env
-MELI_CLIENT_ID=
-MELI_CLIENT_SECRET=
-MELI_SELLER_ID=
-MELI_ACCESS_TOKEN=
-MELI_REFRESH_TOKEN=
-MELI_TOKEN_EXPIRES_AT=2026-08-29T18:00:00Z
-MELI_TOKEN_STORE_PATH=C:\Users\User\AppData\Local\AZ3D\meli-token.enc
-CREDENTIAL_ENCRYPTION_KEY=uma-chave-aleatoria-com-pelo-menos-32-caracteres
+1. o `master_admin` abre **Ambiente e variaveis** e salva Client ID, Client Secret e Redirect URI da aplicacao global;
+2. na **Visao da plataforma**, escolhe o tenant e clica em **Mercado Livre**;
+3. o titular entra no Mercado Livre e concede acesso a propria conta;
+4. o callback valida `state` de uso unico e PKCE S256, troca o code e salva os tokens criptografados em `marketplace_accounts` para aquele `tenant_id`;
+5. o MCP le essa mesma conta no banco e renova o token no mesmo registro, sem onboarding ou token store paralelo.
+
+No DevCenter do Mercado Livre:
+
+1. crie ou ajuste uma aplicacao exclusiva para Mercado Livre (separada de Mercado Pago);
+2. cadastre exatamente a Redirect URI exibida/salva no painel master, apontando para `/api/marketplaces/mercadolivre/oauth/callback`;
+3. habilite PKCE e as permissoes funcionais necessarias;
+4. autorize usando a conta administradora da loja, nao um operador/colaborador.
+
+O MCP ainda expoe apenas operacoes de leitura, mesmo que a aplicacao ja tenha permissao de leitura e escrita para as etapas futuras. `CREDENTIAL_ENCRYPTION_KEY` continua obrigatoria na plataforma para proteger credenciais globais e grants dos tenants.
+
+Para gerar uma chave local forte no PowerShell:
+
+```powershell
+$az3dKeyBytes = New-Object byte[] 32
+[Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($az3dKeyBytes)
+[Convert]::ToBase64String($az3dKeyBytes)
 ```
-
-`MELI_TOKEN_STORE_PATH` e `CREDENTIAL_ENCRYPTION_KEY` sao obrigatorios para refresh automatico. O arquivo armazena access token, refresh token rotacionado, seller ID e expiracao de forma criptografada. Sem armazenamento seguro, o MCP recusa renovar o token para nao consumir um refresh token de uso unico sem conseguir persistir o sucessor.
 
 Compile o executavel:
 
@@ -304,23 +314,30 @@ cd backend
 go build -o .\bin\az3d-seller-mcp.exe .\cmd\az3d-seller-mcp
 ```
 
-Exemplo de configuracao do Codex, reutilizando variaveis do ambiente em vez de copiar seus valores:
+Depois de autorizar o tenant no painel, valide a primeira chamada real em `GET /users/me`:
+
+```powershell
+.\bin\az3d-seller-mcp.exe doctor --tenant-id 1
+```
+
+Registre o STDIO server no Codex sem copiar segredos para a configuracao. Quando compilado em `backend/bin`, o executavel localiza `backend/.env` mesmo se o Codex o iniciar a partir de outro diretorio:
+
+```powershell
+codex mcp add az3d_seller -- "C:\caminho\para\az3d\backend\bin\az3d-seller-mcp.exe" serve --tenant-id 1
+```
+
+A configuracao equivalente em `~/.codex/config.toml` e:
 
 ```toml
 [mcp_servers.az3d_seller]
 command = "C:\\caminho\\para\\az3d\\backend\\bin\\az3d-seller-mcp.exe"
-env_vars = [
-  "MELI_CLIENT_ID",
-  "MELI_CLIENT_SECRET",
-  "MELI_SELLER_ID",
-  "MELI_ACCESS_TOKEN",
-  "MELI_REFRESH_TOKEN",
-  "MELI_TOKEN_EXPIRES_AT",
-  "MELI_TOKEN_STORE_PATH",
-  "CREDENTIAL_ENCRYPTION_KEY"
-]
+args = ["serve", "--tenant-id", "1"]
+cwd = "C:\\caminho\\para\\az3d\\backend"
 required = true
+default_tools_approval_mode = "writes"
 ```
+
+Reinicie o Codex e use `/mcp` (ou `codex mcp list` no CLI) para confirmar que `az3d_seller` iniciou e publicou as quatro ferramentas.
 
 O transporte e STDIO: `stdout` fica reservado ao JSON-RPC do MCP e diagnosticos sao enviados apenas para `stderr`. Operacoes de escrita (publicar, alterar preco/estoque e gerenciar Ads) entrarao em uma etapa posterior, com validacao, previa, confirmacao e auditoria.
 

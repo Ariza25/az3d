@@ -1002,6 +1002,30 @@ type PaymentOAuthSession struct {
 	CreatedAt             time.Time  `json:"-"`
 }
 
+// MercadoLivrePlatformConfig guarda uma unica aplicacao OAuth da plataforma.
+// Cada seller concede seu proprio grant, salvo em MarketplaceAccount por tenant.
+type MercadoLivrePlatformConfig struct {
+	ID                     uint      `gorm:"primaryKey" json:"id"`
+	ClientID               string    `gorm:"size:120;not null" json:"client_id"`
+	EncryptedClientSecret  string    `gorm:"type:text;not null" json:"-"`
+	RedirectURI            string    `gorm:"size:500;not null" json:"redirect_uri"`
+	ClientSecretConfigured bool      `gorm:"-" json:"client_secret_configured"`
+	CreatedAt              time.Time `json:"created_at"`
+	UpdatedAt              time.Time `json:"updated_at"`
+}
+
+// MarketplaceOAuthSession vincula state/PKCE a um tenant sem expor tenant_id
+// na URL publica. A sessao e curta e consumida uma unica vez no callback.
+type MarketplaceOAuthSession struct {
+	StateHash             string     `gorm:"primaryKey;size:64" json:"-"`
+	TenantID              uint       `gorm:"not null;index" json:"-"`
+	Provider              string     `gorm:"size:50;not null;index" json:"-"`
+	EncryptedCodeVerifier string     `gorm:"type:text;not null" json:"-"`
+	ExpiresAt             time.Time  `gorm:"not null;index" json:"-"`
+	UsedAt                *time.Time `gorm:"index" json:"-"`
+	CreatedAt             time.Time  `json:"-"`
+}
+
 type MarketplaceIntegrationInput struct {
 	Provider   string `json:"provider" binding:"required"`
 	SellerID   string `json:"seller_id"`

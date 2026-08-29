@@ -3,9 +3,6 @@ package mcpserver
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -113,92 +110,6 @@ func TestMCPExposesOnlyReadToolsAndRedactsBuyerData(t *testing.T) {
 	}
 	if !strings.Contains(payload, "2000001") || !strings.Contains(payload, "Vaso Ondulado") {
 		t.Fatalf("expected operational order fields missing: %s", payload)
-	}
-}
-
-func TestEnvironmentAccountSourceSerializesRefreshAndRotatesToken(t *testing.T) {
-	storePath := filepath.Join(t.TempDir(), "meli-token.enc")
-	t.Setenv("MELI_SELLER_ID", "12345")
-	t.Setenv("MELI_ACCESS_TOKEN", "expired")
-	t.Setenv("MELI_REFRESH_TOKEN", "refresh-once")
-	t.Setenv("MELI_TOKEN_EXPIRES_AT", "2026-01-01T00:00:00Z")
-	t.Setenv("MELI_TOKEN_STORE_PATH", storePath)
-	t.Setenv("CREDENTIAL_ENCRYPTION_KEY", "0123456789abcdef0123456789abcdef")
-
-	connector := &fakeConnector{refreshToken: marketplaces.TokenResult{
-		AccessToken: "fresh", RefreshToken: "refresh-next", SellerID: "12345",
-		ExpiresAt: time.Now().Add(6 * time.Hour),
-	}}
-	source := NewEnvironmentAccountSource(connector)
-
-	type accountResult struct {
-		account marketplaces.Account
-		err     error
-	}
-	results := make(chan accountResult, 12)
-	for range 12 {
-		go func() {
-			account, err := source.Account(context.Background())
-			results <- accountResult{account: account, err: err}
-		}()
-	}
-	var account marketplaces.Account
-	for range 12 {
-		result := <-results
-		if result.err != nil {
-			t.Fatal(result.err)
-		}
-		account = result.account
-	}
-	if account.AccessToken != "fresh" || account.RefreshToken != "refresh-next" {
-		t.Fatalf("token rotation not applied: %#v", account)
-	}
-	if connector.refreshCalls != 1 {
-		t.Fatalf("refresh calls = %d, want 1", connector.refreshCalls)
-	}
-
-	if _, err := source.Account(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	if connector.refreshCalls != 1 {
-		t.Fatalf("fresh token was refreshed again: %d calls", connector.refreshCalls)
-	}
-
-	raw, err := os.ReadFile(storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(raw), "fresh") || strings.Contains(string(raw), "refresh-next") {
-		t.Fatalf("token store contains plaintext credentials: %s", raw)
-	}
-
-	t.Setenv("MELI_ACCESS_TOKEN", "")
-	t.Setenv("MELI_REFRESH_TOKEN", "")
-	reloaded := NewEnvironmentAccountSource(connector)
-	account, err = reloaded.Account(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if account.AccessToken != "fresh" || account.RefreshToken != "refresh-next" {
-		t.Fatalf("persisted credentials were not reloaded: %#v", account)
-	}
-}
-
-func TestEnvironmentAccountSourceRefusesUnpersistedRefresh(t *testing.T) {
-	t.Setenv("MELI_SELLER_ID", "12345")
-	t.Setenv("MELI_ACCESS_TOKEN", "expired")
-	t.Setenv("MELI_REFRESH_TOKEN", "refresh-once")
-	t.Setenv("MELI_TOKEN_EXPIRES_AT", "2026-01-01T00:00:00Z")
-	t.Setenv("MELI_TOKEN_STORE_PATH", "")
-	t.Setenv("CREDENTIAL_ENCRYPTION_KEY", "")
-
-	connector := &fakeConnector{}
-	_, err := NewEnvironmentAccountSource(connector).Account(context.Background())
-	if !errors.Is(err, ErrTokenPersistenceMissing) {
-		t.Fatalf("unpersisted refresh should be rejected: %v", err)
-	}
-	if connector.refreshCalls != 0 {
-		t.Fatalf("refresh consumed without persistence: %d calls", connector.refreshCalls)
 	}
 }
 

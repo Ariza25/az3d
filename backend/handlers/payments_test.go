@@ -75,6 +75,17 @@ func TestPaymentOAuthStateAndPKCEAreOpaque(t *testing.T) {
 	}
 }
 
+func TestMarketplaceOAuthStateIsStoredOnlyAsHash(t *testing.T) {
+	state, err := randomPaymentOAuthValue(32)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hashed := hashMarketplaceOAuthState(state)
+	if hashed == "" || hashed == state || len(hashed) != 64 {
+		t.Fatalf("marketplace OAuth state hash is invalid: %q", hashed)
+	}
+}
+
 func TestMercadoPagoWebhookSignatureUsesStoredSecret(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	paymentID := "987654"

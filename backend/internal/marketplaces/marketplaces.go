@@ -14,15 +14,17 @@ var (
 )
 
 type Account struct {
-	TenantID     uint
-	Provider     string
-	AccountName  string
-	SellerID     string
-	ShopID       string
-	Marketplace  string
-	AccessToken  string
-	RefreshToken string
-	AuthCode     string
+	TenantID          uint
+	Provider          string
+	AccountName       string
+	SellerID          string
+	ShopID            string
+	Marketplace       string
+	AccessToken       string
+	RefreshToken      string
+	AuthCode          string
+	OAuthClientID     string
+	OAuthClientSecret string
 }
 
 type CatalogItem struct {
@@ -86,8 +88,9 @@ type OrderSyncResult struct {
 }
 
 type TokenRequest struct {
-	Code        string
-	RedirectURI string
+	Code         string
+	RedirectURI  string
+	CodeVerifier string
 }
 
 type TokenResult struct {

@@ -3,6 +3,7 @@ import { CheckCircle2, CircleAlert, RefreshCw, ServerCog } from 'lucide-react';
 import { PlatformEnvironment } from '../../../types';
 import { Button, Card, SectionHeader, StatCard } from '../../../components/ui';
 import { MercadoPagoPlatformSettings } from './MercadoPagoPlatformSettings';
+import { MercadoLivrePlatformSettings } from './MercadoLivrePlatformSettings';
 
 interface AdminEnvironmentProps {
   environment: PlatformEnvironment | null;
@@ -57,7 +58,10 @@ export const AdminEnvironment: React.FC<AdminEnvironmentProps> = ({ environment,
         </div>
       </Card>
 
-      <MercadoPagoPlatformSettings />
+      <div className="grid gap-4 xl:grid-cols-2">
+        <MercadoLivrePlatformSettings />
+        <MercadoPagoPlatformSettings />
+      </div>
     </div>
   );
 };
