@@ -9,14 +9,16 @@ import (
 	"time"
 
 	"az3d-backend/internal/marketplaces"
-	"az3d-backend/internal/marketplaces/mercadolivre"
 	"az3d-backend/models"
 	"az3d-backend/utils"
 
 	"gorm.io/gorm"
 )
 
-var ErrMELIAccountMissing = errors.New("conta Mercado Livre nao autorizada para o tenant selecionado")
+var (
+	ErrMELIAccountMissing   = errors.New("conta Mercado Livre nao autorizada para o tenant selecionado")
+	ErrShopeeAccountMissing = errors.New("conta Shopee nao autorizada para o tenant selecionado")
+)
 
 type AccountSource interface {
 	Account(context.Context) (marketplaces.Account, error)
@@ -36,25 +38,44 @@ type DatabaseAccountSource struct {
 	tenantID  uint
 	secret    string
 	now       func() time.Time
+	provider  string
+	missing   error
 }
 
 func NewDatabaseAccountSource(db *gorm.DB, connector marketplaces.Connector, tenantID uint, encryptionKey string) *DatabaseAccountSource {
+	return newProviderDatabaseAccountSource(db, connector, tenantID, encryptionKey, "mercadolivre", ErrMELIAccountMissing)
+}
+
+func NewShopeeDatabaseAccountSource(db *gorm.DB, connector marketplaces.Connector, tenantID uint, encryptionKey string) *DatabaseAccountSource {
+	return newProviderDatabaseAccountSource(db, connector, tenantID, encryptionKey, "shopee", ErrShopeeAccountMissing)
+}
+
+func newProviderDatabaseAccountSource(db *gorm.DB, connector marketplaces.Connector, tenantID uint, encryptionKey, provider string, missing error) *DatabaseAccountSource {
 	var store accountStore
 	if db != nil {
 		store = gormAccountStore{db: db}
 	}
-	return newDatabaseAccountSource(store, connector, tenantID, encryptionKey)
+	return newDatabaseAccountSourceForProvider(store, connector, tenantID, encryptionKey, provider, missing)
 }
 
 func newDatabaseAccountSource(store accountStore, connector marketplaces.Connector, tenantID uint, encryptionKey string) *DatabaseAccountSource {
+	return newDatabaseAccountSourceForProvider(store, connector, tenantID, encryptionKey, "mercadolivre", ErrMELIAccountMissing)
+}
+
+func newShopeeDatabaseAccountSource(store accountStore, connector marketplaces.Connector, tenantID uint, encryptionKey string) *DatabaseAccountSource {
+	return newDatabaseAccountSourceForProvider(store, connector, tenantID, encryptionKey, "shopee", ErrShopeeAccountMissing)
+}
+
+func newDatabaseAccountSourceForProvider(store accountStore, connector marketplaces.Connector, tenantID uint, encryptionKey, provider string, missing error) *DatabaseAccountSource {
 	return &DatabaseAccountSource{
 		store: store, connector: connector, tenantID: tenantID,
 		secret: strings.TrimSpace(encryptionKey), now: time.Now,
+		provider: strings.TrimSpace(provider), missing: missing,
 	}
 }
 
 type accountStore interface {
-	LoadMarketplaceAccount(context.Context, uint) (models.MarketplaceAccount, error)
+	LoadMarketplaceAccount(context.Context, uint, string) (models.MarketplaceAccount, error)
 	LoadMercadoLivrePlatformConfig(context.Context) (models.MercadoLivrePlatformConfig, error)
 	SaveMarketplaceAccount(context.Context, *models.MarketplaceAccount) error
 }
@@ -63,10 +84,10 @@ type gormAccountStore struct {
 	db *gorm.DB
 }
 
-func (s gormAccountStore) LoadMarketplaceAccount(ctx context.Context, tenantID uint) (models.MarketplaceAccount, error) {
+func (s gormAccountStore) LoadMarketplaceAccount(ctx context.Context, tenantID uint, provider string) (models.MarketplaceAccount, error) {
 	var model models.MarketplaceAccount
 	err := s.db.WithContext(ctx).
-		Where("tenant_id = ? AND provider = ? AND is_active = ?", tenantID, "mercadolivre", true).
+		Where("tenant_id = ? AND provider = ? AND is_active = ?", tenantID, provider, true).
 		First(&model).Error
 	return model, err
 }
@@ -108,41 +129,59 @@ func (s *DatabaseAccountSource) Refresh(ctx context.Context) (marketplaces.Accou
 
 func (s *DatabaseAccountSource) load(ctx context.Context) (models.MarketplaceAccount, marketplaces.Account, error) {
 	if s.store == nil || s.tenantID == 0 || len(s.secret) < 32 {
-		return models.MarketplaceAccount{}, marketplaces.Account{}, ErrMELIAccountMissing
+		return models.MarketplaceAccount{}, marketplaces.Account{}, s.missingError()
 	}
-	model, err := s.store.LoadMarketplaceAccount(ctx, s.tenantID)
+	model, err := s.store.LoadMarketplaceAccount(ctx, s.tenantID, s.provider)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return model, marketplaces.Account{}, ErrMELIAccountMissing
+			return model, marketplaces.Account{}, s.missingError()
 		}
 		return model, marketplaces.Account{}, err
 	}
-	if !model.IsConnected || strings.TrimSpace(model.SellerID) == "" {
-		return model, marketplaces.Account{}, ErrMELIAccountMissing
+	if !model.IsConnected || !s.hasAccountIdentifier(model) {
+		return model, marketplaces.Account{}, s.missingError()
 	}
 
-	platform, err := s.store.LoadMercadoLivrePlatformConfig(ctx)
-	if err != nil {
-		return model, marketplaces.Account{}, fmt.Errorf("aplicacao Mercado Livre nao configurada: %w", err)
-	}
-	clientSecret, err := utils.DecryptString(platform.EncryptedClientSecret, s.secret)
-	if err != nil {
-		return model, marketplaces.Account{}, errors.New("nao foi possivel descriptografar a aplicacao Mercado Livre")
-	}
 	account := marketplaces.Account{
 		Provider: model.Provider, AccountName: model.AccountName, SellerID: model.SellerID,
 		ShopID: model.ShopID, Marketplace: model.Marketplace, AccessToken: model.AccessToken,
-		RefreshToken: model.RefreshToken, OAuthClientID: platform.ClientID, OAuthClientSecret: clientSecret,
+		RefreshToken: model.RefreshToken,
+	}
+	if s.provider == "mercadolivre" {
+		platform, platformErr := s.store.LoadMercadoLivrePlatformConfig(ctx)
+		if platformErr != nil {
+			return model, marketplaces.Account{}, fmt.Errorf("aplicacao Mercado Livre nao configurada: %w", platformErr)
+		}
+		clientSecret, decryptErr := utils.DecryptString(platform.EncryptedClientSecret, s.secret)
+		if decryptErr != nil {
+			return model, marketplaces.Account{}, errors.New("nao foi possivel descriptografar a aplicacao Mercado Livre")
+		}
+		account.OAuthClientID = platform.ClientID
+		account.OAuthClientSecret = clientSecret
 	}
 	if strings.TrimSpace(account.AccessToken) == "" && strings.TrimSpace(account.RefreshToken) == "" {
-		return model, marketplaces.Account{}, ErrMELIAccountMissing
+		return model, marketplaces.Account{}, s.missingError()
 	}
 	return model, account, nil
 }
 
+func (s *DatabaseAccountSource) missingError() error {
+	if s.missing != nil {
+		return s.missing
+	}
+	return errors.New("conta de marketplace nao autorizada para o tenant selecionado")
+}
+
+func (s *DatabaseAccountSource) hasAccountIdentifier(model models.MarketplaceAccount) bool {
+	if s.provider == "shopee" {
+		return strings.TrimSpace(model.ShopID) != ""
+	}
+	return strings.TrimSpace(model.SellerID) != ""
+}
+
 func (s *DatabaseAccountSource) refreshLocked(ctx context.Context, model *models.MarketplaceAccount, account marketplaces.Account) (marketplaces.Account, error) {
 	if s.connector == nil || strings.TrimSpace(account.RefreshToken) == "" {
-		return marketplaces.Account{}, ErrMELIAccountMissing
+		return marketplaces.Account{}, s.missingError()
 	}
 	token, err := s.connector.RefreshAccessToken(ctx, account)
 	if err != nil {
@@ -159,6 +198,14 @@ func (s *DatabaseAccountSource) refreshLocked(ctx context.Context, model *models
 	if token.SellerID != "" {
 		account.SellerID = token.SellerID
 		model.SellerID = token.SellerID
+	}
+	if token.ShopID != "" {
+		account.ShopID = token.ShopID
+		model.ShopID = token.ShopID
+	}
+	if token.Marketplace != "" {
+		account.Marketplace = token.Marketplace
+		model.Marketplace = token.Marketplace
 	}
 	expiresAt := token.ExpiresAt
 	if expiresAt.IsZero() && token.ExpiresIn > 0 {
@@ -177,7 +224,9 @@ func (s *DatabaseAccountSource) refreshLocked(ctx context.Context, model *models
 }
 
 type DoctorResult struct {
+	Provider    string
 	SellerID    string
+	ShopID      string
 	Marketplace string
 }
 
@@ -187,7 +236,7 @@ func RunDoctor(ctx context.Context, connector marketplaces.Connector, accounts A
 		return DoctorResult{}, err
 	}
 	if err := connector.TestConnection(ctx, account); err != nil {
-		if !mercadolivre.IsUnauthorized(err) {
+		if !marketplaces.IsUnauthorized(connector, err) {
 			return DoctorResult{}, err
 		}
 		refresher, ok := accounts.(RefreshingAccountSource)
@@ -202,5 +251,5 @@ func RunDoctor(ctx context.Context, connector marketplaces.Connector, accounts A
 			return DoctorResult{}, err
 		}
 	}
-	return DoctorResult{SellerID: account.SellerID, Marketplace: account.Marketplace}, nil
+	return DoctorResult{Provider: connector.Provider(), SellerID: account.SellerID, ShopID: account.ShopID, Marketplace: account.Marketplace}, nil
 }

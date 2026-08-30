@@ -3,6 +3,7 @@ package mcpserver
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -13,6 +14,8 @@ import (
 )
 
 type fakeConnector struct {
+	provider       string
+	unauthorized   error
 	testErr        error
 	testErrors     []error
 	testCalls      int
@@ -23,7 +26,15 @@ type fakeConnector struct {
 	refreshCalls   int
 }
 
-func (f *fakeConnector) Provider() string { return "mercadolivre" }
+func (f *fakeConnector) Provider() string {
+	if f.provider != "" {
+		return f.provider
+	}
+	return "mercadolivre"
+}
+func (f *fakeConnector) IsUnauthorized(err error) bool {
+	return f.unauthorized != nil && errors.Is(err, f.unauthorized)
+}
 func (f *fakeConnector) ExchangeAuthCode(context.Context, marketplaces.Account, marketplaces.TokenRequest) (marketplaces.TokenResult, error) {
 	return marketplaces.TokenResult{}, nil
 }
@@ -118,6 +129,39 @@ func TestMCPExposesOnlyReadToolsAndRedactsBuyerData(t *testing.T) {
 	}
 	if !strings.Contains(payload, "2000001") || !strings.Contains(payload, "Vaso Ondulado") {
 		t.Fatalf("expected operational order fields missing: %s", payload)
+	}
+}
+
+func TestShopeeMCPUsesIndependentServerAndToolNames(t *testing.T) {
+	service := New(&fakeConnector{provider: "shopee"}, staticAccountSource{account: marketplaces.Account{
+		Provider: "shopee", ShopID: "98765", AccessToken: "token",
+	}})
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := service.MCPServer().Connect(context.Background(), serverTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer serverSession.Close()
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "az3d-shopee-test", Version: "1"}, nil)
+	clientSession, err := client.Connect(context.Background(), clientTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer clientSession.Close()
+
+	tools, err := clientSession.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"shopee_connection_status", "shopee_list_items", "shopee_list_orders", "shopee_sales_summary"}
+	if len(tools.Tools) != len(want) {
+		t.Fatalf("tools = %d, want %d", len(tools.Tools), len(want))
+	}
+	for index, name := range want {
+		if tools.Tools[index].Name != name {
+			t.Fatalf("tool %d = %q, want %q", index, tools.Tools[index].Name, name)
+		}
 	}
 }
 

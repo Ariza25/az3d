@@ -3,12 +3,10 @@ package mcpserver
 import (
 	"context"
 	"errors"
-	"net/http"
 	"testing"
 	"time"
 
 	"az3d-backend/internal/marketplaces"
-	"az3d-backend/internal/marketplaces/mercadolivre"
 	"az3d-backend/models"
 	"az3d-backend/utils"
 )
@@ -21,9 +19,11 @@ type memoryAccountStore struct {
 	saveErr   error
 	saved     models.MarketplaceAccount
 	saveCalls int
+	provider  string
 }
 
-func (s *memoryAccountStore) LoadMarketplaceAccount(context.Context, uint) (models.MarketplaceAccount, error) {
+func (s *memoryAccountStore) LoadMarketplaceAccount(_ context.Context, _ uint, provider string) (models.MarketplaceAccount, error) {
+	s.provider = provider
 	return s.account, s.loadErr
 }
 
@@ -106,6 +106,33 @@ func TestDatabaseAccountSourceKeepsFreshTokenWithoutRefresh(t *testing.T) {
 	}
 }
 
+func TestShopeeDatabaseAccountSourceUsesShopGrantAndPersistsRefresh(t *testing.T) {
+	key := "12345678901234567890123456789012"
+	now := time.Date(2026, 8, 30, 12, 0, 0, 0, time.UTC)
+	expiresAt := now.Add(5 * time.Minute)
+	store := &memoryAccountStore{account: models.MarketplaceAccount{
+		ID: 12, TenantID: 7, Provider: "shopee", ShopID: "98765", Marketplace: "BR",
+		AccessToken: "old-access", RefreshToken: "old-refresh", TokenExpiresAt: &expiresAt,
+		IsActive: true, IsConnected: true,
+	}}
+	connector := &fakeConnector{provider: "shopee", refreshToken: marketplaces.TokenResult{
+		AccessToken: "new-access", RefreshToken: "new-refresh", ShopID: "98765", ExpiresIn: 14400,
+	}}
+	source := newShopeeDatabaseAccountSource(store, connector, 7, key)
+	source.now = func() time.Time { return now }
+
+	account, err := source.Account(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if store.provider != "shopee" || account.ShopID != "98765" {
+		t.Fatalf("wrong provider/shop grant loaded: provider=%q account=%#v", store.provider, account)
+	}
+	if connector.refreshCalls != 1 || store.saveCalls != 1 || store.saved.AccessToken != "new-access" || store.saved.ShopID != "98765" {
+		t.Fatalf("Shopee refresh was not persisted: calls=%d saves=%d saved=%#v", connector.refreshCalls, store.saveCalls, store.saved)
+	}
+}
+
 type refreshingStaticAccountSource struct {
 	current      marketplaces.Account
 	refreshed    marketplaces.Account
@@ -122,8 +149,8 @@ func (s *refreshingStaticAccountSource) Refresh(context.Context) (marketplaces.A
 }
 
 func TestRunDoctorRefreshesAfterUnauthorized(t *testing.T) {
-	unauthorized := &mercadolivre.APIError{Operation: "/users/me", StatusCode: http.StatusUnauthorized}
-	connector := &fakeConnector{testErrors: []error{unauthorized, nil}}
+	unauthorized := errors.New("unauthorized")
+	connector := &fakeConnector{unauthorized: unauthorized, testErrors: []error{unauthorized, nil}}
 	accounts := &refreshingStaticAccountSource{
 		current:   marketplaces.Account{SellerID: "12345", AccessToken: "expired", Marketplace: "MLB"},
 		refreshed: marketplaces.Account{SellerID: "12345", AccessToken: "fresh", Marketplace: "MLB"},

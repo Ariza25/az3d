@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"az3d-backend/internal/marketplaces"
-	"az3d-backend/internal/marketplaces/mercadolivre"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -19,39 +18,75 @@ const Version = "0.1.0"
 type Service struct {
 	connector marketplaces.Connector
 	accounts  AccountSource
+	options   ServiceOptions
+}
+
+type ServiceOptions struct {
+	ServerName       string
+	ToolPrefix       string
+	MarketplaceLabel string
+	SummaryMessage   string
 }
 
 func New(connector marketplaces.Connector, accounts AccountSource) *Service {
-	return &Service{connector: connector, accounts: accounts}
+	return &Service{connector: connector, accounts: accounts, options: serviceOptions(connector)}
+}
+
+func serviceOptions(connector marketplaces.Connector) ServiceOptions {
+	provider := "marketplace"
+	if connector != nil && strings.TrimSpace(connector.Provider()) != "" {
+		provider = strings.ToLower(strings.TrimSpace(connector.Provider()))
+	}
+	switch provider {
+	case "mercadolivre":
+		return ServiceOptions{
+			ServerName: "az3d-mercadolivre-seller", ToolPrefix: "meli", MarketplaceLabel: "Mercado Livre",
+			SummaryMessage: "Resumo calculado com todos os pedidos pagos encontrados no periodo. O valor liquido usa preco dos itens menos comissao e custo de envio do vendedor; descontos financiados pelo vendedor sao informativos e ja estao refletidos no preco unitario.",
+		}
+	case "shopee":
+		return ServiceOptions{
+			ServerName: "az3d-shopee-seller", ToolPrefix: "shopee", MarketplaceLabel: "Shopee",
+			SummaryMessage: "Resumo calculado com todos os pedidos pagos encontrados no periodo. O valor liquido usa o repasse da Shopee quando o detalhe financeiro esta disponivel; pedidos ainda sem repasse sao marcados como incompletos.",
+		}
+	default:
+		return ServiceOptions{
+			ServerName: "az3d-" + provider + "-seller", ToolPrefix: provider, MarketplaceLabel: provider,
+			SummaryMessage: "Resumo calculado com todos os pedidos pagos encontrados no periodo.",
+		}
+	}
 }
 
 func (s *Service) MCPServer() *mcp.Server {
 	server := mcp.NewServer(
-		&mcp.Implementation{Name: "az3d-seller", Version: Version},
+		&mcp.Implementation{Name: s.options.ServerName, Version: Version},
 		&mcp.ServerOptions{
-			Instructions: "Ferramentas somente leitura da conta vendedora AZ 3D Studio. Nunca solicite ou revele tokens. Pedidos retornam apenas dados operacionais, sem dados pessoais do comprador.",
+			Instructions: fmt.Sprintf("Ferramentas somente leitura da conta vendedora %s no AZ3D. Nunca solicite ou revele tokens. Pedidos retornam apenas dados operacionais, sem dados pessoais do comprador.", s.options.MarketplaceLabel),
 			Capabilities: &mcp.ServerCapabilities{},
 		},
 	)
 
 	mcp.AddTool(server, readOnlyTool(
-		"meli_connection_status",
-		"Verifica se a conta vendedora configurada consegue acessar a API oficial do Mercado Livre.",
+		s.toolName("connection_status"),
+		fmt.Sprintf("Verifica se a conta vendedora configurada consegue acessar a API oficial da %s.", s.options.MarketplaceLabel),
 	), s.connectionStatus)
 	mcp.AddTool(server, readOnlyTool(
-		"meli_list_items",
+		s.toolName("list_items"),
 		"Lista anuncios ativos da conta vendedora, com ID, SKU, titulo, preco, estoque e URL. Retorna no maximo 50 itens.",
 	), s.listItems)
 	mcp.AddTool(server, readOnlyTool(
-		"meli_list_orders",
+		s.toolName("list_orders"),
 		"Lista pedidos pagos recentes sem nome, endereco, documento ou outros dados pessoais do comprador.",
 	), s.listOrders)
 	mcp.AddTool(server, readOnlyTool(
-		"meli_sales_summary",
+		s.toolName("sales_summary"),
 		"Resume pedidos pagos por periodo, incluindo faturamento, taxas, frete, descontos e unidades vendidas.",
 	), s.salesSummary)
 
 	return server
+}
+
+func (s *Service) toolName(suffix string) string {
+	return strings.Trim(s.options.ToolPrefix, "_") + "_" + strings.TrimPrefix(suffix, "_")
 }
 
 func readOnlyTool(name, description string) *mcp.Tool {
@@ -72,7 +107,8 @@ type EmptyInput struct{}
 type ConnectionStatusOutput struct {
 	Connected bool   `json:"connected" jsonschema:"whether the configured seller account is reachable"`
 	Provider  string `json:"provider" jsonschema:"marketplace provider"`
-	SellerID  string `json:"seller_id" jsonschema:"configured seller identifier"`
+	SellerID  string `json:"seller_id,omitempty" jsonschema:"configured seller identifier"`
+	ShopID    string `json:"shop_id,omitempty" jsonschema:"configured shop identifier"`
 	Message   string `json:"message" jsonschema:"human-readable connection status"`
 }
 
@@ -82,7 +118,7 @@ func (s *Service) connectionStatus(ctx context.Context, _ *mcp.CallToolRequest, 
 		return nil, ConnectionStatusOutput{}, err
 	}
 	err = s.connector.TestConnection(ctx, account)
-	if err != nil && mercadolivre.IsUnauthorized(err) {
+	if err != nil && marketplaces.IsUnauthorized(s.connector, err) {
 		if account, err = s.refresh(ctx); err == nil {
 			err = s.connector.TestConnection(ctx, account)
 		}
@@ -94,7 +130,8 @@ func (s *Service) connectionStatus(ctx context.Context, _ *mcp.CallToolRequest, 
 		Connected: true,
 		Provider:  s.connector.Provider(),
 		SellerID:  account.SellerID,
-		Message:   "Conexao com a API oficial do Mercado Livre validada.",
+		ShopID:    account.ShopID,
+		Message:   fmt.Sprintf("Conexao com a API oficial da %s validada.", s.options.MarketplaceLabel),
 	}, nil
 }
 
@@ -129,7 +166,7 @@ func (s *Service) listItems(ctx context.Context, _ *mcp.CallToolRequest, input L
 		return nil, ListItemsOutput{}, err
 	}
 	catalog, err := s.connector.FetchCatalog(ctx, account)
-	if err != nil && mercadolivre.IsUnauthorized(err) {
+	if err != nil && marketplaces.IsUnauthorized(s.connector, err) {
 		if account, err = s.refresh(ctx); err == nil {
 			catalog, err = s.connector.FetchCatalog(ctx, account)
 		}
@@ -299,7 +336,7 @@ func (s *Service) salesSummary(ctx context.Context, _ *mcp.CallToolRequest, inpu
 		}
 		return output.Products[i].Quantity > output.Products[j].Quantity
 	})
-	output.Message = "Resumo calculado com todos os pedidos pagos encontrados no periodo. O valor liquido usa preco dos itens menos comissao e custo de envio do vendedor; descontos financiados pelo vendedor sao informativos e ja estao refletidos no preco unitario."
+	output.Message = s.options.SummaryMessage
 	if !output.FinancialComplete {
 		output.Message += fmt.Sprintf(" Detalhes financeiros ficaram incompletos em %d pedido(s).", output.IncompleteOrders)
 	}
@@ -312,7 +349,7 @@ func (s *Service) fetchOrders(ctx context.Context, days int) ([]marketplaces.Ord
 		return nil, "", err
 	}
 	result, err := s.connector.FetchOrders(ctx, account, marketplaces.OrderSyncInput{Days: days})
-	if err != nil && mercadolivre.IsUnauthorized(err) {
+	if err != nil && marketplaces.IsUnauthorized(s.connector, err) {
 		if account, err = s.refresh(ctx); err == nil {
 			result, err = s.connector.FetchOrders(ctx, account, marketplaces.OrderSyncInput{Days: days})
 		}

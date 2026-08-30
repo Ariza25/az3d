@@ -142,6 +142,21 @@ type Connector interface {
 	FetchOrders(ctx context.Context, account Account, input OrderSyncInput) (OrderSyncResult, error)
 }
 
+// UnauthorizedClassifier is optional. Connectors that implement it allow
+// callers to refresh an expired grant and retry without depending on a
+// marketplace-specific error type.
+type UnauthorizedClassifier interface {
+	IsUnauthorized(error) bool
+}
+
+func IsUnauthorized(connector Connector, err error) bool {
+	if err == nil || connector == nil {
+		return false
+	}
+	classifier, ok := connector.(UnauthorizedClassifier)
+	return ok && classifier.IsUnauthorized(err)
+}
+
 type Registry struct {
 	connectors map[string]Connector
 }

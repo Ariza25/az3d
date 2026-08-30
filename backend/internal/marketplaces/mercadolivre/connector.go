@@ -42,6 +42,10 @@ func IsUnauthorized(err error) bool {
 	return errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusUnauthorized
 }
 
+func (c *Connector) IsUnauthorized(err error) bool {
+	return IsUnauthorized(err)
+}
+
 func New() *Connector {
 	return &Connector{client: mp.HTTPClient()}
 }

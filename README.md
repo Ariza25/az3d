@@ -370,6 +370,33 @@ Essas variaveis sao da plataforma, nao do tenant. Em producao, defina tambem `CR
 
 Os dados ficam associados ao tenant via `tenant_id`: a conta conectada vai para `marketplace_accounts`, produtos importados viram `products` locais com mapeamento em `marketplace_product_mappings`, e pedidos externos ficam em `external_marketplace_orders`. Quando habilitado nas regras do marketplace, o pedido externo tambem gera pedido interno. Tokens OAuth ficam fora das respostas JSON e sao criptografados em `encrypted_credentials` quando `CREDENTIAL_ENCRYPTION_KEY` esta configurada.
 
+### AZ3D Shopee Seller MCP
+
+O Shopee Seller usa um MCP STDIO separado do Mercado Livre, mas reutiliza o mesmo nucleo somente leitura. Ele expoe:
+
+- `shopee_connection_status`;
+- `shopee_list_items`;
+- `shopee_list_orders`;
+- `shopee_sales_summary`.
+
+O MCP percorre todas as paginas de anuncios com `offset`, pagina pedidos com `cursor` e divide consultas longas em janelas de ate 15 dias. Pedidos concluidos tentam carregar o repasse em `payment/get_escrow_detail`; `net_amount` usa `escrow_amount`, taxas somam comissao, servico e tarifa de transacao do seller, e o custo de frete usa a parcela negativa de `final_shipping_fee`. Enquanto o repasse nao estiver disponivel, `financial_complete` permanece `false` e o resumo informa quantos pedidos ainda sao provisorios.
+
+Compile e valide:
+
+```powershell
+cd backend
+go build -o .\bin\az3d-shopee-seller-mcp.exe .\cmd\az3d-shopee-seller-mcp
+.\bin\az3d-shopee-seller-mcp.exe doctor --tenant-id 1
+```
+
+O executavel le `SHOPEE_PARTNER_ID`, `SHOPEE_PARTNER_KEY`, banco e chave de criptografia do `backend/.env`; tokens da loja continuam vindo do grant criptografado do tenant. Registre separadamente no Codex:
+
+```powershell
+codex mcp add az3d_shopee_seller -- "C:\caminho\para\az3d\backend\bin\az3d-shopee-seller-mcp.exe" serve --tenant-id 1
+```
+
+Assim, o MCP `az3d_seller` continua publicando apenas tools `meli_*`, enquanto `az3d_shopee_seller` publica apenas tools `shopee_*`.
+
 ## Admin Master, Estoque E Observabilidade
 
 O painel admin possui uma visao de plataforma para `master_admin`, com tenants, pedidos abertos, alertas de estoque e status de contas Mercado Pago/marketplaces/Correios.
