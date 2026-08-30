@@ -104,19 +104,21 @@ type TokenResult struct {
 }
 
 type Order struct {
-	ExternalOrderID string
-	Status          string
-	Currency        string
-	GrossAmount     float64
-	ItemsAmount     float64
-	ShippingCost    float64
-	MarketplaceFees float64
-	DiscountAmount  float64
-	NetAmount       float64
-	BuyerNickname   string
-	OrderedAt       time.Time
-	Items           []OrderItem
-	Raw             map[string]any
+	ExternalOrderID   string
+	Status            string
+	Currency          string
+	GrossAmount       float64
+	ItemsAmount       float64
+	ShippingCost      float64
+	MarketplaceFees   float64
+	DiscountAmount    float64
+	NetAmount         float64
+	FinancialComplete bool
+	FinancialNotes    []string
+	BuyerNickname     string
+	OrderedAt         time.Time
+	Items             []OrderItem
+	Raw               map[string]any
 }
 
 type OrderItem struct {

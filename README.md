@@ -280,7 +280,9 @@ O backend inclui um servidor MCP local em Go que usa o conector oficial da API d
 - `meli_connection_status`: valida a conta configurada;
 - `meli_list_items`: lista ate 50 anuncios ativos;
 - `meli_list_orders`: lista pedidos pagos recentes sem dados pessoais do comprador;
-- `meli_sales_summary`: resume faturamento, taxas, frete, descontos e unidades vendidas.
+- `meli_sales_summary`: percorre todas as paginas do periodo e resume faturamento, taxas, frete, descontos e unidades vendidas.
+
+Nos dados financeiros, `gross_amount` e a soma de `unit_price * quantity`, `marketplace_fees` usa a tarifa total dos pagamentos (com `sale_fee` apenas como fallback), `shipping_cost` vem de `senders[].cost` em `/shipments/{id}/costs` e `discount_amount` informa a parcela de descontos financiada pelo vendedor. Como `unit_price` ja reflete o desconto aplicado, o desconto nao e subtraido novamente de `net_amount`. Cada pedido informa `financial_complete`; o resumo informa quantos pedidos ficaram sem algum detalhe opcional da API.
 
 O OAuth faz parte da propria plataforma multi-tenant. Nao configure `MELI_CLIENT_ID`, `MELI_CLIENT_SECRET`, access token ou refresh token no ambiente do MCP:
 

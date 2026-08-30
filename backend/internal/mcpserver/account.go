@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"az3d-backend/internal/marketplaces"
+	"az3d-backend/internal/marketplaces/mercadolivre"
 	"az3d-backend/models"
 	"az3d-backend/utils"
 
@@ -30,14 +31,54 @@ type RefreshingAccountSource interface {
 // backend. The MCP never owns a second token store or asks for OAuth secrets.
 type DatabaseAccountSource struct {
 	mu        sync.Mutex
-	db        *gorm.DB
+	store     accountStore
 	connector marketplaces.Connector
 	tenantID  uint
 	secret    string
+	now       func() time.Time
 }
 
 func NewDatabaseAccountSource(db *gorm.DB, connector marketplaces.Connector, tenantID uint, encryptionKey string) *DatabaseAccountSource {
-	return &DatabaseAccountSource{db: db, connector: connector, tenantID: tenantID, secret: strings.TrimSpace(encryptionKey)}
+	var store accountStore
+	if db != nil {
+		store = gormAccountStore{db: db}
+	}
+	return newDatabaseAccountSource(store, connector, tenantID, encryptionKey)
+}
+
+func newDatabaseAccountSource(store accountStore, connector marketplaces.Connector, tenantID uint, encryptionKey string) *DatabaseAccountSource {
+	return &DatabaseAccountSource{
+		store: store, connector: connector, tenantID: tenantID,
+		secret: strings.TrimSpace(encryptionKey), now: time.Now,
+	}
+}
+
+type accountStore interface {
+	LoadMarketplaceAccount(context.Context, uint) (models.MarketplaceAccount, error)
+	LoadMercadoLivrePlatformConfig(context.Context) (models.MercadoLivrePlatformConfig, error)
+	SaveMarketplaceAccount(context.Context, *models.MarketplaceAccount) error
+}
+
+type gormAccountStore struct {
+	db *gorm.DB
+}
+
+func (s gormAccountStore) LoadMarketplaceAccount(ctx context.Context, tenantID uint) (models.MarketplaceAccount, error) {
+	var model models.MarketplaceAccount
+	err := s.db.WithContext(ctx).
+		Where("tenant_id = ? AND provider = ? AND is_active = ?", tenantID, "mercadolivre", true).
+		First(&model).Error
+	return model, err
+}
+
+func (s gormAccountStore) LoadMercadoLivrePlatformConfig(ctx context.Context) (models.MercadoLivrePlatformConfig, error) {
+	var platform models.MercadoLivrePlatformConfig
+	err := s.db.WithContext(ctx).First(&platform, 1).Error
+	return platform, err
+}
+
+func (s gormAccountStore) SaveMarketplaceAccount(ctx context.Context, model *models.MarketplaceAccount) error {
+	return s.db.WithContext(ctx).Save(model).Error
 }
 
 func (s *DatabaseAccountSource) Account(ctx context.Context) (marketplaces.Account, error) {
@@ -48,7 +89,7 @@ func (s *DatabaseAccountSource) Account(ctx context.Context) (marketplaces.Accou
 	if err != nil {
 		return marketplaces.Account{}, err
 	}
-	if model.TokenExpiresAt != nil && !model.TokenExpiresAt.After(time.Now().UTC().Add(10*time.Minute)) {
+	if model.TokenExpiresAt != nil && !model.TokenExpiresAt.After(s.now().UTC().Add(10*time.Minute)) {
 		return s.refreshLocked(ctx, &model, account)
 	}
 	return account, nil
@@ -66,13 +107,11 @@ func (s *DatabaseAccountSource) Refresh(ctx context.Context) (marketplaces.Accou
 }
 
 func (s *DatabaseAccountSource) load(ctx context.Context) (models.MarketplaceAccount, marketplaces.Account, error) {
-	if s.db == nil || s.tenantID == 0 || len(s.secret) < 32 {
+	if s.store == nil || s.tenantID == 0 || len(s.secret) < 32 {
 		return models.MarketplaceAccount{}, marketplaces.Account{}, ErrMELIAccountMissing
 	}
-	var model models.MarketplaceAccount
-	if err := s.db.WithContext(ctx).
-		Where("tenant_id = ? AND provider = ? AND is_active = ?", s.tenantID, "mercadolivre", true).
-		First(&model).Error; err != nil {
+	model, err := s.store.LoadMarketplaceAccount(ctx, s.tenantID)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return model, marketplaces.Account{}, ErrMELIAccountMissing
 		}
@@ -82,8 +121,8 @@ func (s *DatabaseAccountSource) load(ctx context.Context) (models.MarketplaceAcc
 		return model, marketplaces.Account{}, ErrMELIAccountMissing
 	}
 
-	var platform models.MercadoLivrePlatformConfig
-	if err := s.db.WithContext(ctx).First(&platform, 1).Error; err != nil {
+	platform, err := s.store.LoadMercadoLivrePlatformConfig(ctx)
+	if err != nil {
 		return model, marketplaces.Account{}, fmt.Errorf("aplicacao Mercado Livre nao configurada: %w", err)
 	}
 	clientSecret, err := utils.DecryptString(platform.EncryptedClientSecret, s.secret)
@@ -123,7 +162,7 @@ func (s *DatabaseAccountSource) refreshLocked(ctx context.Context, model *models
 	}
 	expiresAt := token.ExpiresAt
 	if expiresAt.IsZero() && token.ExpiresIn > 0 {
-		expiresAt = time.Now().UTC().Add(time.Duration(token.ExpiresIn) * time.Second)
+		expiresAt = s.now().UTC().Add(time.Duration(token.ExpiresIn) * time.Second)
 	}
 	if !expiresAt.IsZero() {
 		model.TokenExpiresAt = &expiresAt
@@ -131,7 +170,7 @@ func (s *DatabaseAccountSource) refreshLocked(ctx context.Context, model *models
 	model.IsConnected = true
 	model.SyncStatus = "connected"
 	model.LastError = ""
-	if err := s.db.WithContext(ctx).Save(model).Error; err != nil {
+	if err := s.store.SaveMarketplaceAccount(ctx, model); err != nil {
 		return marketplaces.Account{}, fmt.Errorf("token renovado, mas nao foi salvo no tenant: %w", err)
 	}
 	return account, nil
@@ -148,7 +187,20 @@ func RunDoctor(ctx context.Context, connector marketplaces.Connector, accounts A
 		return DoctorResult{}, err
 	}
 	if err := connector.TestConnection(ctx, account); err != nil {
-		return DoctorResult{}, err
+		if !mercadolivre.IsUnauthorized(err) {
+			return DoctorResult{}, err
+		}
+		refresher, ok := accounts.(RefreshingAccountSource)
+		if !ok {
+			return DoctorResult{}, err
+		}
+		account, err = refresher.Refresh(ctx)
+		if err != nil {
+			return DoctorResult{}, err
+		}
+		if err = connector.TestConnection(ctx, account); err != nil {
+			return DoctorResult{}, err
+		}
 	}
 	return DoctorResult{SellerID: account.SellerID, Marketplace: account.Marketplace}, nil
 }

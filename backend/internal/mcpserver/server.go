@@ -171,16 +171,18 @@ type OrderItemSummary struct {
 }
 
 type OrderSummary struct {
-	OrderID        string             `json:"order_id"`
-	Status         string             `json:"status"`
-	Currency       string             `json:"currency"`
-	GrossAmount    float64            `json:"gross_amount"`
-	NetAmount      float64            `json:"net_amount"`
-	MarketplaceFee float64            `json:"marketplace_fee"`
-	ShippingCost   float64            `json:"shipping_cost"`
-	DiscountAmount float64            `json:"discount_amount"`
-	OrderedAt      time.Time          `json:"ordered_at"`
-	Items          []OrderItemSummary `json:"items"`
+	OrderID           string             `json:"order_id"`
+	Status            string             `json:"status"`
+	Currency          string             `json:"currency"`
+	GrossAmount       float64            `json:"gross_amount"`
+	NetAmount         float64            `json:"net_amount"`
+	MarketplaceFee    float64            `json:"marketplace_fee"`
+	ShippingCost      float64            `json:"shipping_cost"`
+	DiscountAmount    float64            `json:"discount_amount"`
+	FinancialComplete bool               `json:"financial_complete"`
+	FinancialNotes    []string           `json:"financial_notes,omitempty"`
+	OrderedAt         time.Time          `json:"ordered_at"`
+	Items             []OrderItemSummary `json:"items"`
 }
 
 type ListOrdersOutput struct {
@@ -214,7 +216,10 @@ func (s *Service) listOrders(ctx context.Context, _ *mcp.CallToolRequest, input 
 			OrderID: order.ExternalOrderID, Status: order.Status, Currency: order.Currency,
 			GrossAmount: order.GrossAmount, NetAmount: order.NetAmount,
 			MarketplaceFee: order.MarketplaceFees, ShippingCost: order.ShippingCost,
-			DiscountAmount: order.DiscountAmount, OrderedAt: order.OrderedAt, Items: items,
+			DiscountAmount:    order.DiscountAmount,
+			FinancialComplete: order.FinancialComplete,
+			FinancialNotes:    append([]string(nil), order.FinancialNotes...),
+			OrderedAt:         order.OrderedAt, Items: items,
 		})
 	}
 	return nil, ListOrdersOutput{Count: len(result), Orders: result, Message: message}, nil
@@ -232,16 +237,19 @@ type ProductSalesSummary struct {
 }
 
 type SalesSummaryOutput struct {
-	Days            int                   `json:"days"`
-	OrderCount      int                   `json:"order_count"`
-	UnitsSold       int                   `json:"units_sold"`
-	Currency        string                `json:"currency"`
-	GrossAmount     float64               `json:"gross_amount"`
-	NetAmount       float64               `json:"net_amount"`
-	MarketplaceFees float64               `json:"marketplace_fees"`
-	ShippingCost    float64               `json:"shipping_cost"`
-	DiscountAmount  float64               `json:"discount_amount"`
-	Products        []ProductSalesSummary `json:"products"`
+	Days              int                   `json:"days"`
+	OrderCount        int                   `json:"order_count"`
+	UnitsSold         int                   `json:"units_sold"`
+	Currency          string                `json:"currency"`
+	GrossAmount       float64               `json:"gross_amount"`
+	NetAmount         float64               `json:"net_amount"`
+	MarketplaceFees   float64               `json:"marketplace_fees"`
+	ShippingCost      float64               `json:"shipping_cost"`
+	DiscountAmount    float64               `json:"discount_amount"`
+	FinancialComplete bool                  `json:"financial_complete"`
+	IncompleteOrders  int                   `json:"incomplete_orders"`
+	Message           string                `json:"message"`
+	Products          []ProductSalesSummary `json:"products"`
 }
 
 func (s *Service) salesSummary(ctx context.Context, _ *mcp.CallToolRequest, input SalesSummaryInput) (*mcp.CallToolResult, SalesSummaryOutput, error) {
@@ -257,7 +265,9 @@ func (s *Service) salesSummary(ctx context.Context, _ *mcp.CallToolRequest, inpu
 		return nil, SalesSummaryOutput{}, err
 	}
 
-	output := SalesSummaryOutput{Days: days, OrderCount: len(orders), Currency: "BRL"}
+	output := SalesSummaryOutput{
+		Days: days, OrderCount: len(orders), Currency: "BRL", FinancialComplete: true,
+	}
 	type productKey struct{ itemID, sku, title string }
 	quantities := map[productKey]int{}
 	for _, order := range orders {
@@ -269,6 +279,10 @@ func (s *Service) salesSummary(ctx context.Context, _ *mcp.CallToolRequest, inpu
 		output.MarketplaceFees += order.MarketplaceFees
 		output.ShippingCost += order.ShippingCost
 		output.DiscountAmount += order.DiscountAmount
+		if !order.FinancialComplete {
+			output.FinancialComplete = false
+			output.IncompleteOrders++
+		}
 		for _, item := range order.Items {
 			output.UnitsSold += item.Quantity
 			quantities[productKey{item.ExternalItemID, item.ExternalSKU, item.Title}] += item.Quantity
@@ -285,6 +299,10 @@ func (s *Service) salesSummary(ctx context.Context, _ *mcp.CallToolRequest, inpu
 		}
 		return output.Products[i].Quantity > output.Products[j].Quantity
 	})
+	output.Message = "Resumo calculado com todos os pedidos pagos encontrados no periodo. O valor liquido usa preco dos itens menos comissao e custo de envio do vendedor; descontos financiados pelo vendedor sao informativos e ja estao refletidos no preco unitario."
+	if !output.FinancialComplete {
+		output.Message += fmt.Sprintf(" Detalhes financeiros ficaram incompletos em %d pedido(s).", output.IncompleteOrders)
+	}
 	return nil, output, nil
 }
 

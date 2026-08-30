@@ -3,9 +3,12 @@ package mercadolivre
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	mp "az3d-backend/internal/marketplaces"
@@ -61,5 +64,148 @@ func TestUnauthorizedResponseIsTypedAndDoesNotExposeCredentials(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), "secret-token") {
 		t.Fatalf("credential leaked in error: %v", err)
+	}
+}
+
+func TestFetchOrdersPaginatesAndUsesAuthoritativeFinancialFields(t *testing.T) {
+	var mu sync.Mutex
+	offsets := []int{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/orders/search":
+			offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+			mu.Lock()
+			offsets = append(offsets, offset)
+			mu.Unlock()
+			if r.URL.Query().Get("limit") != strconv.Itoa(orderPageSize) {
+				t.Errorf("limit = %q", r.URL.Query().Get("limit"))
+			}
+			orders := []map[string]any{}
+			if offset < 2 {
+				id := 1001 + offset
+				unitPrice := 100.0
+				quantity := 1
+				marketplaceFee := 10.0
+				saleFee := 10.0
+				shippingID := int64(9001)
+				if offset == 1 {
+					unitPrice = 25
+					quantity = 2
+					marketplaceFee = 0
+					saleFee = 5
+					shippingID = 0
+				}
+				orders = append(orders, map[string]any{
+					"id": id, "status": "paid", "date_closed": "2026-08-29T12:00:00Z",
+					"total_amount": 120, "paid_amount": 130, "currency_id": "BRL",
+					"shipping": map[string]any{"id": shippingID},
+					"payments": []map[string]any{{"marketplace_fee": marketplaceFee}},
+					"order_items": []map[string]any{{
+						"item":     map[string]any{"id": fmt.Sprintf("MLB%d", id), "title": "Produto", "seller_custom_field": "SKU"},
+						"quantity": quantity, "unit_price": unitPrice, "sale_fee": saleFee,
+					}},
+				})
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"paging":  map[string]any{"total": 2, "offset": offset, "limit": 1},
+				"results": orders,
+			})
+		case r.URL.Path == "/shipments/9001/costs":
+			if r.Header.Get("x-format-new") != "true" {
+				t.Error("shipment costs request missing x-format-new header")
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"senders": []map[string]any{
+					{"user_id": 99999, "cost": 20.0},
+					{"user_id": 12345, "cost": 5.5},
+				},
+			})
+		case r.URL.Path == "/orders/1001/discounts":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"details": []map[string]any{{
+					"items": []map[string]any{{"amounts": map[string]any{"seller": 7.0}}},
+				}},
+			})
+		case r.URL.Path == "/orders/1002/discounts":
+			_ = json.NewEncoder(w).Encode(map[string]any{"details": []any{}})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	t.Setenv("MELI_API_BASE_URL", server.URL)
+
+	result, err := New().FetchOrders(context.Background(), mp.Account{
+		SellerID: "12345", AccessToken: "access-token",
+	}, mp.OrderSyncInput{Days: 90})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Orders) != 2 {
+		t.Fatalf("orders = %d, want 2", len(result.Orders))
+	}
+	mu.Lock()
+	gotOffsets := append([]int(nil), offsets...)
+	mu.Unlock()
+	if fmt.Sprint(gotOffsets) != "[0 1]" {
+		t.Fatalf("offsets = %v, want [0 1]", gotOffsets)
+	}
+
+	first := result.Orders[0]
+	if first.GrossAmount != 100 || first.MarketplaceFees != 10 || first.ShippingCost != 5.5 || first.DiscountAmount != 7 {
+		t.Fatalf("unexpected first order financials: %#v", first)
+	}
+	if first.NetAmount != 84.5 {
+		t.Fatalf("net amount = %.2f, want 84.50", first.NetAmount)
+	}
+	if !first.FinancialComplete {
+		t.Fatalf("first order should be complete: %#v", first.FinancialNotes)
+	}
+
+	second := result.Orders[1]
+	if second.GrossAmount != 50 || second.MarketplaceFees != 10 || second.NetAmount != 40 || second.Items[0].FeeAmount != 10 {
+		t.Fatalf("sale_fee fallback or item gross is wrong: %#v", second)
+	}
+}
+
+func TestFetchOrdersMarksOptionalFinancialDetailsAsIncomplete(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/orders/search":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"paging": map[string]any{"total": 1, "offset": 0, "limit": 50},
+				"results": []map[string]any{{
+					"id": 2001, "status": "paid", "currency_id": "BRL",
+					"shipping": map[string]any{"id": 9901},
+					"order_items": []map[string]any{{
+						"item":     map[string]any{"id": "MLB2001", "title": "Produto"},
+						"quantity": 1, "unit_price": 20, "sale_fee": 2,
+						"discounts": []map[string]any{{"amounts": map[string]any{"seller": 3.0}}},
+					}},
+				}},
+			})
+		case strings.HasSuffix(r.URL.Path, "/discounts"), strings.HasSuffix(r.URL.Path, "/costs"):
+			http.NotFound(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	t.Setenv("MELI_API_BASE_URL", server.URL)
+
+	result, err := New().FetchOrders(context.Background(), mp.Account{
+		SellerID: "12345", AccessToken: "access-token",
+	}, mp.OrderSyncInput{Days: 7})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Orders) != 1 || result.Orders[0].FinancialComplete {
+		t.Fatalf("expected incomplete financial details: %#v", result.Orders)
+	}
+	if result.Orders[0].DiscountAmount != 3 {
+		t.Fatalf("embedded seller discount fallback = %.2f, want 3.00", result.Orders[0].DiscountAmount)
+	}
+	if len(result.Orders[0].FinancialNotes) != 2 || !strings.Contains(result.Message, "incompletos") {
+		t.Fatalf("missing incomplete detail diagnostics: %#v / %q", result.Orders[0], result.Message)
 	}
 }
