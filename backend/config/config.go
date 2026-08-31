@@ -11,35 +11,42 @@ import (
 )
 
 type Config struct {
-	Port                    string
-	Env                     string
-	DatabaseURL             string
-	DatabaseRequired        bool
-	AdminLogin              string
-	AdminPassword           string
-	DBHost                  string
-	DBUser                  string
-	DBPassword              string
-	DBName                  string
-	DBPort                  string
-	DBSSLMode               string
-	JWTSecret               string
-	JWTTTLHours             int
-	CORSOrigins             []string
-	TrustedProxies          []string
-	MaxUploadBytes          int64
-	RequireStrongSecrets    bool
-	CredentialEncryptionKey string
-	CorreiosAPIBaseURL      string
-	CorreiosTokenBaseURL    string
-	TrackingSyncIntervalMin int
-	GoogleOAuthClientID     string
-	GoogleOAuthClientSecret string
-	GoogleOAuthRedirectURL  string
-	GoogleOAuthAuthURL      string
-	GoogleOAuthTokenURL     string
-	GoogleOAuthUserInfoURL  string
-	FrontendBaseURL         string
+	Port                     string
+	Env                      string
+	DatabaseURL              string
+	DatabaseRequired         bool
+	AdminLogin               string
+	AdminPassword            string
+	DBHost                   string
+	DBUser                   string
+	DBPassword               string
+	DBName                   string
+	DBPort                   string
+	DBSSLMode                string
+	JWTSecret                string
+	JWTTTLHours              int
+	CORSOrigins              []string
+	TrustedProxies           []string
+	MaxUploadBytes           int64
+	RequireStrongSecrets     bool
+	CredentialEncryptionKey  string
+	CorreiosAPIBaseURL       string
+	CorreiosTokenBaseURL     string
+	TrackingSyncIntervalMin  int
+	GoogleOAuthClientID      string
+	GoogleOAuthClientSecret  string
+	GoogleOAuthRedirectURL   string
+	GoogleOAuthAuthURL       string
+	GoogleOAuthTokenURL      string
+	GoogleOAuthUserInfoURL   string
+	FrontendBaseURL          string
+	MercadoPagoClientID      string
+	MercadoPagoClientSecret  string
+	MercadoPagoRedirectURI   string
+	MercadoPagoWebhookSecret string
+	MercadoLivreClientID     string
+	MercadoLivreClientSecret string
+	MercadoLivreRedirectURI  string
 }
 
 func LoadConfig() *Config {
@@ -73,20 +80,27 @@ func LoadConfig() *Config {
 			"http://127.0.0.1:5174",
 			"http://127.0.0.1:5181",
 		}),
-		TrustedProxies:          getEnvList("TRUSTED_PROXIES", []string{"127.0.0.1", "::1"}),
-		MaxUploadBytes:          int64(getEnvInt("MAX_UPLOAD_MB", 5)) * 1024 * 1024,
-		RequireStrongSecrets:    getEnvBool("REQUIRE_STRONG_SECRETS", false),
-		CredentialEncryptionKey: getEnv("CREDENTIAL_ENCRYPTION_KEY", ""),
-		CorreiosAPIBaseURL:      getEnv("CORREIOS_API_BASE_URL", "https://api.correios.com.br/srorastro"),
-		CorreiosTokenBaseURL:    getEnv("CORREIOS_TOKEN_BASE_URL", "https://api.correios.com.br/token"),
-		TrackingSyncIntervalMin: getEnvIntAllowZero("TRACKING_SYNC_INTERVAL_MINUTES", 0),
-		GoogleOAuthClientID:     getEnv("GOOGLE_OAUTH_CLIENT_ID", ""),
-		GoogleOAuthClientSecret: getEnv("GOOGLE_OAUTH_CLIENT_SECRET", ""),
-		GoogleOAuthRedirectURL:  getEnv("GOOGLE_OAUTH_REDIRECT_URL", ""),
-		GoogleOAuthAuthURL:      getEnv("GOOGLE_OAUTH_AUTH_URL", "https://accounts.google.com/o/oauth2/v2/auth"),
-		GoogleOAuthTokenURL:     getEnv("GOOGLE_OAUTH_TOKEN_URL", "https://oauth2.googleapis.com/token"),
-		GoogleOAuthUserInfoURL:  getEnv("GOOGLE_OAUTH_USERINFO_URL", "https://openidconnect.googleapis.com/v1/userinfo"),
-		FrontendBaseURL:         getEnv("FRONTEND_BASE_URL", "http://localhost:5173"),
+		TrustedProxies:           getEnvList("TRUSTED_PROXIES", []string{"127.0.0.1", "::1"}),
+		MaxUploadBytes:           int64(getEnvInt("MAX_UPLOAD_MB", 5)) * 1024 * 1024,
+		RequireStrongSecrets:     getEnvBool("REQUIRE_STRONG_SECRETS", false),
+		CredentialEncryptionKey:  getEnv("CREDENTIAL_ENCRYPTION_KEY", ""),
+		CorreiosAPIBaseURL:       getEnv("CORREIOS_API_BASE_URL", "https://api.correios.com.br/srorastro"),
+		CorreiosTokenBaseURL:     getEnv("CORREIOS_TOKEN_BASE_URL", "https://api.correios.com.br/token"),
+		TrackingSyncIntervalMin:  getEnvIntAllowZero("TRACKING_SYNC_INTERVAL_MINUTES", 0),
+		GoogleOAuthClientID:      getEnv("GOOGLE_OAUTH_CLIENT_ID", ""),
+		GoogleOAuthClientSecret:  getEnv("GOOGLE_OAUTH_CLIENT_SECRET", ""),
+		GoogleOAuthRedirectURL:   getEnv("GOOGLE_OAUTH_REDIRECT_URL", ""),
+		GoogleOAuthAuthURL:       getEnv("GOOGLE_OAUTH_AUTH_URL", "https://accounts.google.com/o/oauth2/v2/auth"),
+		GoogleOAuthTokenURL:      getEnv("GOOGLE_OAUTH_TOKEN_URL", "https://oauth2.googleapis.com/token"),
+		GoogleOAuthUserInfoURL:   getEnv("GOOGLE_OAUTH_USERINFO_URL", "https://openidconnect.googleapis.com/v1/userinfo"),
+		FrontendBaseURL:          getEnv("FRONTEND_BASE_URL", "http://localhost:5173"),
+		MercadoPagoClientID:      getEnv("MERCADO_PAGO_CLIENT_ID", ""),
+		MercadoPagoClientSecret:  getEnv("MERCADO_PAGO_CLIENT_SECRET", ""),
+		MercadoPagoRedirectURI:   getEnv("MERCADO_PAGO_REDIRECT_URI", ""),
+		MercadoPagoWebhookSecret: getEnv("MERCADO_PAGO_WEBHOOK_SECRET", ""),
+		MercadoLivreClientID:     getEnv("MELI_CLIENT_ID", ""),
+		MercadoLivreClientSecret: getEnv("MELI_CLIENT_SECRET", ""),
+		MercadoLivreRedirectURI:  getEnv("MELI_REDIRECT_URI", ""),
 	}
 	cfg.validate()
 	return cfg

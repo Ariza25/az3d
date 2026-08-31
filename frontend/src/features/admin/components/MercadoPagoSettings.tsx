@@ -85,7 +85,7 @@ export const MercadoPagoSettings: React.FC<MercadoPagoSettingsProps> = ({ tenant
                 ? `Conectada ao vendedor ${status.seller_id || 'Mercado Pago'} (${status.live_mode ? 'producao' : 'teste'}).`
                 : status?.oauth_available
                   ? 'Pronta para o titular da loja autorizar no Mercado Pago.'
-                  : 'A aplicacao OAuth precisa ser configurada pelo master_admin.'}
+                  : 'A aplicação OAuth precisa ser configurada no ambiente da plataforma.'}
             </p>
             {status?.token_expires_at && <p className="mt-1 text-[10px] font-mono text-slate-500">Token valido ate {new Date(status.token_expires_at).toLocaleString('pt-BR')}</p>}
             {status?.last_error && <p className="mt-2 text-xs text-rose-300">{status.last_error}</p>}

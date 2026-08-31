@@ -107,13 +107,11 @@ func (h *PlatformHandler) GetPlatformOverview(c *gin.Context) {
 	}
 
 	var connectedPaymentAccounts int64
-	var mercadoPagoConfig models.MercadoPagoPlatformConfig
 	database.DB.Model(&models.TenantPaymentAccount{}).Where("provider = ? AND status = ?", mercadoPagoProvider, mercadoPagoConnectedState).Count(&connectedPaymentAccounts)
-	_ = database.DB.First(&mercadoPagoConfig, 1).Error
 	overview := PlatformOverview{
 		TenantsCount:             int64(len(tenants)),
 		PaymentGatewayConfigured: connectedPaymentAccounts > 0,
-		WebhookSecretConfigured:  strings.TrimSpace(mercadoPagoConfig.EncryptedWebhookSecret) != "",
+		WebhookSecretConfigured:  h.cfg != nil && strings.TrimSpace(h.cfg.MercadoPagoWebhookSecret) != "",
 		GeneratedAt:              time.Now(),
 		Tenants:                  make([]PlatformTenantOverview, 0, len(tenants)),
 	}
@@ -250,9 +248,7 @@ func (h *PlatformHandler) GetObservabilityHealth(c *gin.Context) {
 	}
 
 	var connectedPaymentAccounts int64
-	var mercadoPagoConfig models.MercadoPagoPlatformConfig
 	database.DB.Model(&models.TenantPaymentAccount{}).Where("provider = ? AND status = ?", mercadoPagoProvider, mercadoPagoConnectedState).Count(&connectedPaymentAccounts)
-	_ = database.DB.First(&mercadoPagoConfig, 1).Error
 	c.JSON(http.StatusOK, gin.H{
 		"status":                          status,
 		"database":                        dbStatus,
@@ -262,7 +258,7 @@ func (h *PlatformHandler) GetObservabilityHealth(c *gin.Context) {
 		"marketplace_errors":              marketplaceErrors,
 		"carrier_errors":                  carrierErrors,
 		"mercado_pago_configured":         connectedPaymentAccounts > 0,
-		"mercado_pago_webhook_secret":     strings.TrimSpace(mercadoPagoConfig.EncryptedWebhookSecret) != "",
+		"mercado_pago_webhook_secret":     h.cfg != nil && strings.TrimSpace(h.cfg.MercadoPagoWebhookSecret) != "",
 		"correios_base_configured":        strings.TrimSpace(os.Getenv("CORREIOS_API_BASE_URL")) != "",
 		"checked_at":                      time.Now(),
 	})
@@ -289,6 +285,9 @@ func (h *PlatformHandler) GetPlatformEnvironment(c *gin.Context) {
 		{Key: "FRONTEND_BASE_URL", Category: "network", Configured: strings.TrimSpace(cfg.FrontendBaseURL) != "", Required: true, Description: "URL publica usada nos retornos OAuth"},
 		{Key: "GOOGLE_OAUTH", Category: "authentication", Configured: strings.TrimSpace(cfg.GoogleOAuthClientID) != "" && strings.TrimSpace(cfg.GoogleOAuthClientSecret) != "", Required: false, Description: "Login administrativo via Google"},
 		{Key: "CORREIOS_API_BASE_URL", Category: "integrations", Configured: strings.TrimSpace(cfg.CorreiosAPIBaseURL) != "", Required: false, Description: "Endpoint base para rastreamento"},
+		{Key: "MELI_OAUTH", Category: "integrations", Configured: strings.TrimSpace(cfg.MercadoLivreClientID) != "" && strings.TrimSpace(cfg.MercadoLivreClientSecret) != "" && strings.TrimSpace(cfg.MercadoLivreRedirectURI) != "", Required: false, Description: "Aplicacao OAuth global do Mercado Livre"},
+		{Key: "MERCADO_PAGO_OAUTH", Category: "integrations", Configured: strings.TrimSpace(cfg.MercadoPagoClientID) != "" && strings.TrimSpace(cfg.MercadoPagoClientSecret) != "" && strings.TrimSpace(cfg.MercadoPagoRedirectURI) != "", Required: false, Description: "Aplicacao OAuth global do Mercado Pago"},
+		{Key: "MERCADO_PAGO_WEBHOOK_SECRET", Category: "integrations", Configured: strings.TrimSpace(cfg.MercadoPagoWebhookSecret) != "", Required: false, Description: "Assinatura dos webhooks globais do Mercado Pago"},
 		{Key: "ADM_LOGIN", Category: "bootstrap", Configured: strings.TrimSpace(cfg.AdminLogin) != "" && cfg.AdminPassword != "", Required: false, Description: "Conta master criada no bootstrap"},
 	}
 

@@ -42,13 +42,6 @@ type MercadoPagoHandler struct {
 	refreshMu  sync.Mutex
 }
 
-type mercadoPagoPlatformConfigInput struct {
-	ClientID      string `json:"client_id" binding:"required"`
-	ClientSecret  string `json:"client_secret"`
-	RedirectURI   string `json:"redirect_uri" binding:"required"`
-	WebhookSecret string `json:"webhook_secret"`
-}
-
 type mercadoPagoOAuthToken struct {
 	AccessToken  string `json:"access_token"`
 	TokenType    string `json:"token_type"`
@@ -74,9 +67,20 @@ type paymentAccountStatus struct {
 }
 
 type decryptedMercadoPagoPlatformConfig struct {
-	Model         models.MercadoPagoPlatformConfig
+	ClientID      string
 	ClientSecret  string
+	RedirectURI   string
 	WebhookSecret string
+}
+
+type mercadoPagoPlatformConfigStatus struct {
+	Source                  string   `json:"source"`
+	Configured              bool     `json:"configured"`
+	ClientIDConfigured      bool     `json:"client_id_configured"`
+	ClientSecretConfigured  bool     `json:"client_secret_configured"`
+	RedirectURIConfigured   bool     `json:"redirect_uri_configured"`
+	WebhookSecretConfigured bool     `json:"webhook_secret_configured"`
+	Missing                 []string `json:"missing"`
 }
 
 func NewMercadoPagoHandler(cfg *config.Config) *MercadoPagoHandler {
@@ -85,81 +89,10 @@ func NewMercadoPagoHandler(cfg *config.Config) *MercadoPagoHandler {
 
 func (h *MercadoPagoHandler) GetPlatformConfig(c *gin.Context) {
 	if !isMasterAdmin(c) {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Apenas master_admin pode configurar a aplicacao Mercado Pago"})
+		c.JSON(http.StatusForbidden, gin.H{"error": "Apenas master_admin pode consultar a aplicacao Mercado Pago"})
 		return
 	}
-	var stored models.MercadoPagoPlatformConfig
-	err := database.DB.First(&stored, 1).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		c.JSON(http.StatusOK, models.MercadoPagoPlatformConfig{})
-		return
-	}
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Nao foi possivel carregar a configuracao Mercado Pago"})
-		return
-	}
-	stored.ClientSecretConfigured = strings.TrimSpace(stored.EncryptedClientSecret) != ""
-	stored.WebhookSecretConfigured = strings.TrimSpace(stored.EncryptedWebhookSecret) != ""
-	c.JSON(http.StatusOK, stored)
-}
-
-func (h *MercadoPagoHandler) SavePlatformConfig(c *gin.Context) {
-	if !isMasterAdmin(c) {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Apenas master_admin pode configurar a aplicacao Mercado Pago"})
-		return
-	}
-	if h == nil || h.cfg == nil || len(strings.TrimSpace(h.cfg.CredentialEncryptionKey)) < 32 {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Configure uma CREDENTIAL_ENCRYPTION_KEY forte antes de salvar credenciais"})
-		return
-	}
-	var input mercadoPagoPlatformConfigInput
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Configuracao Mercado Pago invalida"})
-		return
-	}
-	input.ClientID = strings.TrimSpace(input.ClientID)
-	input.RedirectURI = strings.TrimSpace(input.RedirectURI)
-	if err := validateOAuthRedirectURI(input.RedirectURI, h.cfg.Env); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	stored := models.MercadoPagoPlatformConfig{ID: 1}
-	result := database.DB.First(&stored, 1)
-	if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Nao foi possivel carregar a configuracao atual"})
-		return
-	}
-
-	if secret := strings.TrimSpace(input.ClientSecret); secret != "" {
-		encrypted, err := utils.EncryptString(secret, h.cfg.CredentialEncryptionKey)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Nao foi possivel proteger o Client Secret"})
-			return
-		}
-		stored.EncryptedClientSecret = encrypted
-	}
-	if secret := strings.TrimSpace(input.WebhookSecret); secret != "" {
-		encrypted, err := utils.EncryptString(secret, h.cfg.CredentialEncryptionKey)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Nao foi possivel proteger o segredo do webhook"})
-			return
-		}
-		stored.EncryptedWebhookSecret = encrypted
-	}
-	if stored.EncryptedClientSecret == "" || stored.EncryptedWebhookSecret == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Client Secret e segredo do webhook sao obrigatorios"})
-		return
-	}
-	stored.ClientID = input.ClientID
-	stored.RedirectURI = input.RedirectURI
-	if err := database.DB.Save(&stored).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Nao foi possivel salvar a configuracao Mercado Pago"})
-		return
-	}
-	stored.ClientSecretConfigured = true
-	stored.WebhookSecretConfigured = true
-	c.JSON(http.StatusOK, stored)
+	c.JSON(http.StatusOK, h.platformConfigStatus())
 }
 
 func (h *MercadoPagoHandler) GetTenantStatus(c *gin.Context) {
@@ -190,7 +123,7 @@ func (h *MercadoPagoHandler) startOAuthForTenant(c *gin.Context, tenantID uint) 
 	}
 	platform, err := h.loadPlatformConfig()
 	if err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "A aplicacao OAuth do Mercado Pago ainda nao foi configurada pelo master_admin"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "A aplicacao OAuth do Mercado Pago nao esta configurada no ambiente da plataforma"})
 		return
 	}
 	state, err := randomPaymentOAuthValue(32)
@@ -220,11 +153,11 @@ func (h *MercadoPagoHandler) startOAuthForTenant(c *gin.Context, tenantID uint) 
 		return
 	}
 	params := url.Values{
-		"client_id":             {platform.Model.ClientID},
+		"client_id":             {platform.ClientID},
 		"response_type":         {"code"},
 		"platform_id":           {"mp"},
 		"state":                 {state},
-		"redirect_uri":          {platform.Model.RedirectURI},
+		"redirect_uri":          {platform.RedirectURI},
 		"code_challenge":        {paymentPKCEChallenge(verifier)},
 		"code_challenge_method": {"S256"},
 	}
@@ -337,25 +270,46 @@ func (h *MercadoPagoHandler) statusForTenant(tenantID uint) paymentAccountStatus
 }
 
 func (h *MercadoPagoHandler) loadPlatformConfig() (decryptedMercadoPagoPlatformConfig, error) {
-	if h == nil || h.cfg == nil || len(strings.TrimSpace(h.cfg.CredentialEncryptionKey)) < 32 {
-		return decryptedMercadoPagoPlatformConfig{}, fmt.Errorf("credential encryption key is not configured")
+	if h == nil || h.cfg == nil {
+		return decryptedMercadoPagoPlatformConfig{}, fmt.Errorf("platform config is unavailable")
 	}
-	var stored models.MercadoPagoPlatformConfig
-	if err := database.DB.First(&stored, 1).Error; err != nil {
-		return decryptedMercadoPagoPlatformConfig{}, err
+	platform := decryptedMercadoPagoPlatformConfig{
+		ClientID: strings.TrimSpace(h.cfg.MercadoPagoClientID), ClientSecret: strings.TrimSpace(h.cfg.MercadoPagoClientSecret),
+		RedirectURI: strings.TrimSpace(h.cfg.MercadoPagoRedirectURI), WebhookSecret: strings.TrimSpace(h.cfg.MercadoPagoWebhookSecret),
 	}
-	clientSecret, err := utils.DecryptString(stored.EncryptedClientSecret, h.cfg.CredentialEncryptionKey)
-	if err != nil {
-		return decryptedMercadoPagoPlatformConfig{}, err
-	}
-	webhookSecret, err := utils.DecryptString(stored.EncryptedWebhookSecret, h.cfg.CredentialEncryptionKey)
-	if err != nil {
-		return decryptedMercadoPagoPlatformConfig{}, err
-	}
-	if strings.TrimSpace(stored.ClientID) == "" || strings.TrimSpace(clientSecret) == "" || strings.TrimSpace(stored.RedirectURI) == "" || strings.TrimSpace(webhookSecret) == "" {
+	if platform.ClientID == "" || platform.ClientSecret == "" || platform.RedirectURI == "" || platform.WebhookSecret == "" {
 		return decryptedMercadoPagoPlatformConfig{}, fmt.Errorf("mercado pago platform config is incomplete")
 	}
-	return decryptedMercadoPagoPlatformConfig{Model: stored, ClientSecret: clientSecret, WebhookSecret: webhookSecret}, nil
+	if err := validateOAuthRedirectURI(platform.RedirectURI, h.cfg.Env); err != nil {
+		return decryptedMercadoPagoPlatformConfig{}, err
+	}
+	return platform, nil
+}
+
+func (h *MercadoPagoHandler) platformConfigStatus() mercadoPagoPlatformConfigStatus {
+	status := mercadoPagoPlatformConfigStatus{Source: "environment", Missing: []string{}}
+	if h == nil || h.cfg == nil {
+		status.Missing = []string{"MERCADO_PAGO_CLIENT_ID", "MERCADO_PAGO_CLIENT_SECRET", "MERCADO_PAGO_REDIRECT_URI", "MERCADO_PAGO_WEBHOOK_SECRET"}
+		return status
+	}
+	status.ClientIDConfigured = strings.TrimSpace(h.cfg.MercadoPagoClientID) != ""
+	status.ClientSecretConfigured = strings.TrimSpace(h.cfg.MercadoPagoClientSecret) != ""
+	status.RedirectURIConfigured = strings.TrimSpace(h.cfg.MercadoPagoRedirectURI) != ""
+	status.WebhookSecretConfigured = strings.TrimSpace(h.cfg.MercadoPagoWebhookSecret) != ""
+	if !status.ClientIDConfigured {
+		status.Missing = append(status.Missing, "MERCADO_PAGO_CLIENT_ID")
+	}
+	if !status.ClientSecretConfigured {
+		status.Missing = append(status.Missing, "MERCADO_PAGO_CLIENT_SECRET")
+	}
+	if !status.RedirectURIConfigured {
+		status.Missing = append(status.Missing, "MERCADO_PAGO_REDIRECT_URI")
+	}
+	if !status.WebhookSecretConfigured {
+		status.Missing = append(status.Missing, "MERCADO_PAGO_WEBHOOK_SECRET")
+	}
+	status.Configured = len(status.Missing) == 0
+	return status
 }
 
 func (h *MercadoPagoHandler) refreshTenantToken(ctx context.Context, tenantID uint, force bool) (models.TenantPaymentAccount, error) {
@@ -402,15 +356,15 @@ func (h *MercadoPagoHandler) refreshTenantToken(ctx context.Context, tenantID ui
 
 func (h *MercadoPagoHandler) exchangeAuthorizationCode(ctx context.Context, platform decryptedMercadoPagoPlatformConfig, code string, verifier string) (mercadoPagoOAuthToken, error) {
 	return h.postOAuthToken(ctx, map[string]any{
-		"client_id": platform.Model.ClientID, "client_secret": platform.ClientSecret,
-		"grant_type": "authorization_code", "code": code, "redirect_uri": platform.Model.RedirectURI,
+		"client_id": platform.ClientID, "client_secret": platform.ClientSecret,
+		"grant_type": "authorization_code", "code": code, "redirect_uri": platform.RedirectURI,
 		"code_verifier": verifier,
 	})
 }
 
 func (h *MercadoPagoHandler) exchangeRefreshToken(ctx context.Context, platform decryptedMercadoPagoPlatformConfig, refreshToken string) (mercadoPagoOAuthToken, error) {
 	return h.postOAuthToken(ctx, map[string]any{
-		"client_id": platform.Model.ClientID, "client_secret": platform.ClientSecret,
+		"client_id": platform.ClientID, "client_secret": platform.ClientSecret,
 		"grant_type": "refresh_token", "refresh_token": refreshToken,
 	})
 }

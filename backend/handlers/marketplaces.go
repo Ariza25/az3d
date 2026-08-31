@@ -696,7 +696,7 @@ func (h *MarketplaceHandler) refreshMarketplaceAccountToken(ctx context.Context,
 		connectorAccount, credentialsErr = h.mercadoLivreConnectorAccount(*account)
 		if credentialsErr != nil {
 			account.SyncStatus = "platform_config_error"
-			account.LastError = "Aplicacao Mercado Livre nao configurada pelo master_admin."
+			account.LastError = "Aplicacao Mercado Livre nao configurada no ambiente da plataforma."
 			_ = database.DB.Save(account).Error
 			return credentialsErr
 		}

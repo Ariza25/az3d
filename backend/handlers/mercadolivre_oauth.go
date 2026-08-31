@@ -29,88 +29,27 @@ const (
 	mercadoLivreAuthorizationURL = "https://auth.mercadolivre.com.br/authorization"
 )
 
-type mercadoLivrePlatformConfigInput struct {
-	ClientID     string `json:"client_id" binding:"required"`
-	ClientSecret string `json:"client_secret"`
-	RedirectURI  string `json:"redirect_uri" binding:"required"`
+type decryptedMercadoLivrePlatformConfig struct {
+	ClientID     string
+	ClientSecret string
+	RedirectURI  string
 }
 
-type decryptedMercadoLivrePlatformConfig struct {
-	Model        models.MercadoLivrePlatformConfig
-	ClientSecret string
+type mercadoLivrePlatformConfigStatus struct {
+	Source                 string   `json:"source"`
+	Configured             bool     `json:"configured"`
+	ClientIDConfigured     bool     `json:"client_id_configured"`
+	ClientSecretConfigured bool     `json:"client_secret_configured"`
+	RedirectURIConfigured  bool     `json:"redirect_uri_configured"`
+	Missing                []string `json:"missing"`
 }
 
 func (h *MarketplaceHandler) GetMercadoLivrePlatformConfig(c *gin.Context) {
 	if !isMasterAdmin(c) {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Apenas master_admin pode configurar a aplicacao Mercado Livre"})
+		c.JSON(http.StatusForbidden, gin.H{"error": "Apenas master_admin pode consultar a aplicacao Mercado Livre"})
 		return
 	}
-	var stored models.MercadoLivrePlatformConfig
-	err := database.DB.First(&stored, 1).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		c.JSON(http.StatusOK, models.MercadoLivrePlatformConfig{})
-		return
-	}
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Nao foi possivel carregar a configuracao Mercado Livre"})
-		return
-	}
-	stored.ClientSecretConfigured = strings.TrimSpace(stored.EncryptedClientSecret) != ""
-	c.JSON(http.StatusOK, stored)
-}
-
-func (h *MarketplaceHandler) SaveMercadoLivrePlatformConfig(c *gin.Context) {
-	if !isMasterAdmin(c) {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Apenas master_admin pode configurar a aplicacao Mercado Livre"})
-		return
-	}
-	secret := h.credentialEncryptionKey()
-	if len(secret) < 32 {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Configure uma CREDENTIAL_ENCRYPTION_KEY forte antes de salvar credenciais"})
-		return
-	}
-	var input mercadoLivrePlatformConfigInput
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Configuracao Mercado Livre invalida"})
-		return
-	}
-	input.ClientID = strings.TrimSpace(input.ClientID)
-	input.RedirectURI = strings.TrimSpace(input.RedirectURI)
-	environment := strings.TrimSpace(os.Getenv("ENV"))
-	if h != nil && h.cfg != nil {
-		environment = h.cfg.Env
-	}
-	if err := validateOAuthRedirectURI(input.RedirectURI, environment); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	stored := models.MercadoLivrePlatformConfig{ID: 1}
-	result := database.DB.First(&stored, 1)
-	if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Nao foi possivel carregar a configuracao atual"})
-		return
-	}
-	if clientSecret := strings.TrimSpace(input.ClientSecret); clientSecret != "" {
-		encrypted, err := utils.EncryptString(clientSecret, secret)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Nao foi possivel proteger o Client Secret"})
-			return
-		}
-		stored.EncryptedClientSecret = encrypted
-	}
-	if stored.EncryptedClientSecret == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Client Secret obrigatorio"})
-		return
-	}
-	stored.ClientID = input.ClientID
-	stored.RedirectURI = input.RedirectURI
-	if err := database.DB.Save(&stored).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Nao foi possivel salvar a aplicacao Mercado Livre"})
-		return
-	}
-	stored.ClientSecretConfigured = true
-	c.JSON(http.StatusOK, stored)
+	c.JSON(http.StatusOK, h.mercadoLivrePlatformConfigStatus())
 }
 
 func (h *MarketplaceHandler) StartMercadoLivreOAuthForTenant(c *gin.Context) {
@@ -129,7 +68,7 @@ func (h *MarketplaceHandler) startMercadoLivreOAuth(c *gin.Context, tenantID uin
 	}
 	platform, err := h.loadMercadoLivrePlatformConfig()
 	if err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "A aplicacao OAuth do Mercado Livre ainda nao foi configurada pelo master_admin"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "A aplicacao OAuth do Mercado Livre nao esta configurada no ambiente da plataforma"})
 		return
 	}
 	state, err := randomPaymentOAuthValue(32)
@@ -166,8 +105,8 @@ func (h *MarketplaceHandler) startMercadoLivreOAuth(c *gin.Context, tenantID uin
 	endpoint, _ := url.Parse(authorizationEndpoint)
 	params := endpoint.Query()
 	params.Set("response_type", "code")
-	params.Set("client_id", platform.Model.ClientID)
-	params.Set("redirect_uri", platform.Model.RedirectURI)
+	params.Set("client_id", platform.ClientID)
+	params.Set("redirect_uri", platform.RedirectURI)
 	params.Set("state", state)
 	params.Set("code_challenge", paymentPKCEChallenge(verifier))
 	params.Set("code_challenge_method", "S256")
@@ -214,10 +153,10 @@ func (h *MarketplaceHandler) MercadoLivreOAuthCallback(c *gin.Context) {
 		return
 	}
 	connectorAccount := marketplaceAccountFromModel(account)
-	connectorAccount.OAuthClientID = platform.Model.ClientID
+	connectorAccount.OAuthClientID = platform.ClientID
 	connectorAccount.OAuthClientSecret = platform.ClientSecret
 	token, err := mercadolivre.New().ExchangeAuthCode(c.Request.Context(), connectorAccount, marketplaces.TokenRequest{
-		Code: code, RedirectURI: platform.Model.RedirectURI, CodeVerifier: verifier,
+		Code: code, RedirectURI: platform.RedirectURI, CodeVerifier: verifier,
 	})
 	if err != nil {
 		h.recordMercadoLivreOAuthError(session.TenantID, marketplaceConnectorErrorMessage(err))
@@ -237,22 +176,42 @@ func (h *MarketplaceHandler) MercadoLivreOAuthCallback(c *gin.Context) {
 }
 
 func (h *MarketplaceHandler) loadMercadoLivrePlatformConfig() (decryptedMercadoLivrePlatformConfig, error) {
-	secret := h.credentialEncryptionKey()
-	if len(secret) < 32 {
-		return decryptedMercadoLivrePlatformConfig{}, fmt.Errorf("credential encryption key is not configured")
+	if h == nil || h.cfg == nil {
+		return decryptedMercadoLivrePlatformConfig{}, fmt.Errorf("platform config is unavailable")
 	}
-	var stored models.MercadoLivrePlatformConfig
-	if err := database.DB.First(&stored, 1).Error; err != nil {
-		return decryptedMercadoLivrePlatformConfig{}, err
+	platform := decryptedMercadoLivrePlatformConfig{
+		ClientID: strings.TrimSpace(h.cfg.MercadoLivreClientID), ClientSecret: strings.TrimSpace(h.cfg.MercadoLivreClientSecret),
+		RedirectURI: strings.TrimSpace(h.cfg.MercadoLivreRedirectURI),
 	}
-	clientSecret, err := utils.DecryptString(stored.EncryptedClientSecret, secret)
-	if err != nil {
-		return decryptedMercadoLivrePlatformConfig{}, err
-	}
-	if strings.TrimSpace(stored.ClientID) == "" || strings.TrimSpace(clientSecret) == "" || strings.TrimSpace(stored.RedirectURI) == "" {
+	if platform.ClientID == "" || platform.ClientSecret == "" || platform.RedirectURI == "" {
 		return decryptedMercadoLivrePlatformConfig{}, fmt.Errorf("mercado livre platform config is incomplete")
 	}
-	return decryptedMercadoLivrePlatformConfig{Model: stored, ClientSecret: clientSecret}, nil
+	if err := validateOAuthRedirectURI(platform.RedirectURI, h.cfg.Env); err != nil {
+		return decryptedMercadoLivrePlatformConfig{}, err
+	}
+	return platform, nil
+}
+
+func (h *MarketplaceHandler) mercadoLivrePlatformConfigStatus() mercadoLivrePlatformConfigStatus {
+	status := mercadoLivrePlatformConfigStatus{Source: "environment", Missing: []string{}}
+	if h == nil || h.cfg == nil {
+		status.Missing = []string{"MELI_CLIENT_ID", "MELI_CLIENT_SECRET", "MELI_REDIRECT_URI"}
+		return status
+	}
+	status.ClientIDConfigured = strings.TrimSpace(h.cfg.MercadoLivreClientID) != ""
+	status.ClientSecretConfigured = strings.TrimSpace(h.cfg.MercadoLivreClientSecret) != ""
+	status.RedirectURIConfigured = strings.TrimSpace(h.cfg.MercadoLivreRedirectURI) != ""
+	if !status.ClientIDConfigured {
+		status.Missing = append(status.Missing, "MELI_CLIENT_ID")
+	}
+	if !status.ClientSecretConfigured {
+		status.Missing = append(status.Missing, "MELI_CLIENT_SECRET")
+	}
+	if !status.RedirectURIConfigured {
+		status.Missing = append(status.Missing, "MELI_REDIRECT_URI")
+	}
+	status.Configured = len(status.Missing) == 0
+	return status
 }
 
 func (h *MarketplaceHandler) mercadoLivreConnectorAccount(account models.MarketplaceAccount) (marketplaces.Account, error) {
@@ -261,7 +220,7 @@ func (h *MarketplaceHandler) mercadoLivreConnectorAccount(account models.Marketp
 	if err != nil {
 		return result, err
 	}
-	result.OAuthClientID = platform.Model.ClientID
+	result.OAuthClientID = platform.ClientID
 	result.OAuthClientSecret = platform.ClientSecret
 	return result, nil
 }

@@ -4,14 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"az3d-backend/internal/marketplaces"
 	"az3d-backend/models"
-	"az3d-backend/utils"
-
 	"gorm.io/gorm"
 )
 
@@ -76,7 +75,6 @@ func newDatabaseAccountSourceForProvider(store accountStore, connector marketpla
 
 type accountStore interface {
 	LoadMarketplaceAccount(context.Context, uint, string) (models.MarketplaceAccount, error)
-	LoadMercadoLivrePlatformConfig(context.Context) (models.MercadoLivrePlatformConfig, error)
 	SaveMarketplaceAccount(context.Context, *models.MarketplaceAccount) error
 }
 
@@ -90,12 +88,6 @@ func (s gormAccountStore) LoadMarketplaceAccount(ctx context.Context, tenantID u
 		Where("tenant_id = ? AND provider = ? AND is_active = ?", tenantID, provider, true).
 		First(&model).Error
 	return model, err
-}
-
-func (s gormAccountStore) LoadMercadoLivrePlatformConfig(ctx context.Context) (models.MercadoLivrePlatformConfig, error) {
-	var platform models.MercadoLivrePlatformConfig
-	err := s.db.WithContext(ctx).First(&platform, 1).Error
-	return platform, err
 }
 
 func (s gormAccountStore) SaveMarketplaceAccount(ctx context.Context, model *models.MarketplaceAccount) error {
@@ -148,16 +140,11 @@ func (s *DatabaseAccountSource) load(ctx context.Context) (models.MarketplaceAcc
 		RefreshToken: model.RefreshToken,
 	}
 	if s.provider == "mercadolivre" {
-		platform, platformErr := s.store.LoadMercadoLivrePlatformConfig(ctx)
-		if platformErr != nil {
-			return model, marketplaces.Account{}, fmt.Errorf("aplicacao Mercado Livre nao configurada: %w", platformErr)
+		account.OAuthClientID = strings.TrimSpace(os.Getenv("MELI_CLIENT_ID"))
+		account.OAuthClientSecret = strings.TrimSpace(os.Getenv("MELI_CLIENT_SECRET"))
+		if account.OAuthClientID == "" || account.OAuthClientSecret == "" {
+			return model, marketplaces.Account{}, errors.New("aplicacao Mercado Livre nao configurada no ambiente")
 		}
-		clientSecret, decryptErr := utils.DecryptString(platform.EncryptedClientSecret, s.secret)
-		if decryptErr != nil {
-			return model, marketplaces.Account{}, errors.New("nao foi possivel descriptografar a aplicacao Mercado Livre")
-		}
-		account.OAuthClientID = platform.ClientID
-		account.OAuthClientSecret = clientSecret
 	}
 	if strings.TrimSpace(account.AccessToken) == "" && strings.TrimSpace(account.RefreshToken) == "" {
 		return model, marketplaces.Account{}, s.missingError()

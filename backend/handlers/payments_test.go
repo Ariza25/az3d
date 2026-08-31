@@ -12,8 +12,6 @@ import (
 	"testing"
 
 	"az3d-backend/config"
-	"az3d-backend/models"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -37,11 +35,8 @@ func TestMercadoPagoAuthorizationCodeExchangeUsesPKCE(t *testing.T) {
 
 	handler := NewMercadoPagoHandler(&config.Config{})
 	platform := decryptedMercadoPagoPlatformConfig{
-		Model: models.MercadoPagoPlatformConfig{
-			ClientID:    "client-id",
-			RedirectURI: "https://api.az3d.test/api/payments/mercadopago/oauth/callback",
-		},
-		ClientSecret: "client-secret",
+		ClientID: "client-id", ClientSecret: "client-secret",
+		RedirectURI: "https://api.az3d.test/api/payments/mercadopago/oauth/callback",
 	}
 	token, err := handler.exchangeAuthorizationCode(context.Background(), platform, "authorization-code", "pkce-verifier")
 	if err != nil {
@@ -53,7 +48,7 @@ func TestMercadoPagoAuthorizationCodeExchangeUsesPKCE(t *testing.T) {
 	if requestPayload["grant_type"] != "authorization_code" || requestPayload["code_verifier"] != "pkce-verifier" {
 		t.Fatalf("authorization code exchange without PKCE: %#v", requestPayload)
 	}
-	if requestPayload["client_secret"] != "client-secret" || requestPayload["redirect_uri"] != platform.Model.RedirectURI {
+	if requestPayload["client_secret"] != "client-secret" || requestPayload["redirect_uri"] != platform.RedirectURI {
 		t.Fatalf("platform OAuth credentials missing: %#v", requestPayload)
 	}
 }

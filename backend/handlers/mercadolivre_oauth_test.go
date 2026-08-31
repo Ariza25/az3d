@@ -69,11 +69,6 @@ func TestMercadoLivreOAuthCallbackConsumesPKCEAndPersistsConnectedAccount(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	encryptedClientSecret, err := utils.EncryptString("client-secret", key)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/oauth/token" {
 			http.NotFound(w, r)
@@ -96,10 +91,6 @@ func TestMercadoLivreOAuthCallbackConsumesPKCEAndPersistsConnectedAccount(t *tes
 
 	mock := installMarketplaceOAuthMockDB(t)
 	expectOAuthSessionFound(mock, hashMarketplaceOAuthState(state), encryptedVerifier, 7)
-	mock.ExpectQuery(`SELECT .* FROM "mercado_livre_platform_configs"`).
-		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "client_id", "encrypted_client_secret", "redirect_uri", "created_at", "updated_at",
-		}).AddRow(1, "client-id", encryptedClientSecret, "https://api.az3d.test/api/marketplaces/mercadolivre/oauth/callback", time.Now(), time.Now()))
 	mock.ExpectQuery(`SELECT .* FROM "marketplace_accounts"`).
 		WillReturnError(gorm.ErrRecordNotFound)
 	mock.ExpectBegin()
@@ -117,7 +108,9 @@ func TestMercadoLivreOAuthCallbackConsumesPKCEAndPersistsConnectedAccount(t *tes
 	ctx, _ := gin.CreateTestContext(recorder)
 	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/marketplaces/mercadolivre/oauth/callback?state="+state+"&code=authorization-code", nil)
 	handler := NewMarketplaceHandler(&config.Config{
-		CredentialEncryptionKey: key, FrontendBaseURL: "https://app.az3d.test",
+		CredentialEncryptionKey: key, FrontendBaseURL: "https://app.az3d.test", Env: "production",
+		MercadoLivreClientID: "client-id", MercadoLivreClientSecret: "client-secret",
+		MercadoLivreRedirectURI: "https://api.az3d.test/api/marketplaces/mercadolivre/oauth/callback",
 	})
 	handler.MercadoLivreOAuthCallback(ctx)
 

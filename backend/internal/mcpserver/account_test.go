@@ -8,14 +8,11 @@ import (
 
 	"az3d-backend/internal/marketplaces"
 	"az3d-backend/models"
-	"az3d-backend/utils"
 )
 
 type memoryAccountStore struct {
 	account   models.MarketplaceAccount
-	platform  models.MercadoLivrePlatformConfig
 	loadErr   error
-	configErr error
 	saveErr   error
 	saved     models.MarketplaceAccount
 	saveCalls int
@@ -27,10 +24,6 @@ func (s *memoryAccountStore) LoadMarketplaceAccount(_ context.Context, _ uint, p
 	return s.account, s.loadErr
 }
 
-func (s *memoryAccountStore) LoadMercadoLivrePlatformConfig(context.Context) (models.MercadoLivrePlatformConfig, error) {
-	return s.platform, s.configErr
-}
-
 func (s *memoryAccountStore) SaveMarketplaceAccount(_ context.Context, account *models.MarketplaceAccount) error {
 	s.saveCalls++
 	s.saved = *account
@@ -39,10 +32,8 @@ func (s *memoryAccountStore) SaveMarketplaceAccount(_ context.Context, account *
 
 func TestDatabaseAccountSourceDecryptsConfigRefreshesAndPersistsExpiringToken(t *testing.T) {
 	key := "12345678901234567890123456789012"
-	encryptedSecret, err := utils.EncryptString("meli-client-secret", key)
-	if err != nil {
-		t.Fatal(err)
-	}
+	t.Setenv("MELI_CLIENT_ID", "meli-client")
+	t.Setenv("MELI_CLIENT_SECRET", "meli-client-secret")
 	now := time.Date(2026, 8, 30, 12, 0, 0, 0, time.UTC)
 	expiresAt := now.Add(5 * time.Minute)
 	store := &memoryAccountStore{
@@ -51,7 +42,6 @@ func TestDatabaseAccountSourceDecryptsConfigRefreshesAndPersistsExpiringToken(t 
 			AccessToken: "old-access", RefreshToken: "old-refresh", TokenExpiresAt: &expiresAt,
 			IsActive: true, IsConnected: true,
 		},
-		platform: models.MercadoLivrePlatformConfig{ID: 1, ClientID: "meli-client", EncryptedClientSecret: encryptedSecret},
 	}
 	connector := &fakeConnector{refreshToken: marketplaces.TokenResult{
 		AccessToken: "new-access", RefreshToken: "new-refresh", SellerID: "12345", ExpiresIn: 21600,
@@ -79,10 +69,8 @@ func TestDatabaseAccountSourceDecryptsConfigRefreshesAndPersistsExpiringToken(t 
 
 func TestDatabaseAccountSourceKeepsFreshTokenWithoutRefresh(t *testing.T) {
 	key := "12345678901234567890123456789012"
-	encryptedSecret, err := utils.EncryptString("meli-client-secret", key)
-	if err != nil {
-		t.Fatal(err)
-	}
+	t.Setenv("MELI_CLIENT_ID", "meli-client")
+	t.Setenv("MELI_CLIENT_SECRET", "meli-client-secret")
 	now := time.Date(2026, 8, 30, 12, 0, 0, 0, time.UTC)
 	expiresAt := now.Add(time.Hour)
 	store := &memoryAccountStore{
@@ -91,7 +79,6 @@ func TestDatabaseAccountSourceKeepsFreshTokenWithoutRefresh(t *testing.T) {
 			AccessToken: "fresh-access", RefreshToken: "refresh", TokenExpiresAt: &expiresAt,
 			IsActive: true, IsConnected: true,
 		},
-		platform: models.MercadoLivrePlatformConfig{ID: 1, ClientID: "meli-client", EncryptedClientSecret: encryptedSecret},
 	}
 	connector := &fakeConnector{}
 	source := newDatabaseAccountSource(store, connector, 7, key)

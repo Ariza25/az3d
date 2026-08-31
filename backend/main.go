@@ -181,10 +181,8 @@ func main() {
 			platform.GET("/observability", platformHandler.GetObservabilityHealth)
 			platform.GET("/outbox", platformHandler.GetWebhookLogs)
 			platform.GET("/payments/mercadopago", mercadoPagoHandler.GetPlatformConfig)
-			platform.PUT("/payments/mercadopago", mercadoPagoHandler.SavePlatformConfig)
 			platform.POST("/tenants/:tenant_id/payments/mercadopago/oauth/start", mercadoPagoHandler.StartOAuthForTenant)
 			platform.GET("/marketplaces/mercadolivre", marketplaceHandler.GetMercadoLivrePlatformConfig)
-			platform.PUT("/marketplaces/mercadolivre", marketplaceHandler.SaveMercadoLivrePlatformConfig)
 			platform.POST("/tenants/:tenant_id/marketplaces/mercadolivre/oauth/start", marketplaceHandler.StartMercadoLivreOAuthForTenant)
 		}
 

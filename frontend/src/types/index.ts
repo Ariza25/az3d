@@ -805,35 +805,22 @@ export interface PlatformEnvironment {
 }
 
 export interface MercadoPagoPlatformConfig {
-  id?: number;
-  client_id: string;
-  redirect_uri: string;
+  source: 'environment';
+  configured: boolean;
+  client_id_configured: boolean;
   client_secret_configured: boolean;
+  redirect_uri_configured: boolean;
   webhook_secret_configured: boolean;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface MercadoPagoPlatformConfigInput {
-  client_id: string;
-  client_secret: string;
-  redirect_uri: string;
-  webhook_secret: string;
+  missing: string[];
 }
 
 export interface MercadoLivrePlatformConfig {
-  id?: number;
-  client_id: string;
-  redirect_uri: string;
+  source: 'environment';
+  configured: boolean;
+  client_id_configured: boolean;
   client_secret_configured: boolean;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface MercadoLivrePlatformConfigInput {
-  client_id: string;
-  client_secret: string;
-  redirect_uri: string;
+  redirect_uri_configured: boolean;
+  missing: string[];
 }
 
 export interface MasterOAuthStartResponse {

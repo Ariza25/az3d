@@ -50,9 +50,7 @@ import {
   ObservabilityHealth,
   PlatformEnvironment,
   MercadoPagoPlatformConfig,
-  MercadoPagoPlatformConfigInput,
   MercadoLivrePlatformConfig,
-  MercadoLivrePlatformConfigInput,
   MasterOAuthStartResponse,
   TenantPaymentAccountStatus,
 } from '../types';
@@ -136,34 +134,12 @@ export const api = {
 
   getMercadoPagoPlatformConfig: async (): Promise<MercadoPagoPlatformConfig> => {
     const res = await fetch(`${API_BASE_URL}/admin/platform/payments/mercadopago`, { headers: getAdminHeaders() });
-    const body = await res.json();
-    if (!res.ok) throw new Error(body.error || 'Erro ao carregar aplicacao Mercado Pago');
-    return body;
-  },
-
-  saveMercadoPagoPlatformConfig: async (input: MercadoPagoPlatformConfigInput): Promise<MercadoPagoPlatformConfig> => {
-    const res = await fetch(`${API_BASE_URL}/admin/platform/payments/mercadopago`, {
-      method: 'PUT', headers: getAdminHeaders(), body: JSON.stringify(input),
-    });
-    const body = await res.json();
-    if (!res.ok) throw new Error(body.error || 'Erro ao salvar aplicacao Mercado Pago');
-    return body;
+    return readJsonResponse(res, 'Erro ao carregar aplicação Mercado Pago');
   },
 
   getMercadoLivrePlatformConfig: async (): Promise<MercadoLivrePlatformConfig> => {
     const res = await fetch(`${API_BASE_URL}/admin/platform/marketplaces/mercadolivre`, { headers: getAdminHeaders() });
-    const body = await res.json();
-    if (!res.ok) throw new Error(body.error || 'Erro ao carregar aplicacao Mercado Livre');
-    return body;
-  },
-
-  saveMercadoLivrePlatformConfig: async (input: MercadoLivrePlatformConfigInput): Promise<MercadoLivrePlatformConfig> => {
-    const res = await fetch(`${API_BASE_URL}/admin/platform/marketplaces/mercadolivre`, {
-      method: 'PUT', headers: getAdminHeaders(), body: JSON.stringify(input),
-    });
-    const body = await res.json();
-    if (!res.ok) throw new Error(body.error || 'Erro ao salvar aplicacao Mercado Livre');
-    return body;
+    return readJsonResponse(res, 'Erro ao carregar aplicação Mercado Livre');
   },
 
   startMasterMercadoLivreOAuth: async (tenantId: number): Promise<MasterOAuthStartResponse> => {

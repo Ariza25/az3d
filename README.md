@@ -94,11 +94,13 @@ Para producao, defina:
 - `ADM_LOGIN` e `ADM_PASSWORD` juntos para criar ou sincronizar a conta `master_admin`; use Secret Manager para a senha e no minimo 16 caracteres.
 - `JWT_SECRET` com 32+ caracteres.
 - `REQUIRE_STRONG_SECRETS=true`.
-- `CREDENTIAL_ENCRYPTION_KEY` com 32+ caracteres para criptografar credenciais por tenant.
+- `CREDENTIAL_ENCRYPTION_KEY` com 32+ caracteres para criptografar tokens e credenciais por tenant.
 - `CORS_ALLOWED_ORIGINS` apenas com os dominios reais.
 - `FRONTEND_BASE_URL` com a URL publica da loja.
 - `API_PUBLIC_BASE_URL` com a URL publica da API, usada no webhook do Mercado Pago.
-- Configurar Client ID, Client Secret, Redirect URI e secret do webhook do Mercado Pago no painel master. Os tokens dos lojistas sao obtidos por OAuth e armazenados criptografados no banco.
+- `MERCADO_PAGO_CLIENT_ID`, `MERCADO_PAGO_CLIENT_SECRET`, `MERCADO_PAGO_REDIRECT_URI` e `MERCADO_PAGO_WEBHOOK_SECRET` com a aplicacao global do Mercado Pago.
+- `MELI_CLIENT_ID`, `MELI_CLIENT_SECRET` e `MELI_REDIRECT_URI` com a aplicacao global do Mercado Livre.
+- No Cloud Run de desenvolvimento essas chaves podem ser variaveis simples. Em producao, prefira referenciar os secrets pelo Secret Manager. O painel master mostra apenas o status, nunca os valores.
 - `GOOGLE_OAUTH_CLIENT_ID` e `GOOGLE_OAUTH_CLIENT_SECRET` com credenciais OAuth Web do Google.
 - `GOOGLE_OAUTH_REDIRECT_URL` igual ao redirect autorizado no Google Cloud Console.
 - `CORREIOS_API_BASE_URL` e `CORREIOS_TOKEN_BASE_URL` conforme ambiente Correios.
@@ -144,7 +146,7 @@ Visitantes podem navegar pela store, mas o carrinho exige conta de comprador. Ao
 
 O checkout usa Mercado Pago Checkout Pro:
 
-1. O `master_admin` configura a aplicacao Mercado Pago em **Configuracoes**, sem access token global em env.
+1. A plataforma carrega a aplicacao Mercado Pago pelas variaveis globais `MERCADO_PAGO_*`; nao existe access token global.
 2. Cada tenant conecta a propria conta Mercado Pago por OAuth com `state` e PKCE.
 3. Cliente fecha o carrinho e o backend cria o pedido como `pending_payment`.
 4. O backend cria a preference usando exclusivamente o access token daquele tenant.
@@ -284,9 +286,9 @@ O backend inclui um servidor MCP local em Go que usa o conector oficial da API d
 
 Nos dados financeiros, `gross_amount` e a soma de `unit_price * quantity`, `marketplace_fees` usa a tarifa total dos pagamentos (com `sale_fee` apenas como fallback), `shipping_cost` vem de `senders[].cost` em `/shipments/{id}/costs` e `discount_amount` informa a parcela de descontos financiada pelo vendedor. Como `unit_price` ja reflete o desconto aplicado, o desconto nao e subtraido novamente de `net_amount`. Cada pedido informa `financial_complete`; o resumo informa quantos pedidos ficaram sem algum detalhe opcional da API.
 
-O OAuth faz parte da propria plataforma multi-tenant. Nao configure `MELI_CLIENT_ID`, `MELI_CLIENT_SECRET`, access token ou refresh token no ambiente do MCP:
+O OAuth faz parte da propria plataforma multi-tenant. Configure `MELI_CLIENT_ID`, `MELI_CLIENT_SECRET` e `MELI_REDIRECT_URI` no ambiente do backend e do MCP. Nunca configure access token ou refresh token global:
 
-1. o `master_admin` abre **Ambiente e variaveis** e salva Client ID, Client Secret e Redirect URI da aplicacao global;
+1. o operador configura Client ID, Client Secret e Redirect URI da aplicacao global no Cloud Run; o painel master exibe somente o status;
 2. na **Visao da plataforma**, escolhe o tenant e clica em **Mercado Livre**;
 3. o titular entra no Mercado Livre e concede acesso a propria conta;
 4. o callback valida `state` de uso unico e PKCE S256, troca o code e salva os tokens criptografados em `marketplace_accounts` para aquele `tenant_id`;
@@ -295,11 +297,11 @@ O OAuth faz parte da propria plataforma multi-tenant. Nao configure `MELI_CLIENT
 No DevCenter do Mercado Livre:
 
 1. crie ou ajuste uma aplicacao exclusiva para Mercado Livre (separada de Mercado Pago);
-2. cadastre exatamente a Redirect URI exibida/salva no painel master, apontando para `/api/marketplaces/mercadolivre/oauth/callback`;
+2. cadastre exatamente `MELI_REDIRECT_URI`, apontando para `/api/marketplaces/mercadolivre/oauth/callback`;
 3. habilite PKCE e as permissoes funcionais necessarias;
 4. autorize usando a conta administradora da loja, nao um operador/colaborador.
 
-O MCP ainda expoe apenas operacoes de leitura, mesmo que a aplicacao ja tenha permissao de leitura e escrita para as etapas futuras. `CREDENTIAL_ENCRYPTION_KEY` continua obrigatoria na plataforma para proteger credenciais globais e grants dos tenants.
+O MCP ainda expoe apenas operacoes de leitura, mesmo que a aplicacao ja tenha permissao de leitura e escrita para as etapas futuras. `CREDENTIAL_ENCRYPTION_KEY` continua obrigatoria para proteger os grants dos tenants.
 
 Para gerar uma chave local forte no PowerShell:
 
@@ -421,7 +423,7 @@ Controles ja existentes:
 - CORS configuravel por env.
 - Trusted proxies configuraveis.
 - Upload de imagem com extensoes permitidas e limite de tamanho.
-- Webhook Mercado Pago com assinatura validada pelo secret criptografado configurado no painel master.
+- Webhook Mercado Pago com assinatura validada por `MERCADO_PAGO_WEBHOOK_SECRET`.
 - Rotas admin protegidas por JWT e role `admin`/`tenant_admin`.
 
 Recomendacoes antes de publicar:
