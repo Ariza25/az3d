@@ -67,6 +67,61 @@ func TestUnauthorizedResponseIsTypedAndDoesNotExposeCredentials(t *testing.T) {
 	}
 }
 
+func TestResolveIdentityAndOrderAccessUseSellerOwnedByToken(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/users/me":
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": 3624201494})
+		case "/orders/search":
+			if got := r.URL.Query().Get("seller"); got != "3624201494" {
+				t.Errorf("seller = %q", got)
+			}
+			if r.URL.Query().Get("limit") != "1" || r.URL.Query().Get("offset") != "0" {
+				t.Errorf("unexpected probe query: %s", r.URL.RawQuery)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"paging":  map[string]any{"total": 0, "offset": 0, "limit": 1},
+				"results": []any{},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	t.Setenv("MELI_API_BASE_URL", server.URL)
+	connector := New()
+	account := mp.Account{AccessToken: "access-token", SellerID: "wrong-seller"}
+
+	identity, err := connector.ResolveAccountIdentity(context.Background(), account)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if identity.SellerID != "3624201494" {
+		t.Fatalf("seller identity = %q", identity.SellerID)
+	}
+	account.SellerID = identity.SellerID
+	if err := connector.TestOrderAccess(context.Background(), account); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestOrderAccessForbiddenIsClassified(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/orders/search" {
+			http.NotFound(w, r)
+			return
+		}
+		http.Error(w, `{"message":"not_owned_order"}`, http.StatusForbidden)
+	}))
+	defer server.Close()
+	t.Setenv("MELI_API_BASE_URL", server.URL)
+
+	err := New().TestOrderAccess(context.Background(), mp.Account{AccessToken: "access-token", SellerID: "123"})
+	if !IsOrderAccessForbidden(err) {
+		t.Fatalf("error should be classified as forbidden order access: %v", err)
+	}
+}
+
 func TestFetchCatalogIncludesInactiveItemsAndPaginates(t *testing.T) {
 	var mu sync.Mutex
 	offsets := []int{}
@@ -136,6 +191,44 @@ func TestFetchCatalogIncludesInactiveItemsAndPaginates(t *testing.T) {
 	}
 	if result.Message != "3 anuncio(s) encontrados no Mercado Livre" {
 		t.Fatalf("message = %q", result.Message)
+	}
+}
+
+func TestFetchCatalogItemsDeduplicatesAndRejectsAnotherSeller(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/items" {
+			http.NotFound(w, r)
+			return
+		}
+		if got := r.URL.Query().Get("ids"); got != "MLB-OWNED,MLB-FOREIGN" {
+			t.Fatalf("ids = %q", got)
+		}
+		if !strings.Contains(r.URL.Query().Get("attributes"), "seller_id") {
+			t.Fatal("seller_id was not requested")
+		}
+		_ = json.NewEncoder(w).Encode([]map[string]any{
+			{"code": http.StatusOK, "body": map[string]any{
+				"id": "MLB-OWNED", "seller_id": 12345, "title": "Owned", "price": 15, "status": "paused",
+			}},
+			{"code": http.StatusOK, "body": map[string]any{
+				"id": "MLB-FOREIGN", "seller_id": 99999, "title": "Foreign", "price": 25, "status": "active",
+			}},
+		})
+	}))
+	defer server.Close()
+	t.Setenv("MELI_API_BASE_URL", server.URL)
+
+	result, err := New().FetchCatalogItems(context.Background(), mp.Account{
+		SellerID: "12345", AccessToken: "access-token",
+	}, []string{"MLB-OWNED", "MLB-OWNED", "", "MLB-FOREIGN"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Items) != 1 || result.Items[0].ExternalItemID != "MLB-OWNED" {
+		t.Fatalf("unexpected owned items: %#v", result.Items)
+	}
+	if result.Items[0].Status != "paused" {
+		t.Fatalf("status = %q", result.Items[0].Status)
 	}
 }
 

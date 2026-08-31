@@ -932,6 +932,7 @@ type MarketplaceWebhookEvent struct {
 	Status           string     `gorm:"size:30;default:'pending'" json:"status"`
 	Payload          string     `gorm:"type:text" json:"payload"`
 	Headers          string     `gorm:"type:text" json:"headers,omitempty"`
+	ErrorMessage     string     `gorm:"type:text" json:"error_message,omitempty"`
 	ReceivedAt       time.Time  `json:"received_at"`
 	ProcessedAt      *time.Time `json:"processed_at,omitempty"`
 	CreatedAt        time.Time  `json:"created_at"`

@@ -267,7 +267,7 @@ func (h *PlatformHandler) GetWebhookLogs(c *gin.Context) {
 		items = append(items, WebhookLogItem{
 			ID: event.ID, TenantID: event.TenantID, Provider: event.Provider, Source: "marketplace",
 			EventType: event.EventType, ExternalID: event.ExternalID, Status: event.Status,
-			ReceivedAt: event.ReceivedAt, ProcessedAt: event.ProcessedAt,
+			Error: event.ErrorMessage, ReceivedAt: event.ReceivedAt, ProcessedAt: event.ProcessedAt,
 		})
 	}
 

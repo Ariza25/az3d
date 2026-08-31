@@ -363,7 +363,11 @@ func (h *MarketplaceHandler) SaveMarketplaceAccount(c *gin.Context) {
 	if account.AccountName == "" {
 		account.AccountName = marketplaceLabel(provider)
 	}
-	account.SellerID = strings.TrimSpace(input.SellerID)
+	// The Mercado Livre seller is owned by the OAuth token. Once connected,
+	// never let an editable form replace that server-resolved identity.
+	if provider != mercadoLivreProvider || !account.IsConnected || strings.TrimSpace(account.SellerID) == "" {
+		account.SellerID = strings.TrimSpace(input.SellerID)
+	}
 	account.ShopID = strings.TrimSpace(input.ShopID)
 	account.Marketplace = strings.TrimSpace(input.Marketplace)
 	if account.Marketplace == "" {
@@ -644,10 +648,25 @@ func (h *MarketplaceHandler) TestMarketplaceConnection(c *gin.Context) {
 		return
 	}
 	now := time.Now()
-	if err := connector.TestConnection(c.Request.Context(), marketplaceAccountFromModel(account)); err != nil {
+	identityCorrected := false
+	var testErr error
+	if _, resolvesIdentity := connector.(marketplaces.AccountIdentityResolver); resolvesIdentity {
+		identityCorrected, testErr = h.reconcileMarketplaceAccountIdentity(c.Request.Context(), &account, connector)
+	} else {
+		testErr = connector.TestConnection(c.Request.Context(), marketplaceAccountFromModel(account))
+	}
+	if testErr == nil {
+		if tester, testsOrders := connector.(marketplaces.OrderAccessTester); testsOrders {
+			testErr = tester.TestOrderAccess(c.Request.Context(), marketplaceAccountFromModel(account))
+		}
+	}
+	if testErr != nil {
 		account.SyncStatus = "connection_error"
+		if mercadolivre.IsOrderAccessForbidden(testErr) {
+			account.SyncStatus = "orders_permission_error"
+		}
 		account.LastSyncAt = &now
-		account.LastError = marketplaceConnectorErrorMessage(err)
+		account.LastError = marketplaceOrderAccessErrorMessage(account, testErr)
 		_ = database.DB.Save(&account).Error
 		c.JSON(http.StatusBadRequest, gin.H{"error": account.LastError, "account": account})
 		return
@@ -657,7 +676,41 @@ func (h *MarketplaceHandler) TestMarketplaceConnection(c *gin.Context) {
 	account.LastError = ""
 	account.IsConnected = true
 	_ = database.DB.Save(&account).Error
-	c.JSON(http.StatusOK, gin.H{"message": "Conexao testada com sucesso.", "account": account})
+	message := "Conexao e acesso a pedidos testados com sucesso."
+	if identityCorrected {
+		message = "Conexao testada e Seller ID corrigido a partir do token OAuth; acesso a pedidos confirmado."
+	}
+	c.JSON(http.StatusOK, gin.H{"message": message, "account": account, "seller_id_corrected": identityCorrected})
+}
+
+func (h *MarketplaceHandler) reconcileMarketplaceAccountIdentity(ctx context.Context, account *models.MarketplaceAccount, connector marketplaces.Connector) (bool, error) {
+	resolver, ok := connector.(marketplaces.AccountIdentityResolver)
+	if !ok {
+		return false, nil
+	}
+	identity, err := resolver.ResolveAccountIdentity(ctx, marketplaceAccountFromModel(*account))
+	if err != nil && marketplaces.IsUnauthorized(connector, err) {
+		if refreshErr := h.refreshMarketplaceAccountToken(ctx, account, true); refreshErr != nil {
+			return false, refreshErr
+		}
+		identity, err = resolver.ResolveAccountIdentity(ctx, marketplaceAccountFromModel(*account))
+	}
+	if err != nil {
+		return false, err
+	}
+	sellerID := strings.TrimSpace(identity.SellerID)
+	if sellerID == "" {
+		return false, errors.New("O token OAuth nao informou o Seller ID")
+	}
+	changed := strings.TrimSpace(account.SellerID) != sellerID
+	account.SellerID = sellerID
+	account.IsConnected = true
+	if changed {
+		if err := database.DB.Save(account).Error; err != nil {
+			return false, err
+		}
+	}
+	return changed, nil
 }
 
 func (h *MarketplaceHandler) ensureFreshMarketplaceToken(ctx context.Context, account *models.MarketplaceAccount) error {
@@ -1138,13 +1191,14 @@ func (h *MarketplaceHandler) SyncMarketplaceProducts(c *gin.Context) {
 	}
 
 	registry := marketplaceConnectorRegistry()
-	now := time.Now()
 	results := make([]gin.H, 0, len(accounts))
 	totalCreated := 0
 	totalUpdated := 0
+	totalEventsProcessed := 0
 	for i := range accounts {
 		connector, ok := registry.Get(accounts[i].Provider)
 		if !ok {
+			now := time.Now()
 			accounts[i].SyncStatus = "connector_missing"
 			accounts[i].LastSyncAt = &now
 			accounts[i].LastError = "Conector nao implementado para este marketplace."
@@ -1168,11 +1222,8 @@ func (h *MarketplaceHandler) SyncMarketplaceProducts(c *gin.Context) {
 			})
 			continue
 		}
-
-		catalog, err := connector.FetchCatalog(c.Request.Context(), marketplaceAccountFromModel(accounts[i]))
-		if err != nil {
-			accounts[i].SyncStatus = "catalog_sync_error"
-			accounts[i].LastSyncAt = &now
+		if _, err := h.reconcileMarketplaceAccountIdentity(c.Request.Context(), &accounts[i], connector); err != nil {
+			accounts[i].SyncStatus = "identity_sync_error"
 			accounts[i].LastError = marketplaceConnectorErrorMessage(err)
 			_ = database.DB.Save(&accounts[i]).Error
 			results = append(results, gin.H{
@@ -1185,62 +1236,221 @@ func (h *MarketplaceHandler) SyncMarketplaceProducts(c *gin.Context) {
 			continue
 		}
 
-		created := 0
-		updated := 0
-		importFailed := false
-		for _, item := range catalog.Items {
-			importResult, err := importMarketplaceCatalogItem(
-				tenantID,
-				accounts[i].Provider,
-				firstTenantCategoryID(tenantID),
-				true,
-				catalogItemToModelInput(item),
-			)
-			if err != nil {
-				accounts[i].SyncStatus = "catalog_import_error"
-				accounts[i].LastSyncAt = &now
-				accounts[i].LastError = err.Error()
-				_ = database.DB.Save(&accounts[i]).Error
-				results = append(results, gin.H{
-					"provider": accounts[i].Provider,
-					"status":   accounts[i].SyncStatus,
-					"imported": created,
-					"updated":  updated,
-					"message":  err.Error(),
-				})
-				importFailed = true
-				break
-			}
-			if importResult.Action == "created" {
-				created++
-			} else {
-				updated++
-			}
-		}
-		if importFailed {
-			continue
-		}
-
-		totalCreated += created
-		totalUpdated += updated
-		accounts[i].SyncStatus = "catalog_synced"
-		accounts[i].LastSyncAt = &now
-		accounts[i].LastError = ""
-		_ = database.DB.Save(&accounts[i]).Error
+		outcome := h.syncMarketplaceCatalogAccount(c.Request.Context(), tenantID, &accounts[i], connector)
+		totalCreated += outcome.Created
+		totalUpdated += outcome.Updated
+		totalEventsProcessed += outcome.EventsProcessed
 		results = append(results, gin.H{
-			"provider": accounts[i].Provider,
-			"status":   accounts[i].SyncStatus,
-			"imported": created,
-			"updated":  updated,
-			"message":  catalog.Message,
+			"provider":         accounts[i].Provider,
+			"status":           outcome.Status,
+			"imported":         outcome.Created,
+			"updated":          outcome.Updated,
+			"events_processed": outcome.EventsProcessed,
+			"message":          outcome.Message,
 		})
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"results":  results,
-		"imported": totalCreated,
-		"updated":  totalUpdated,
+		"results":          results,
+		"imported":         totalCreated,
+		"updated":          totalUpdated,
+		"events_processed": totalEventsProcessed,
 	})
+}
+
+type marketplaceCatalogSyncOutcome struct {
+	Created         int
+	Updated         int
+	EventsProcessed int
+	Status          string
+	Message         string
+}
+
+func (h *MarketplaceHandler) syncMarketplaceCatalogAccount(ctx context.Context, tenantID uint, account *models.MarketplaceAccount, connector marketplaces.Connector) marketplaceCatalogSyncOutcome {
+	outcome := marketplaceCatalogSyncOutcome{Status: "catalog_synced"}
+	now := time.Now()
+	catalog, catalogErr := connector.FetchCatalog(ctx, marketplaceAccountFromModel(*account))
+
+	events, eventsErr := pendingMarketplaceItemEvents(tenantID, account.Provider)
+	if eventsErr != nil {
+		outcome.Status = "catalog_sync_error"
+		outcome.Message = "Erro ao carregar eventos pendentes do marketplace: " + eventsErr.Error()
+		account.SyncStatus = outcome.Status
+		account.LastSyncAt = &now
+		account.LastError = outcome.Message
+		_ = database.DB.Save(account).Error
+		return outcome
+	}
+
+	items := uniqueMarketplaceCatalogItems(catalog.Items)
+	knownItemIDs := marketplaceCatalogItemIDs(items)
+	pendingIDs := pendingMarketplaceItemIDs(events)
+	missingIDs := make([]string, 0, len(pendingIDs))
+	for _, externalID := range pendingIDs {
+		if _, found := knownItemIDs[externalID]; !found {
+			missingIDs = append(missingIDs, externalID)
+		}
+	}
+
+	var eventFetchErr error
+	if len(missingIDs) > 0 {
+		if fetcher, ok := connector.(marketplaces.CatalogItemFetcher); ok {
+			var eventCatalog marketplaces.CatalogSyncResult
+			eventCatalog, eventFetchErr = fetcher.FetchCatalogItems(ctx, marketplaceAccountFromModel(*account), missingIDs)
+			if eventFetchErr == nil {
+				items = uniqueMarketplaceCatalogItems(append(items, eventCatalog.Items...))
+				knownItemIDs = marketplaceCatalogItemIDs(items)
+			}
+		} else {
+			eventFetchErr = errors.New("conector nao permite buscar anuncios recebidos por webhook")
+		}
+	}
+
+	failures := make([]string, 0)
+	for _, externalID := range pendingIDs {
+		if _, found := knownItemIDs[externalID]; found {
+			continue
+		}
+		reason := "Anuncio nao retornado pelo marketplace ou nao pertence ao vendedor conectado"
+		if eventFetchErr != nil {
+			reason = marketplaceConnectorErrorMessage(eventFetchErr)
+		}
+		_, _ = updateMarketplaceItemEventStatus(tenantID, account.Provider, externalID, "failed", reason)
+		failures = append(failures, externalID+": "+reason)
+	}
+
+	defaultCategoryID := firstTenantCategoryID(tenantID)
+	for _, item := range items {
+		importResult, err := importMarketplaceCatalogItem(
+			tenantID,
+			account.Provider,
+			defaultCategoryID,
+			true,
+			catalogItemToModelInput(item),
+		)
+		if err != nil {
+			reason := err.Error()
+			_, _ = updateMarketplaceItemEventStatus(tenantID, account.Provider, item.ExternalItemID, "failed", reason)
+			failures = append(failures, item.ExternalItemID+": "+reason)
+			continue
+		}
+		if importResult.Action == "created" {
+			outcome.Created++
+		} else {
+			outcome.Updated++
+		}
+		processed, _ := updateMarketplaceItemEventStatus(tenantID, account.Provider, item.ExternalItemID, "processed", "")
+		outcome.EventsProcessed += int(processed)
+	}
+
+	messageParts := make([]string, 0, 4)
+	if catalogErr == nil && strings.TrimSpace(catalog.Message) != "" {
+		messageParts = append(messageParts, catalog.Message)
+	} else if catalogErr != nil {
+		messageParts = append(messageParts, "Busca geral do catalogo falhou: "+marketplaceConnectorErrorMessage(catalogErr))
+	}
+	if len(pendingIDs) > 0 {
+		messageParts = append(messageParts, fmt.Sprintf("%d anuncio(s) unico(s) identificado(s) no Outbox", len(pendingIDs)))
+	}
+	if outcome.EventsProcessed > 0 {
+		messageParts = append(messageParts, fmt.Sprintf("%d evento(s) do Outbox processado(s)", outcome.EventsProcessed))
+	}
+	if len(failures) > 0 {
+		messageParts = append(messageParts, fmt.Sprintf("%d anuncio(s) com falha; consulte o Outbox", len(failures)))
+	}
+	if len(messageParts) == 0 {
+		messageParts = append(messageParts, "Nenhum anuncio encontrado para sincronizacao")
+	}
+	outcome.Message = strings.Join(messageParts, "; ")
+
+	switch {
+	case catalogErr != nil && len(items) == 0:
+		outcome.Status = "catalog_sync_error"
+	case len(failures) > 0 || catalogErr != nil:
+		outcome.Status = "catalog_sync_warning"
+	default:
+		outcome.Status = "catalog_synced"
+	}
+	account.SyncStatus = outcome.Status
+	account.LastSyncAt = &now
+	if outcome.Status == "catalog_synced" {
+		account.LastError = ""
+	} else {
+		account.LastError = outcome.Message
+	}
+	_ = database.DB.Save(account).Error
+	return outcome
+}
+
+func pendingMarketplaceItemEvents(tenantID uint, provider string) ([]models.MarketplaceWebhookEvent, error) {
+	var events []models.MarketplaceWebhookEvent
+	err := database.DB.
+		Where("tenant_id = ? AND provider = ? AND event_type = ? AND status IN ? AND external_id <> ''", tenantID, normalizeProvider(provider), "items", []string{"pending", "failed"}).
+		Order("received_at asc").
+		Limit(500).
+		Find(&events).Error
+	return events, err
+}
+
+func pendingMarketplaceItemIDs(events []models.MarketplaceWebhookEvent) []string {
+	values := make([]string, 0, len(events))
+	for _, event := range events {
+		values = append(values, event.ExternalID)
+	}
+	result := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, found := seen[value]; found {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+	return result
+}
+
+func uniqueMarketplaceCatalogItems(items []marketplaces.CatalogItem) []marketplaces.CatalogItem {
+	result := make([]marketplaces.CatalogItem, 0, len(items))
+	indexes := make(map[string]int, len(items))
+	for _, item := range items {
+		externalID := strings.TrimSpace(item.ExternalItemID)
+		if externalID == "" {
+			continue
+		}
+		if index, found := indexes[externalID]; found {
+			result[index] = item
+			continue
+		}
+		indexes[externalID] = len(result)
+		result = append(result, item)
+	}
+	return result
+}
+
+func marketplaceCatalogItemIDs(items []marketplaces.CatalogItem) map[string]struct{} {
+	result := make(map[string]struct{}, len(items))
+	for _, item := range items {
+		if externalID := strings.TrimSpace(item.ExternalItemID); externalID != "" {
+			result[externalID] = struct{}{}
+		}
+	}
+	return result
+}
+
+func updateMarketplaceItemEventStatus(tenantID uint, provider string, externalID string, status string, errorMessage string) (int64, error) {
+	processedAt := time.Now()
+	result := database.DB.Model(&models.MarketplaceWebhookEvent{}).
+		Where("tenant_id = ? AND provider = ? AND event_type = ? AND external_id = ? AND status IN ?", tenantID, normalizeProvider(provider), "items", strings.TrimSpace(externalID), []string{"pending", "failed"}).
+		Updates(map[string]any{
+			"status":        status,
+			"error_message": strings.TrimSpace(errorMessage),
+			"processed_at":  &processedAt,
+		})
+	return result.RowsAffected, result.Error
 }
 
 func marketplaceAccountFromModel(account models.MarketplaceAccount) marketplaces.Account {
@@ -1266,6 +1476,16 @@ func marketplaceConnectorErrorMessage(err error) string {
 	default:
 		return err.Error()
 	}
+}
+
+func marketplaceOrderAccessErrorMessage(account models.MarketplaceAccount, err error) string {
+	if mercadolivre.IsOrderAccessForbidden(err) {
+		return fmt.Sprintf(
+			"Mercado Livre negou acesso aos pedidos do seller %s. O Seller ID foi conferido pelo token; refaca o OAuth usando a conta administradora proprietaria da loja e confirme que o aplicativo tem permissao de leitura.",
+			strings.TrimSpace(account.SellerID),
+		)
+	}
+	return marketplaceConnectorErrorMessage(err)
 }
 
 func catalogItemToModelInput(item marketplaces.CatalogItem) models.MarketplaceCatalogItemInput {
@@ -1392,12 +1612,29 @@ func (h *MarketplaceHandler) SyncMarketplaceOrders(c *gin.Context) {
 			})
 			continue
 		}
+		if _, err := h.reconcileMarketplaceAccountIdentity(c.Request.Context(), &accounts[i], connector); err != nil {
+			accounts[i].SyncStatus = "identity_sync_error"
+			accounts[i].LastSyncAt = &now
+			accounts[i].LastError = marketplaceConnectorErrorMessage(err)
+			_ = database.DB.Save(&accounts[i]).Error
+			results = append(results, gin.H{
+				"provider":        accounts[i].Provider,
+				"status":          accounts[i].SyncStatus,
+				"imported":        0,
+				"internal_orders": 0,
+				"message":         accounts[i].LastError,
+			})
+			continue
+		}
 
 		orderResult, err := connector.FetchOrders(c.Request.Context(), marketplaceAccountFromModel(accounts[i]), marketplaces.OrderSyncInput{Days: input.Days})
 		if err != nil {
 			accounts[i].SyncStatus = "orders_sync_error"
+			if mercadolivre.IsOrderAccessForbidden(err) {
+				accounts[i].SyncStatus = "orders_permission_error"
+			}
 			accounts[i].LastSyncAt = &now
-			accounts[i].LastError = marketplaceConnectorErrorMessage(err)
+			accounts[i].LastError = marketplaceOrderAccessErrorMessage(accounts[i], err)
 			_ = database.DB.Save(&accounts[i]).Error
 			results = append(results, gin.H{
 				"provider":        accounts[i].Provider,

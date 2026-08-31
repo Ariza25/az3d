@@ -308,7 +308,8 @@ export const MarketplaceConnectionsPanel: React.FC<MarketplaceConnectionsPanelPr
       const result = await api.syncMarketplaceOrders(provider, 7, tenantId);
       await loadData();
       const status = result.results[0]?.message || 'Sincronizacao executada.';
-      onMessage({ type: 'success', text: status });
+      const failed = result.results.some((item) => item.status.endsWith('_error'));
+      onMessage({ type: failed ? 'error' : 'success', text: status });
     } catch (error: any) {
       onMessage({ type: 'error', text: error.message || 'Erro ao sincronizar pedidos' });
     } finally {
@@ -322,8 +323,10 @@ export const MarketplaceConnectionsPanel: React.FC<MarketplaceConnectionsPanelPr
     try {
       const result = await api.syncMarketplaceProducts(provider, tenantId);
       await loadData();
+      onProductsImported?.();
       const status = result.results[0]?.message || 'Sincronizacao de catalogo executada.';
-      onMessage({ type: 'success', text: status });
+      const failed = result.results.some((item) => item.status.endsWith('_error'));
+      onMessage({ type: failed ? 'error' : 'success', text: status });
     } catch (error: any) {
       onMessage({ type: 'error', text: error.message || 'Erro ao sincronizar catalogo' });
     } finally {
@@ -522,7 +525,9 @@ export const MarketplaceConnectionsPanel: React.FC<MarketplaceConnectionsPanelPr
                     value={account.seller_id || ''}
                     onChange={(event) => updateAccount(provider.id, 'seller_id', event.target.value)}
                     placeholder="Seller ID"
-                    className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white focus:outline-none focus:border-laser-400"
+                    readOnly={provider.id === 'mercadolivre' && Boolean(account.is_connected)}
+                    title={provider.id === 'mercadolivre' && account.is_connected ? 'Seller ID definido pelo token OAuth' : undefined}
+                    className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white focus:outline-none focus:border-laser-400 read-only:cursor-not-allowed read-only:text-slate-500"
                   />
                   <input
                     value={account.shop_id || ''}
@@ -577,7 +582,7 @@ export const MarketplaceConnectionsPanel: React.FC<MarketplaceConnectionsPanelPr
                   className="flex items-center justify-center gap-1 rounded-xl border border-chumbo-700 bg-chumbo-950 px-3 py-2 text-[10px] font-bold text-slate-200 hover:bg-chumbo-800 disabled:opacity-60"
                 >
                   <PackagePlus className={`h-3.5 w-3.5 ${syncingCatalogProvider === provider.id ? 'animate-pulse' : ''}`} />
-                  Catalogo
+                  Importar catalogo
                 </button>
                 <button
                   type="button"
@@ -586,7 +591,7 @@ export const MarketplaceConnectionsPanel: React.FC<MarketplaceConnectionsPanelPr
                   className="flex items-center justify-center gap-1 rounded-xl bg-white px-3 py-2 text-[10px] font-bold text-chumbo-950 hover:bg-slate-200 disabled:opacity-60"
                 >
                   <RefreshCw className={`h-3.5 w-3.5 ${syncingProvider === provider.id ? 'animate-spin' : ''}`} />
-                  Sync
+                  Pedidos
                 </button>
                 <button
                   type="button"

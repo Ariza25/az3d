@@ -43,6 +43,11 @@ func IsUnauthorized(err error) bool {
 	return errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusUnauthorized
 }
 
+func IsOrderAccessForbidden(err error) bool {
+	var apiErr *APIError
+	return errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusForbidden && apiErr.Operation == "/orders/search"
+}
+
 func (c *Connector) IsUnauthorized(err error) bool {
 	return IsUnauthorized(err)
 }
@@ -90,8 +95,13 @@ func oauthCredentials(account mp.Account) (string, string) {
 }
 
 func (c *Connector) TestConnection(ctx context.Context, account mp.Account) error {
+	_, err := c.ResolveAccountIdentity(ctx, account)
+	return err
+}
+
+func (c *Connector) ResolveAccountIdentity(ctx context.Context, account mp.Account) (mp.AccountIdentity, error) {
 	if strings.TrimSpace(account.AccessToken) == "" {
-		return mp.ErrMissingCredentials
+		return mp.AccountIdentity{}, mp.ErrMissingCredentials
 	}
 	baseURL := strings.TrimRight(os.Getenv("MELI_API_BASE_URL"), "/")
 	if baseURL == "" {
@@ -100,7 +110,31 @@ func (c *Connector) TestConnection(ctx context.Context, account mp.Account) erro
 	var response struct {
 		ID int64 `json:"id"`
 	}
-	return c.getJSON(ctx, baseURL+"/users/me", account.AccessToken, &response)
+	if err := c.getJSON(ctx, baseURL+"/users/me", account.AccessToken, &response); err != nil {
+		return mp.AccountIdentity{}, err
+	}
+	if response.ID <= 0 {
+		return mp.AccountIdentity{}, errors.New("mercado livre /users/me nao retornou o seller do token")
+	}
+	return mp.AccountIdentity{SellerID: strconv.FormatInt(response.ID, 10)}, nil
+}
+
+func (c *Connector) TestOrderAccess(ctx context.Context, account mp.Account) error {
+	if strings.TrimSpace(account.AccessToken) == "" || strings.TrimSpace(account.SellerID) == "" {
+		return mp.ErrMissingCredentials
+	}
+	baseURL := strings.TrimRight(os.Getenv("MELI_API_BASE_URL"), "/")
+	if baseURL == "" {
+		baseURL = "https://api.mercadolibre.com"
+	}
+	endpoint, _ := url.Parse(baseURL + "/orders/search")
+	query := endpoint.Query()
+	query.Set("seller", strings.TrimSpace(account.SellerID))
+	query.Set("limit", "1")
+	query.Set("offset", "0")
+	endpoint.RawQuery = query.Encode()
+	var response mercadoOrdersSearchResponse
+	return c.getJSON(ctx, endpoint.String(), account.AccessToken, &response)
 }
 
 func (c *Connector) postToken(ctx context.Context, form url.Values) (mp.TokenResult, error) {
@@ -159,6 +193,54 @@ func (c *Connector) FetchCatalog(ctx context.Context, account mp.Account) (mp.Ca
 		Items:    items,
 		Message:  fmt.Sprintf("%d anuncio(s) encontrados no Mercado Livre", len(items)),
 	}, nil
+}
+
+func (c *Connector) FetchCatalogItems(ctx context.Context, account mp.Account, externalItemIDs []string) (mp.CatalogSyncResult, error) {
+	if strings.TrimSpace(account.AccessToken) == "" || strings.TrimSpace(account.SellerID) == "" {
+		return mp.CatalogSyncResult{Provider: c.Provider()}, mp.ErrMissingCredentials
+	}
+
+	baseURL := strings.TrimRight(os.Getenv("MELI_API_BASE_URL"), "/")
+	if baseURL == "" {
+		baseURL = "https://api.mercadolibre.com"
+	}
+
+	itemIDs := uniqueItemIDs(externalItemIDs)
+	items, err := c.fetchItems(ctx, baseURL, account.AccessToken, itemIDs)
+	if err != nil {
+		return mp.CatalogSyncResult{Provider: c.Provider()}, err
+	}
+
+	owned := make([]mp.CatalogItem, 0, len(items))
+	for _, item := range items {
+		sellerID, _ := item.Raw["seller_id"].(string)
+		if strings.TrimSpace(sellerID) == strings.TrimSpace(account.SellerID) {
+			owned = append(owned, item)
+		}
+	}
+
+	return mp.CatalogSyncResult{
+		Provider: c.Provider(),
+		Items:    owned,
+		Message:  fmt.Sprintf("%d anuncio(s) encontrado(s) por notificacao no Mercado Livre", len(owned)),
+	}, nil
+}
+
+func uniqueItemIDs(values []string) []string {
+	result := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, exists := seen[value]; exists {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+	return result
 }
 
 func (c *Connector) FetchOrders(ctx context.Context, account mp.Account, input mp.OrderSyncInput) (mp.OrderSyncResult, error) {
@@ -377,7 +459,7 @@ func (c *Connector) fetchItems(ctx context.Context, baseURL string, token string
 		endpoint, _ := url.Parse(baseURL + "/items")
 		query := endpoint.Query()
 		query.Set("ids", strings.Join(itemIDs[start:end], ","))
-		query.Set("attributes", "id,title,price,available_quantity,thumbnail,pictures,permalink,seller_custom_field,attributes,status")
+		query.Set("attributes", "id,seller_id,title,price,available_quantity,thumbnail,pictures,permalink,seller_custom_field,attributes,status")
 		endpoint.RawQuery = query.Encode()
 
 		var response []struct {
@@ -432,6 +514,7 @@ func (c *Connector) getJSONWithHeaders(ctx context.Context, endpoint string, tok
 
 type mercadoItem struct {
 	ID                string             `json:"id"`
+	SellerID          int64              `json:"seller_id"`
 	Title             string             `json:"title"`
 	Price             float64            `json:"price"`
 	AvailableQuantity int                `json:"available_quantity"`
@@ -619,6 +702,7 @@ func normalizeItem(item mercadoItem) mp.CatalogItem {
 		ColorStocks:    []mp.CatalogColorStock{{ColorName: "Padrao", StockQty: maxInt(item.AvailableQuantity, 0)}},
 		Raw: map[string]any{
 			"available_quantity": strconv.Itoa(item.AvailableQuantity),
+			"seller_id":          strconv.FormatInt(item.SellerID, 10),
 		},
 	}
 }

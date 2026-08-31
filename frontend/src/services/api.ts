@@ -923,7 +923,7 @@ export const api = {
     return body;
   },
 
-  syncMarketplaceProducts: async (provider?: string, tenantId?: number): Promise<{ imported: number; updated: number; results: Array<{ provider: string; status: string; imported: number; updated: number; message: string }> }> => {
+  syncMarketplaceProducts: async (provider?: string, tenantId?: number): Promise<{ imported: number; updated: number; events_processed: number; results: Array<{ provider: string; status: string; imported: number; updated: number; events_processed: number; message: string }> }> => {
     const res = await fetch(`${API_BASE_URL}/admin/marketplaces/sync-products`, {
       method: 'POST',
       headers: getAdminHeaders(tenantId),

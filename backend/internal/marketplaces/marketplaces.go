@@ -142,6 +142,30 @@ type Connector interface {
 	FetchOrders(ctx context.Context, account Account, input OrderSyncInput) (OrderSyncResult, error)
 }
 
+// CatalogItemFetcher is an optional capability for connectors that can fetch
+// specific listings by their marketplace IDs. Webhook processors use it to
+// consume item notifications even when the marketplace catalog search omits
+// paused or closed listings.
+type CatalogItemFetcher interface {
+	FetchCatalogItems(ctx context.Context, account Account, externalItemIDs []string) (CatalogSyncResult, error)
+}
+
+type AccountIdentity struct {
+	SellerID string
+}
+
+// AccountIdentityResolver lets a connector derive the seller identity from the
+// access token instead of trusting an editable seller ID from the client.
+type AccountIdentityResolver interface {
+	ResolveAccountIdentity(ctx context.Context, account Account) (AccountIdentity, error)
+}
+
+// OrderAccessTester verifies access to the private orders resource without
+// importing or mutating any order.
+type OrderAccessTester interface {
+	TestOrderAccess(ctx context.Context, account Account) error
+}
+
 // UnauthorizedClassifier is optional. Connectors that implement it allow
 // callers to refresh an expired grant and retry without depending on a
 // marketplace-specific error type.
