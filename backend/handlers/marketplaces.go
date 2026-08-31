@@ -883,17 +883,7 @@ func importMarketplaceCatalogItem(tenantID uint, provider string, defaultCategor
 		imageURL = "https://images.unsplash.com/photo-1563089145-599997674d42?q=80&w=800&auto=format&fit=crop"
 	}
 
-	marketplaceStatus := strings.ToLower(strings.TrimSpace(item.Status))
-	if marketplaceStatus == "" {
-		marketplaceStatus = "active"
-	}
-	if marketplaceStatus != "active" && marketplaceStatus != "draft" && marketplaceStatus != "paused" {
-		marketplaceStatus = "paused"
-	}
-	status := marketplaceStatus
-	if !productFound && marketplaceStatus == "active" {
-		status = settings.NewImportedProductStatus
-	}
+	status := marketplaceImportedProductStatus(productFound, item.Status, settings.NewImportedProductStatus)
 	inStock := item.StockQty > 0
 
 	if !productFound {
@@ -1010,6 +1000,21 @@ func importMarketplaceCatalogItem(tenantID uint, provider string, defaultCategor
 	withProductRelations(database.DB).First(&product, product.ID)
 	database.DB.Preload("Product").First(&mapping, mapping.ID)
 	return models.MarketplaceProductImportResult{Action: action, Product: product, Mapping: mapping}, nil
+}
+
+func marketplaceImportedProductStatus(productFound bool, marketplaceStatus string, newImportedProductStatus string) string {
+	if !productFound {
+		return normalizeImportedProductStatus(newImportedProductStatus)
+	}
+
+	status := strings.ToLower(strings.TrimSpace(marketplaceStatus))
+	if status == "" {
+		return "active"
+	}
+	if status != "active" && status != "draft" && status != "paused" {
+		return "paused"
+	}
+	return status
 }
 
 func firstTenantCategoryID(tenantID uint) uint {

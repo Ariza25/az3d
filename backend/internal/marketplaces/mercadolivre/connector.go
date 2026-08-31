@@ -21,6 +21,7 @@ type Connector struct {
 }
 
 const (
+	catalogPageSize            = 50
 	orderPageSize              = 50
 	financialEnrichmentWorkers = 5
 )
@@ -322,19 +323,47 @@ func isOptionalFinancialDetailUnavailable(err error) bool {
 }
 
 func (c *Connector) fetchItemIDs(ctx context.Context, baseURL string, account mp.Account) ([]string, error) {
-	endpoint, _ := url.Parse(baseURL + "/users/" + url.PathEscape(account.SellerID) + "/items/search")
-	query := endpoint.Query()
-	query.Set("status", "active")
-	query.Set("limit", "50")
-	endpoint.RawQuery = query.Encode()
+	itemIDs := make([]string, 0, catalogPageSize)
+	seen := make(map[string]struct{})
+	for offset := 0; ; {
+		endpoint, _ := url.Parse(baseURL + "/users/" + url.PathEscape(account.SellerID) + "/items/search")
+		query := endpoint.Query()
+		query.Set("limit", strconv.Itoa(catalogPageSize))
+		query.Set("offset", strconv.Itoa(offset))
+		endpoint.RawQuery = query.Encode()
 
-	var response struct {
-		Results []string `json:"results"`
+		var response struct {
+			Paging struct {
+				Total int `json:"total"`
+			} `json:"paging"`
+			Results []string `json:"results"`
+		}
+		if err := c.getJSON(ctx, endpoint.String(), account.AccessToken, &response); err != nil {
+			return nil, err
+		}
+
+		for _, itemID := range response.Results {
+			itemID = strings.TrimSpace(itemID)
+			if itemID == "" {
+				continue
+			}
+			if _, exists := seen[itemID]; exists {
+				continue
+			}
+			seen[itemID] = struct{}{}
+			itemIDs = append(itemIDs, itemID)
+		}
+
+		pageCount := len(response.Results)
+		offset += pageCount
+		if pageCount == 0 || (response.Paging.Total > 0 && offset >= response.Paging.Total) {
+			break
+		}
+		if response.Paging.Total == 0 && pageCount < catalogPageSize {
+			break
+		}
 	}
-	if err := c.getJSON(ctx, endpoint.String(), account.AccessToken, &response); err != nil {
-		return nil, err
-	}
-	return response.Results, nil
+	return itemIDs, nil
 }
 
 func (c *Connector) fetchItems(ctx context.Context, baseURL string, token string, itemIDs []string) ([]mp.CatalogItem, error) {

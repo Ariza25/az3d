@@ -67,6 +67,78 @@ func TestUnauthorizedResponseIsTypedAndDoesNotExposeCredentials(t *testing.T) {
 	}
 }
 
+func TestFetchCatalogIncludesInactiveItemsAndPaginates(t *testing.T) {
+	var mu sync.Mutex
+	offsets := []int{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/users/12345/items/search":
+			if status := r.URL.Query().Get("status"); status != "" {
+				t.Errorf("status filter = %q, want empty to include inactive items", status)
+			}
+			if limit := r.URL.Query().Get("limit"); limit != strconv.Itoa(catalogPageSize) {
+				t.Errorf("limit = %q", limit)
+			}
+			offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+			mu.Lock()
+			offsets = append(offsets, offset)
+			mu.Unlock()
+			results := []string{"MLB-PAUSED", "MLB-ACTIVE"}
+			if offset > 0 {
+				results = []string{"MLB-CLOSED"}
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"paging":  map[string]any{"total": 3, "offset": offset, "limit": catalogPageSize},
+				"results": results,
+			})
+		case "/items":
+			ids := strings.Split(r.URL.Query().Get("ids"), ",")
+			statuses := map[string]string{
+				"MLB-PAUSED": "paused",
+				"MLB-ACTIVE": "active",
+				"MLB-CLOSED": "closed",
+			}
+			response := make([]map[string]any, 0, len(ids))
+			for _, id := range ids {
+				response = append(response, map[string]any{
+					"code": http.StatusOK,
+					"body": map[string]any{
+						"id": id, "title": id, "price": 10,
+						"available_quantity": 0, "status": statuses[id],
+					},
+				})
+			}
+			_ = json.NewEncoder(w).Encode(response)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	t.Setenv("MELI_API_BASE_URL", server.URL)
+
+	result, err := New().FetchCatalog(context.Background(), mp.Account{
+		SellerID: "12345", AccessToken: "access-token",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Items) != 3 {
+		t.Fatalf("items = %d, want 3: %#v", len(result.Items), result.Items)
+	}
+	mu.Lock()
+	gotOffsets := append([]int(nil), offsets...)
+	mu.Unlock()
+	if fmt.Sprint(gotOffsets) != "[0 2]" {
+		t.Fatalf("offsets = %v, want [0 2]", gotOffsets)
+	}
+	if result.Items[0].Status != "paused" || result.Items[1].Status != "active" || result.Items[2].Status != "paused" {
+		t.Fatalf("unexpected normalized statuses: %#v", result.Items)
+	}
+	if result.Message != "3 anuncio(s) encontrados no Mercado Livre" {
+		t.Fatalf("message = %q", result.Message)
+	}
+}
+
 func TestFetchOrdersPaginatesAndUsesAuthoritativeFinancialFields(t *testing.T) {
 	var mu sync.Mutex
 	offsets := []int{}
