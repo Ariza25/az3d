@@ -37,7 +37,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   showAccountTypeSwitch = false,
   initialAccountType = googleScope === 'admin' ? 'seller' : 'customer',
 }) => {
-  const { login } = useAuth();
+  const { login, scope } = useAuth();
   const [accountType, setAccountType] = useState<'customer' | 'seller'>(initialAccountType);
   const [email, setEmail] = useState(defaultEmail);
   const [password, setPassword] = useState(defaultPassword);
@@ -71,6 +71,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
     try {
       if (accountType === 'seller') {
+        if (scope === 'admin') {
+          await login(email, password);
+          onClose();
+          return;
+        }
+
         const response = await api.adminLogin(email, password);
         localStorage.setItem(ADMIN_TOKEN_KEY, response.token);
         localStorage.setItem('az3d_tenant_id', String(response.user.tenant_id || tenantId || 1));

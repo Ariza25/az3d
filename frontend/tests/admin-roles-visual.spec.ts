@@ -143,6 +143,54 @@ test('master recebe somente o plano de controle da plataforma', async ({ page },
   expect(requests.some((path) => /^\/api\/admin\/(products|orders|marketplaces|tenant|stock)/.test(path))).toBe(false);
 });
 
+test('login master na rota admin abre o plano de controle sem recarregar', async ({ page }) => {
+  await page.route('http://localhost:8080/api/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    let body: unknown = {};
+
+    if (path === '/api/auth/admin/login') {
+      body = {
+        token: 'token-master-login',
+        user: {
+          id: 1,
+          tenant_id: 1,
+          name: 'Controlador AZ3D',
+          email: 'master@az3d.local',
+          role: 'master_admin',
+          created_at: '2026-01-01T10:00:00Z',
+        },
+      };
+    } else if (path === '/api/auth/me') {
+      body = {
+        id: 1,
+        tenant_id: 1,
+        name: 'Controlador AZ3D',
+        email: 'master@az3d.local',
+        role: 'master_admin',
+        created_at: '2026-01-01T10:00:00Z',
+      };
+    } else if (path === '/api/admin/platform/overview') body = platformOverview;
+    else if (path === '/api/admin/platform/environment') body = platformEnvironment;
+    else if (path === '/api/admin/platform/observability') body = observability;
+    else if (path === '/api/admin/platform/outbox') body = outbox;
+    else if (path === '/api/admin/platform/payments/mercadopago') {
+      body = { client_id: '', redirect_uri: '', client_secret_configured: false, webhook_secret_configured: false };
+    }
+
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+  });
+
+  await page.goto('/admin');
+  await page.getByRole('button', { name: 'Entrar no console' }).click();
+  await page.getByPlaceholder('seu.email@exemplo.com ou admin').fill('master@az3d.local');
+  await page.getByPlaceholder('********').fill('senha-segura-de-teste');
+  await page.getByRole('button', { name: 'Entrar no Admin', exact: true }).click();
+
+  await expect(page.getByRole('heading', { name: 'Plataforma', exact: true })).toBeVisible();
+  await expect(page.getByText('Control plane', { exact: true })).toBeVisible();
+  await expect(page.getByText('master_admin', { exact: true })).toHaveCount(1);
+});
+
 test('tenant admin recebe somente a gestão da própria loja', async ({ page }, testInfo) => {
   const requests: string[] = [];
   page.on('request', (request) => requests.push(new URL(request.url()).pathname));
