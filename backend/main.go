@@ -177,6 +177,7 @@ func main() {
 		platform.Use(middleware.AuthMiddleware(cfg.JWTSecret), middleware.MasterAdminMiddleware())
 		{
 			platform.GET("/overview", platformHandler.GetPlatformOverview)
+			platform.DELETE("/tenants/:tenant_id", platformHandler.DeleteTenant)
 			platform.GET("/environment", platformHandler.GetPlatformEnvironment)
 			platform.GET("/observability", platformHandler.GetObservabilityHealth)
 			platform.GET("/outbox", platformHandler.GetWebhookLogs)

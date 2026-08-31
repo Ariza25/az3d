@@ -18,6 +18,43 @@ import (
 
 var DB *gorm.DB
 
+var tenantScopedTables = []string{
+	"tenant_settings",
+	"tenant_store_settings",
+	"tenant_pricing_settings",
+	"tenant_fulfillment_settings",
+	"tenant_marketplace_settings",
+	"material_presets",
+	"printer_presets",
+	"platform_fee_presets",
+	"users",
+	"categories",
+	"products",
+	"product_color_images",
+	"product_variants",
+	"product_color_stocks",
+	"stock_movements",
+	"tenant_carrier_accounts",
+	"order_shipments",
+	"shipment_events",
+	"product_reviews",
+	"product_favorites",
+	"product_pricing_snapshots",
+	"product_actual_costs",
+	"tenant_fixed_costs",
+	"orders",
+	"marketplace_integrations",
+	"marketplace_product_mappings",
+	"marketplace_accounts",
+	"external_marketplace_orders",
+	"external_marketplace_order_items",
+	"marketplace_webhook_events",
+	"payment_webhook_events",
+	"tenant_payment_accounts",
+	"payment_o_auth_sessions",
+	"marketplace_o_auth_sessions",
+}
+
 // OpenExistingDB opens the platform database without migrations or bootstrap.
 // It is intended for auxiliary processes such as the tenant-scoped MCP server.
 func OpenExistingDB(cfg *config.Config) (*gorm.DB, error) {
@@ -91,7 +128,9 @@ func InitDB(cfg *config.Config) *gorm.DB {
 
 	// Limpeza preventiva: zeramos tenant_id de linhas órfãs antes de criar FK constraints
 	// (evita erro SQLSTATE 23503 ao reiniciar após mudança de schema)
-	cleanupOrphanedRows(db)
+	if err := cleanupOrphanedRows(db); err != nil {
+		log.Fatalf("Erro ao remover registros orfaos antes da migracao: %v", err)
+	}
 	db.Exec("DROP INDEX IF EXISTS idx_marketplace_account_provider")
 	db.Exec("DROP INDEX IF EXISTS idx_external_order")
 
@@ -141,6 +180,10 @@ func InitDB(cfg *config.Config) *gorm.DB {
 		log.Fatalf("Erro na migração do banco de dados: %v", err)
 	}
 
+	if err := ensureTenantCascadeConstraints(db); err != nil {
+		log.Fatalf("Erro ao configurar exclusao em cascata por tenant: %v", err)
+	}
+
 	DB = db
 
 	// Seed de Dados Iniciais
@@ -149,25 +192,77 @@ func InitDB(cfg *config.Config) *gorm.DB {
 	return DB
 }
 
-// cleanupOrphanedRows limpa linhas com tenant_id inválido (0 ou NULL) antes de AutoMigrate
-// para evitar erro de violação de FK constraint ao reiniciar o servidor após mudanças de schema.
-func cleanupOrphanedRows(db *gorm.DB) {
-	tables := []string{"tenant_settings", "tenant_store_settings", "tenant_pricing_settings", "tenant_fulfillment_settings", "material_presets", "printer_presets", "platform_fee_presets", "users", "categories", "products", "product_color_images", "product_variants", "product_color_stocks", "stock_movements", "tenant_carrier_accounts", "order_shipments", "shipment_events", "product_reviews", "product_favorites", "product_pricing_snapshots", "product_actual_costs", "tenant_fixed_costs", "orders", "marketplace_integrations", "marketplace_product_mappings", "marketplace_accounts", "external_marketplace_orders", "external_marketplace_order_items", "marketplace_webhook_events", "payment_webhook_events", "tenant_payment_accounts", "payment_oauth_sessions"}
-	for _, table := range tables {
-		// Verifica se a coluna tenant_id existe antes de tentar limpar
-		var colExists int64
-		db.Raw(
-			"SELECT COUNT(*) FROM information_schema.columns WHERE table_name = ? AND column_name = 'tenant_id'",
-			table,
-		).Scan(&colExists)
+// cleanupOrphanedRows removes rows whose tenant no longer exists before the
+// database starts enforcing tenant foreign keys.
+func cleanupOrphanedRows(db *gorm.DB) error {
+	var tenantsTableExists bool
+	if err := db.Raw(
+		"SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = 'tenants')",
+	).Scan(&tenantsTableExists).Error; err != nil {
+		return err
+	}
+	if !tenantsTableExists {
+		return nil
+	}
 
-		if colExists > 0 {
-			result := db.Exec(fmt.Sprintf("UPDATE %s SET tenant_id = NULL WHERE tenant_id = 0", table))
-			if result.RowsAffected > 0 {
-				log.Printf("[cleanup] Corrigidos %d registros com tenant_id=0 na tabela '%s'", result.RowsAffected, table)
-			}
+	for _, table := range tenantScopedTables {
+		var colExists int64
+		if err := db.Raw(
+			"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = ? AND column_name = 'tenant_id'",
+			table,
+		).Scan(&colExists).Error; err != nil {
+			return err
+		}
+		if colExists == 0 {
+			continue
+		}
+
+		result := db.Exec(fmt.Sprintf(
+			`DELETE FROM "%s" AS scoped WHERE scoped.tenant_id IS NULL OR NOT EXISTS (SELECT 1 FROM "tenants" AS tenant WHERE tenant.id = scoped.tenant_id)`,
+			table,
+		))
+		if result.Error != nil {
+			return fmt.Errorf("limpar tabela %s: %w", table, result.Error)
+		}
+		if result.RowsAffected > 0 {
+			log.Printf("[cleanup] Removidos %d registros orfaos da tabela '%s'", result.RowsAffected, table)
 		}
 	}
+	return nil
+}
+
+func ensureTenantCascadeConstraints(db *gorm.DB) error {
+	return db.Transaction(func(tx *gorm.DB) error {
+		for _, table := range tenantScopedTables {
+			constraint := "fk_" + table + "_tenant_cascade"
+			if err := tx.Exec(fmt.Sprintf(
+				`ALTER TABLE "%s" DROP CONSTRAINT IF EXISTS "%s"`,
+				table,
+				constraint,
+			)).Error; err != nil {
+				return fmt.Errorf("remover constraint %s: %w", constraint, err)
+			}
+			if err := tx.Exec(fmt.Sprintf(
+				`ALTER TABLE "%s" ADD CONSTRAINT "%s" FOREIGN KEY ("tenant_id") REFERENCES "tenants"("id") ON UPDATE CASCADE ON DELETE CASCADE`,
+				table,
+				constraint,
+			)).Error; err != nil {
+				return fmt.Errorf("criar constraint %s: %w", constraint, err)
+			}
+		}
+
+		if err := tx.Exec(`DELETE FROM "order_items" AS item WHERE NOT EXISTS (SELECT 1 FROM "orders" AS parent_order WHERE parent_order.id = item.order_id)`).Error; err != nil {
+			return fmt.Errorf("limpar itens de pedido orfaos: %w", err)
+		}
+		const orderItemsConstraint = "fk_order_items_order_cascade"
+		if err := tx.Exec(`ALTER TABLE "order_items" DROP CONSTRAINT IF EXISTS "` + orderItemsConstraint + `"`).Error; err != nil {
+			return fmt.Errorf("remover constraint %s: %w", orderItemsConstraint, err)
+		}
+		if err := tx.Exec(`ALTER TABLE "order_items" ADD CONSTRAINT "` + orderItemsConstraint + `" FOREIGN KEY ("order_id") REFERENCES "orders"("id") ON UPDATE CASCADE ON DELETE CASCADE`).Error; err != nil {
+			return fmt.Errorf("criar constraint %s: %w", orderItemsConstraint, err)
+		}
+		return nil
+	})
 }
 
 func bootstrapData(db *gorm.DB, cfg *config.Config) {
