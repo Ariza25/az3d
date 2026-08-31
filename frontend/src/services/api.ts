@@ -81,6 +81,32 @@ const getHeaders = (tenantId?: number, tokenKey: string = CUSTOMER_TOKEN_KEY) =>
 
 const getAdminHeaders = (tenantId?: number) => getHeaders(tenantId, ADMIN_TOKEN_KEY);
 
+const readJsonResponse = async <T>(response: Response, fallbackMessage: string): Promise<T> => {
+  const rawBody = await response.text();
+  let body: unknown = null;
+
+  if (rawBody.trim()) {
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      const statusSuffix = response.status ? ` (HTTP ${response.status})` : '';
+      if (!response.ok) throw new Error(`${fallbackMessage}${statusSuffix}`);
+      throw new Error(`${fallbackMessage}: resposta inválida do servidor${statusSuffix}`);
+    }
+  }
+
+  if (!response.ok) {
+    const apiMessage = body && typeof body === 'object' && 'error' in body
+      ? String((body as { error?: unknown }).error || '')
+      : '';
+    const statusSuffix = response.status ? ` (HTTP ${response.status})` : '';
+    throw new Error(apiMessage || `${fallbackMessage}${statusSuffix}`);
+  }
+
+  if (body === null) throw new Error(`${fallbackMessage}: resposta vazia do servidor`);
+  return body as T;
+};
+
 const getUploadHeaders = (tenantId?: number) => {
   const token = localStorage.getItem(ADMIN_TOKEN_KEY);
   const storedTenant = tenantId || localStorage.getItem('az3d_tenant_id') || '1';
@@ -576,38 +602,40 @@ export const api = {
     const res = await fetch(`${API_BASE_URL}/admin/platform/overview`, {
       headers: getAdminHeaders(),
     });
-    const body = await res.json();
-    if (!res.ok) throw new Error(body.error || 'Erro ao carregar visao de plataforma');
-    return body;
+    return readJsonResponse<PlatformOverview>(res, 'Erro ao carregar visao de plataforma');
   },
 
   getObservabilityHealth: async (): Promise<ObservabilityHealth> => {
-    const res = await fetch(`${API_BASE_URL}/admin/platform/observability`, {
+    let res = await fetch(`${API_BASE_URL}/admin/platform/observability`, {
       headers: getAdminHeaders(),
     });
-    const body = await res.json();
-    if (!res.ok) throw new Error(body.error || 'Erro ao carregar saude operacional');
-    return body;
+    if (res.status === 404) {
+      res = await fetch(`${API_BASE_URL}/admin/observability/health`, {
+        headers: getAdminHeaders(),
+      });
+    }
+    return readJsonResponse<ObservabilityHealth>(res, 'Erro ao carregar saude operacional');
   },
 
   getWebhookLogs: async (limit = 100): Promise<WebhookLogItem[]> => {
     const params = new URLSearchParams();
     params.append('limit', String(limit));
-    const res = await fetch(`${API_BASE_URL}/admin/platform/outbox?${params.toString()}`, {
+    let res = await fetch(`${API_BASE_URL}/admin/platform/outbox?${params.toString()}`, {
       headers: getAdminHeaders(),
     });
-    const body = await res.json();
-    if (!res.ok) throw new Error(body.error || 'Erro ao carregar webhooks');
-    return body;
+    if (res.status === 404) {
+      res = await fetch(`${API_BASE_URL}/admin/observability/webhooks?${params.toString()}`, {
+        headers: getAdminHeaders(),
+      });
+    }
+    return readJsonResponse<WebhookLogItem[]>(res, 'Erro ao carregar webhooks');
   },
 
   getPlatformEnvironment: async (): Promise<PlatformEnvironment> => {
     const res = await fetch(`${API_BASE_URL}/admin/platform/environment`, {
       headers: getAdminHeaders(),
     });
-    const body = await res.json();
-    if (!res.ok) throw new Error(body.error || 'Erro ao carregar ambiente da plataforma');
-    return body;
+    return readJsonResponse<PlatformEnvironment>(res, 'Erro ao carregar ambiente da plataforma');
   },
 
   getAdminTenantSettings: async (tenantId?: number): Promise<TenantSettings> => {

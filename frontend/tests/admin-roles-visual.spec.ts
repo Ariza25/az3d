@@ -191,6 +191,51 @@ test('login master na rota admin abre o plano de controle sem recarregar', async
   await expect(page.getByText('master_admin', { exact: true })).toHaveCount(1);
 });
 
+test('master preserva a visao geral quando modulos opcionais retornam 404 sem JSON', async ({ page }) => {
+  const requests: string[] = [];
+  page.on('request', (request) => requests.push(new URL(request.url()).pathname));
+  await page.addInitScript(() => localStorage.setItem('az3d_admin_token', 'token-master-partial'));
+  await page.route('http://localhost:8080/api/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+
+    if (path === '/api/auth/me') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ id: 1, tenant_id: 1, name: 'Controlador AZ3D', email: 'master@az3d.local', role: 'master_admin' }),
+      });
+      return;
+    }
+    if (path === '/api/admin/platform/overview') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(platformOverview) });
+      return;
+    }
+    if (path === '/api/admin/platform/environment' || path === '/api/admin/platform/observability' || path === '/api/admin/platform/outbox') {
+      await route.fulfill({ status: 404, contentType: 'text/plain', body: '404 page not found' });
+      return;
+    }
+    if (path === '/api/admin/observability/health') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(observability) });
+      return;
+    }
+    if (path === '/api/admin/observability/webhooks') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(outbox) });
+      return;
+    }
+
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+  });
+
+  await page.goto('/admin');
+
+  await expect(page.getByRole('heading', { name: 'Visão da plataforma' })).toBeVisible();
+  await expect(page.getByText('AZ3D Studio', { exact: true })).toBeVisible();
+  await expect(page.getByRole('alert')).toContainText('HTTP 404');
+  await expect(page.getByRole('alert')).not.toContainText('Unexpected non-whitespace character after JSON');
+  expect(requests).toContain('/api/admin/observability/health');
+  expect(requests).toContain('/api/admin/observability/webhooks');
+});
+
 test('tenant admin recebe somente a gestão da própria loja', async ({ page }, testInfo) => {
   const requests: string[] = [];
   page.on('request', (request) => requests.push(new URL(request.url()).pathname));

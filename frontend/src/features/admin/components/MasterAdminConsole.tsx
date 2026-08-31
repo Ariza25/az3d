@@ -35,16 +35,24 @@ export const MasterAdminConsole: React.FC<MasterAdminConsoleProps> = ({ onClose 
     setIsLoading(true);
     setError(null);
     try {
-      const [platformOverview, platformEnvironment, observability, events] = await Promise.all([
+      const [overviewResult, environmentResult, observabilityResult, outboxResult] = await Promise.allSettled([
         api.getPlatformOverview(),
         api.getPlatformEnvironment(),
         api.getObservabilityHealth(),
         api.getWebhookLogs(150),
       ]);
-      setOverview(platformOverview);
-      setEnvironment(platformEnvironment);
-      setHealth(observability);
-      setOutbox(events);
+
+      if (overviewResult.status === 'fulfilled') setOverview(overviewResult.value);
+      if (environmentResult.status === 'fulfilled') setEnvironment(environmentResult.value);
+      if (observabilityResult.status === 'fulfilled') setHealth(observabilityResult.value);
+      if (outboxResult.status === 'fulfilled') setOutbox(outboxResult.value);
+
+      const failures = [overviewResult, environmentResult, observabilityResult, outboxResult]
+        .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+        .map((result) => result.reason instanceof Error ? result.reason.message : 'Falha ao carregar um modulo do plano de controle.');
+      if (failures.length > 0) {
+        setError(`Alguns dados do plano de controle estão indisponíveis. ${[...new Set(failures)].join(' ')}`);
+      }
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Não foi possível carregar o plano de controle.');
     } finally {
