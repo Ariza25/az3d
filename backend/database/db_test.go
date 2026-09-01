@@ -35,7 +35,6 @@ func TestTenantScopedTablesCoversPersistedTenantModels(t *testing.T) {
 		models.ProductActualCost{},
 		models.TenantFixedCost{},
 		models.Order{},
-		models.MarketplaceIntegration{},
 		models.MarketplaceProductMapping{},
 		models.MarketplaceAccount{},
 		models.ExternalMarketplaceOrder{},
@@ -67,7 +66,9 @@ func TestTenantScopedTablesCoversPersistedTenantModels(t *testing.T) {
 		}
 	}
 
-	if len(configured) != len(persistedModels) {
-		t.Fatalf("cascade table count = %d, tenant model count = %d", len(configured), len(persistedModels))
+	// marketplace_integrations is intentionally retained only as a historical
+	// database table so tenant deletion still cleans data created by old builds.
+	if len(configured) != len(persistedModels)+1 {
+		t.Fatalf("cascade table count = %d, tenant model count = %d plus historical table", len(configured), len(persistedModels))
 	}
 }

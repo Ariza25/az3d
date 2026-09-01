@@ -97,13 +97,6 @@ func TestMercadoLivreOAuthCallbackConsumesPKCEAndPersistsConnectedAccount(t *tes
 	mock.ExpectQuery(`INSERT INTO "marketplace_accounts"`).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(99))
 	mock.ExpectCommit()
-	mock.ExpectQuery(`SELECT .* FROM "marketplace_integrations"`).
-		WillReturnError(gorm.ErrRecordNotFound)
-	mock.ExpectBegin()
-	mock.ExpectQuery(`INSERT INTO "marketplace_integrations"`).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(101))
-	mock.ExpectCommit()
-
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
 	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/marketplaces/mercadolivre/oauth/callback?state="+state+"&code=authorization-code", nil)

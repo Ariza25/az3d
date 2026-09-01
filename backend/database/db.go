@@ -162,7 +162,6 @@ func InitDB(cfg *config.Config) *gorm.DB {
 		&models.TenantFixedCost{},
 		&models.Order{},
 		&models.OrderItem{},
-		&models.MarketplaceIntegration{},
 		&models.MarketplaceProductMapping{},
 		&models.MarketplaceAccount{},
 		&models.ExternalMarketplaceOrder{},
@@ -419,7 +418,6 @@ func cleanupLegacySeedArtifacts(db *gorm.DB) {
 	db.Unscoped().Where("slug IN ?", legacyCategorySlugs).Delete(&models.Category{})
 
 	db.Unscoped().Where("username IN ? OR email IN ?", []string{"admin-az3d", "cliente-az3d"}, []string{"admin@az3d.com.br", "cliente@az3d.com.br"}).Delete(&models.User{})
-	db.Unscoped().Where("seller_id IN ?", []string{"AZ3D_PRINT_MELI_BR", "az3d_shopee_store", "A23D_AMZ_SELLER_ID"}).Delete(&models.MarketplaceIntegration{})
 	db.Unscoped().Where("external_order_id LIKE ? OR raw_payload = ?", "SIM-%", `{"source":"admin_simulation"}`).Delete(&models.ExternalMarketplaceOrder{})
 	db.Unscoped().Where("external_item_id LIKE ?", "ITEM-%").Delete(&models.ExternalMarketplaceOrderItem{})
 	db.Unscoped().Where("name IN ?", []string{"Manutencao e depreciacao", "Assinaturas e ferramentas"}).Delete(&models.TenantFixedCost{})

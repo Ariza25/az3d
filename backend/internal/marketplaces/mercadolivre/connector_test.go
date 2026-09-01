@@ -51,6 +51,24 @@ func TestExchangeAuthCodeSendsPKCEVerifier(t *testing.T) {
 	}
 }
 
+func TestNormalizeVariationsPreservesStructuredAttributes(t *testing.T) {
+	item := mercadoItem{Price: 42, Variations: []mercadoVariation{{ID: 10, Price: 45, AvailableQuantity: 3, AttributeCombinations: []mercadoAttribute{{ID: "COLOR", Name: "Cor", ValueName: "Preto"}, {ID: "SIZE", Name: "Tamanho", ValueName: "G"}}}}}
+	variants, stocks, _ := normalizeVariations(item, "", true)
+	if len(variants) != 1 || variants[0].VariationName != "Preto / G" {
+		t.Fatalf("unexpected variants: %#v", variants)
+	}
+	if variants[0].ColorName != variants[0].VariationName {
+		t.Fatalf("legacy label was not preserved: %#v", variants[0])
+	}
+	var attributes []map[string]string
+	if err := json.Unmarshal([]byte(variants[0].Attributes), &attributes); err != nil || len(attributes) != 2 {
+		t.Fatalf("attributes = %q, err=%v", variants[0].Attributes, err)
+	}
+	if len(stocks) != 1 || stocks[0].StockQty != 3 {
+		t.Fatalf("unexpected stock: %#v", stocks)
+	}
+}
+
 func TestUnauthorizedResponseIsTypedAndDoesNotExposeCredentials(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, `{"message":"token secret-token invalid"}`, http.StatusUnauthorized)

@@ -550,18 +550,6 @@ export interface PricingScenarioResponse {
   }>;
 }
 
-export interface MarketplaceIntegration {
-  id: number;
-  tenant_id: number;
-  provider: 'mercadolivre' | 'shopee' | 'amazon' | string;
-  seller_id: string;
-  seller_name: string;
-  is_active: boolean;
-  sync_orders: boolean;
-  sync_stock: boolean;
-  created_at?: string;
-}
-
 export interface MarketplaceProductMapping {
   id: number;
   tenant_id: number;
@@ -851,58 +839,6 @@ export interface MarketplaceOAuthStartResponse {
   auth_url: string;
   missing_config: string[];
   mode: string;
-}
-
-export interface MarketplaceProductMappingInput {
-  product_id: number;
-  provider: string;
-  internal_sku?: string;
-  external_sku?: string;
-  external_title?: string;
-  external_item_id: string;
-  external_url?: string;
-}
-
-export interface MarketplaceCatalogItemInput {
-  external_item_id: string;
-  external_sku?: string;
-  external_title?: string;
-  external_url?: string;
-  title: string;
-  description?: string;
-  price: number;
-  image_url?: string;
-  category_id?: number;
-  material?: string;
-  layer_height?: string;
-  print_time?: string;
-  dimensions?: string;
-  weight?: string;
-  stock_qty: number;
-  status?: string;
-  color_images?: ProductColorImage[];
-  variants?: ProductVariant[];
-  color_stocks?: ProductColorStock[];
-}
-
-export interface MarketplaceProductImportInput {
-  provider: string;
-  default_category_id?: number;
-  overwrite_local: boolean;
-  products: MarketplaceCatalogItemInput[];
-}
-
-export interface MarketplaceProductImportResult {
-  action: 'created' | 'updated' | string;
-  product: Product;
-  mapping: MarketplaceProductMapping;
-}
-
-export interface MarketplaceProductImportResponse {
-  provider: string;
-  created: number;
-  updated: number;
-  results: MarketplaceProductImportResult[];
 }
 
 export interface ExternalMarketplaceOrderItem {

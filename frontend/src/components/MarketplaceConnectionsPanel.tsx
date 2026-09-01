@@ -6,7 +6,7 @@ import { getAppPathname, withBasePath } from '../shared/basePath';
 
 const PROVIDER = 'mercadolivre';
 const defaultAccount: Partial<MarketplaceAccount> = { provider: PROVIDER, account_name: 'Mercado Livre', marketplace: 'MLB', is_active: true, is_connected: false, sync_catalog: true, sync_orders: true, sync_stock: true, sync_status: 'pending_credentials' };
-const defaultSettings: TenantMarketplaceSettings = { id: 0, tenant_id: 0, marketplace_controls_price: true, marketplace_controls_stock: true, content_sync_policy: 'imported_only', new_imported_product_status: 'active', auto_create_internal_orders: true, auto_create_financial_entries: true };
+const defaultSettings: TenantMarketplaceSettings = { id: 0, tenant_id: 0, marketplace_controls_price: true, marketplace_controls_stock: true, content_sync_policy: 'imported_only', new_imported_product_status: 'draft', auto_create_internal_orders: true, auto_create_financial_entries: true };
 const currencyBRL = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 const redirectUri = () => new URL(withBasePath('/admin/marketplaces/callback'), window.location.origin).toString();
 

@@ -20,6 +20,7 @@ import { ProductionCostsPanel } from './ProductionCostsPanel';
 import { FinancePanel } from './FinancePanel';
 import { MarketplaceConnectionsPanel } from './MarketplaceConnectionsPanel';
 import { CatalogCategoriesPanel } from './CatalogCategoriesPanel';
+import { CarrierSettingsPanel } from './CarrierSettingsPanel';
 import { AdminDashboard } from '../features/admin/components/AdminDashboard';
 import { AdminInventory } from '../features/admin/components/AdminInventory';
 import { MercadoPagoSettings } from '../features/admin/components/MercadoPagoSettings';
@@ -30,19 +31,14 @@ import {
   Plus,
   Edit2,
   Trash2,
-  Tag,
   ShoppingBag,
   Store,
   ShoppingCart,
-  ToggleLeft,
-  ToggleRight,
   RefreshCw,
   Calculator,
   Settings,
   BarChart3,
   TrendingUp,
-  Truck,
-  Activity,
   Clock,
 } from 'lucide-react';
 
@@ -69,6 +65,7 @@ interface AdminModalProps {
 type AdminSection = 'dashboard' | 'products' | 'orders' | 'inventory' | 'finance' | 'pricing' | 'settings' | 'marketplaces';
 
 const initialAdminSection = (): AdminSection => {
+  if (window.location.pathname.includes('/marketplaces/callback')) return 'marketplaces';
   const value = new URLSearchParams(window.location.search).get('section') as AdminSection | null;
   return value && ['dashboard', 'products', 'orders', 'inventory', 'finance', 'pricing', 'settings', 'marketplaces'].includes(value) ? value : 'dashboard';
 };
@@ -98,21 +95,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [stockAdjustment, setStockAdjustment] = useState({ product_id: 0, color_name: '', stock_qty: 0, reason: '' });
   const [carrierAccounts, setCarrierAccounts] = useState<TenantCarrierAccount[]>([]);
   const [shipments, setShipments] = useState<OrderShipment[]>([]);
-  const [carrierForm, setCarrierForm] = useState({
-    provider: 'correios',
-    account_name: 'Correios',
-    auth_type: 'bearer_token',
-    is_active: true,
-    sync_tracking: true,
-    access_token: '',
-    api_base_url: '',
-    token_base_url: '',
-    token_username: '',
-    token_password: '',
-    contract_number: '',
-    contract_dr: '',
-    posting_card_number: '',
-  });
   const [shipmentForm, setShipmentForm] = useState({ order_id: 0, carrier: 'correios', tracking_code: '' });
   const [syncingShipmentId, setSyncingShipmentId] = useState<number | 'all' | null>(null);
 
@@ -120,6 +102,11 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
   // Estados gerais
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const loadOptional = async <T,>(request: Promise<T>, fallback: T, label: string): Promise<T> => {
+    try { return await request; }
+    catch (error: any) { setMessage({ type: 'error', text: error.message || `Não foi possível carregar ${label}.` }); return fallback; }
+  };
 
   // Carregar produtos e pedidos do tenant ativo
   useEffect(() => {
@@ -150,19 +137,20 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     try {
       if (['dashboard', 'products', 'inventory', 'pricing', 'finance', 'marketplaces'].includes(section)) setProducts(await api.getAdminProducts(activeTenant.id));
       if (section === 'dashboard' || section === 'orders') {
-        const [ords, carriers, loadedShipments] = await Promise.all([api.getAdminOrders(activeTenant.id).catch(() => []), api.getCarrierAccounts(activeTenant.id).catch(() => []), api.getShipments(activeTenant.id).catch(() => [])]);
+        const [ords, carriers, loadedShipments] = await Promise.all([loadOptional(api.getAdminOrders(activeTenant.id), [], 'pedidos'), loadOptional(api.getCarrierAccounts(activeTenant.id), [], 'transportadoras'), loadOptional(api.getShipments(activeTenant.id), [], 'envios')]);
         setOrders(ords); setCarrierAccounts(carriers); setShipments(loadedShipments);
         setShipmentForm((prev) => ({ ...prev, order_id: prev.order_id || ords[0]?.id || 0 }));
       }
       if (section === 'inventory' || section === 'dashboard') {
-        const [movements, alerts] = await Promise.all([api.getStockMovements(activeTenant.id).catch(() => []), api.getStockAlerts(activeTenant.id).catch(() => [])]);
+        const [movements, alerts] = await Promise.all([loadOptional(api.getStockMovements(activeTenant.id), [], 'movimentações de estoque'), loadOptional(api.getStockAlerts(activeTenant.id), [], 'alertas de estoque')]);
         setStockMovements(movements); setStockAlerts(alerts);
       }
-      if (section === 'settings' || section === 'pricing' || section === 'marketplaces') setTenantSettings(await api.getAdminTenantSettings(activeTenant.id).catch(() => null));
-      if (section === 'settings') setCarrierAccounts(await api.getCarrierAccounts(activeTenant.id).catch(() => []));
-      if (section === 'marketplaces') setMappings(await api.getProductMappings(activeTenant.id).catch(() => []));
+      if (section === 'settings' || section === 'pricing' || section === 'marketplaces') setTenantSettings(await loadOptional(api.getAdminTenantSettings(activeTenant.id), null, 'configurações'));
+      if (section === 'settings') setCarrierAccounts(await loadOptional(api.getCarrierAccounts(activeTenant.id), [], 'transportadoras'));
+      if (section === 'marketplaces') setMappings(await loadOptional(api.getProductMappings(activeTenant.id), [], 'itens importados'));
     } catch (err: any) {
       console.error('Erro ao carregar dados do admin:', err);
+      setMessage({ type: 'error', text: err.message || 'Não foi possível carregar esta seção.' });
     }
   };
 
@@ -237,50 +225,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       reason: `Reposicao de estoque (${alert.stock_qty} -> ${targetQty})`,
     });
     setActiveTab('inventory');
-  };
-
-  const handleSaveCarrierAccount = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!activeTenant) return;
-    const credentials = Object.fromEntries(
-      Object.entries({
-        access_token: carrierForm.access_token,
-        api_base_url: carrierForm.api_base_url,
-        token_base_url: carrierForm.token_base_url,
-        token_username: carrierForm.token_username,
-        token_password: carrierForm.token_password,
-        contract_number: carrierForm.contract_number,
-        contract_dr: carrierForm.contract_dr,
-        posting_card_number: carrierForm.posting_card_number,
-        token_scope: carrierForm.auth_type === 'contract_credentials' ? 'contract' : carrierForm.auth_type === 'posting_card' ? 'posting_card' : 'user',
-      }).filter(([, value]) => String(value || '').trim() !== '')
-    );
-    try {
-      await api.saveCarrierAccount({
-        provider: carrierForm.provider,
-        account_name: carrierForm.account_name,
-        auth_type: carrierForm.auth_type,
-        is_active: carrierForm.is_active,
-        sync_tracking: carrierForm.sync_tracking,
-        credentials,
-      }, activeTenant.id);
-      setCarrierForm((prev) => ({ ...prev, access_token: '', token_password: '' }));
-      setMessage({ type: 'success', text: 'Transportadora salva com sucesso.' });
-      await loadTenantData();
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.message || 'Erro ao salvar transportadora' });
-    }
-  };
-
-  const handleToggleCarrier = async (id: number) => {
-    if (!activeTenant) return;
-    try {
-      const updated = await api.toggleCarrierAccount(id, activeTenant.id);
-      setCarrierAccounts((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
-      setMessage({ type: 'success', text: `Transportadora ${updated.is_active ? 'ativada' : 'desativada'}.` });
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.message || 'Erro ao alternar transportadora' });
-    }
   };
 
   const handleSaveShipment = async (event: React.FormEvent) => {
@@ -368,7 +312,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     { id: 'pricing' as const, label: 'Precificação', hint: 'Custos e margens', icon: Calculator },
     { id: 'finance' as const, label: 'Financeiro', hint: 'Receita e resultado', icon: TrendingUp },
     { id: 'marketplaces' as const, label: 'Mercado Livre', hint: 'Canal conectado', icon: ShoppingCart },
-    { id: 'settings' as const, label: 'Configurações', hint: 'Loja e pagamentos', icon: Settings },
+    { id: 'settings' as const, label: 'Configurações', hint: 'Loja, pagamentos e frete', icon: Settings },
   ];
 
   return (
@@ -795,189 +739,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             <FinancePanel tenantId={activeTenant?.id} products={products} />
           )}
 
-          {activeTab === 'settings' && (
-            <div className="space-y-6">
-              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <h3 className="text-sm font-bold text-white">Transportadoras e rastreamento</h3>
-                  <p className="text-xs text-slate-400">Credenciais por tenant, sync de tracking e saude da integracao.</p>
-                </div>
-                <button
-                  onClick={handleSyncAllTracking}
-                  disabled={syncingShipmentId === 'all' || shipments.length === 0}
-                  className="flex items-center justify-center gap-2 rounded-xl border border-chumbo-700 bg-chumbo-950 px-4 py-2 text-xs font-bold text-slate-200 hover:bg-chumbo-800 disabled:opacity-50"
-                >
-                  <RefreshCw className={`h-4 w-4 ${syncingShipmentId === 'all' ? 'animate-spin' : ''}`} />
-                  Sincronizar rastreios
-                </button>
-              </div>
-
-              <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-                <form onSubmit={handleSaveCarrierAccount} className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
-                  <h4 className="flex items-center gap-2 text-sm font-bold text-white">
-                    <Truck className="h-4 w-4 text-laser-400" />
-                    Conta Correios
-                  </h4>
-                  <div className="mt-4 grid gap-3 md:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-mono uppercase text-slate-400">Provider</label>
-                      <select
-                        value={carrierForm.provider}
-                        onChange={(event) => setCarrierForm((prev) => ({ ...prev, provider: event.target.value }))}
-                        className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
-                      >
-                        <option value="correios">Correios</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-mono uppercase text-slate-400">Nome da conta</label>
-                      <input
-                        value={carrierForm.account_name}
-                        onChange={(event) => setCarrierForm((prev) => ({ ...prev, account_name: event.target.value }))}
-                        className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-mono uppercase text-slate-400">Tipo de autenticacao</label>
-                      <select
-                        value={carrierForm.auth_type}
-                        onChange={(event) => setCarrierForm((prev) => ({ ...prev, auth_type: event.target.value }))}
-                        className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
-                      >
-                        <option value="bearer_token">Bearer token pronto</option>
-                        <option value="user">API Token por usuario</option>
-                        <option value="contract_credentials">API Token por contrato</option>
-                        <option value="posting_card">API Token por cartao postagem</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-mono uppercase text-slate-400">Access token</label>
-                      <input
-                        type="password"
-                        value={carrierForm.access_token}
-                        onChange={(event) => setCarrierForm((prev) => ({ ...prev, access_token: event.target.value }))}
-                        placeholder="Opcional se usar API Token"
-                        className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-mono uppercase text-slate-400">Usuario/token login</label>
-                      <input
-                        value={carrierForm.token_username}
-                        onChange={(event) => setCarrierForm((prev) => ({ ...prev, token_username: event.target.value }))}
-                        placeholder="idCorreios"
-                        className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-mono uppercase text-slate-400">Senha/codigo API</label>
-                      <input
-                        type="password"
-                        value={carrierForm.token_password}
-                        onChange={(event) => setCarrierForm((prev) => ({ ...prev, token_password: event.target.value }))}
-                        className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-mono uppercase text-slate-400">Contrato</label>
-                      <input
-                        value={carrierForm.contract_number}
-                        onChange={(event) => setCarrierForm((prev) => ({ ...prev, contract_number: event.target.value }))}
-                        className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-mono uppercase text-slate-400">DR</label>
-                      <input
-                        value={carrierForm.contract_dr}
-                        onChange={(event) => setCarrierForm((prev) => ({ ...prev, contract_dr: event.target.value }))}
-                        className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-mono uppercase text-slate-400">Cartao postagem</label>
-                      <input
-                        value={carrierForm.posting_card_number}
-                        onChange={(event) => setCarrierForm((prev) => ({ ...prev, posting_card_number: event.target.value }))}
-                        className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-mono uppercase text-slate-400">Rastro base URL</label>
-                      <input
-                        value={carrierForm.api_base_url}
-                        onChange={(event) => setCarrierForm((prev) => ({ ...prev, api_base_url: event.target.value }))}
-                        placeholder="usa env do backend se vazio"
-                        className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-mono uppercase text-slate-400">Token base URL</label>
-                      <input
-                        value={carrierForm.token_base_url}
-                        onChange={(event) => setCarrierForm((prev) => ({ ...prev, token_base_url: event.target.value }))}
-                        placeholder="usa env do backend se vazio"
-                        className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap gap-3">
-                    <label className="flex items-center gap-2 rounded-xl border border-chumbo-800 bg-chumbo-900 px-4 py-2 text-xs text-slate-300">
-                      <input type="checkbox" checked={carrierForm.is_active} onChange={(event) => setCarrierForm((prev) => ({ ...prev, is_active: event.target.checked }))} />
-                      Ativa
-                    </label>
-                    <label className="flex items-center gap-2 rounded-xl border border-chumbo-800 bg-chumbo-900 px-4 py-2 text-xs text-slate-300">
-                      <input type="checkbox" checked={carrierForm.sync_tracking} onChange={(event) => setCarrierForm((prev) => ({ ...prev, sync_tracking: event.target.checked }))} />
-                      Sync tracking
-                    </label>
-                    <button type="submit" className="rounded-xl bg-white px-5 py-2 text-xs font-bold text-chumbo-950 hover:bg-slate-200">
-                      Salvar Correios
-                    </button>
-                  </div>
-                </form>
-
-                <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
-                  <h4 className="flex items-center gap-2 text-sm font-bold text-white">
-                    <Activity className="h-4 w-4 text-laser-400" />
-                    Saude e contas
-                  </h4>
-                  <div className="mt-4 space-y-3">
-                    {carrierAccounts.map((account) => (
-                      <div key={account.id} className="rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3 text-xs">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <strong className="block text-white">{account.account_name || account.provider}</strong>
-                            <span className="font-mono text-slate-500">{account.provider} - {account.auth_type}</span>
-                          </div>
-                          <button
-                            onClick={() => handleToggleCarrier(account.id)}
-                            title={account.is_active ? 'Desativar' : 'Ativar'}
-                            className="text-slate-400 hover:text-white"
-                          >
-                            {account.is_active ? <ToggleRight className="h-8 w-8 text-emerald-400" /> : <ToggleLeft className="h-8 w-8 text-slate-500" />}
-                          </button>
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          <span className={account.is_connected ? 'rounded-full bg-emerald-500/20 px-2 py-1 text-emerald-300' : 'rounded-full bg-amber-500/20 px-2 py-1 text-amber-300'}>
-                            {account.is_connected ? 'conectada' : 'credencial pendente'}
-                          </span>
-                          <span className={account.sync_tracking ? 'rounded-full bg-laser-500/20 px-2 py-1 text-laser-400' : 'rounded-full bg-chumbo-800 px-2 py-1 text-slate-500'}>
-                            sync {account.sync_tracking ? 'ligado' : 'desligado'}
-                          </span>
-                        </div>
-                        {account.last_sync_at && <p className="mt-2 text-[10px] text-slate-500">Ultimo sync: {new Date(account.last_sync_at).toLocaleString('pt-BR')}</p>}
-                        {account.last_error && <p className="mt-2 rounded-lg bg-rose-500/10 p-2 text-rose-300">{account.last_error}</p>}
-                      </div>
-                    ))}
-                    {carrierAccounts.length === 0 && (
-                      <p className="py-8 text-center text-xs text-slate-500">Nenhuma transportadora cadastrada para este tenant.</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+          {activeTab === 'settings' && <CarrierSettingsPanel tenantId={activeTenant?.id} accounts={carrierAccounts} onAccountsChanged={setCarrierAccounts} onMessage={setMessage} />}
 
           {activeTab === 'settings' && tenantSettings && (
             <div className="space-y-5">

@@ -8,7 +8,6 @@ import {
   Order,
   Tenant,
   ProductInput,
-  MarketplaceIntegration,
   MarketplaceProductMapping,
   ProductReview,
   ProductFavorite,
@@ -29,10 +28,7 @@ import {
   MarketplaceAccount,
   MarketplaceAccountInput,
   MarketplaceOAuthStartResponse,
-  MarketplaceProductMappingInput,
   ExternalMarketplaceOrder,
-  MarketplaceProductImportInput,
-  MarketplaceProductImportResponse,
   TenantMarketplaceSettings,
   TenantMarketplaceSettingsInput,
   StockMovement,
@@ -796,40 +792,6 @@ export const api = {
 
   // --- MARKETPLACES (Mercado Livre, Shopee, Amazon) ---
 
-  getMarketplaces: async (tenantId?: number): Promise<MarketplaceIntegration[]> => {
-    const res = await fetch(`${API_BASE_URL}/admin/marketplaces`, {
-      headers: getAdminHeaders(tenantId),
-    });
-    if (!res.ok) throw new Error('Erro ao buscar integrações de marketplaces');
-    return res.json();
-  },
-
-  saveMarketplace: async (
-    data: { provider: string; seller_id: string; seller_name?: string; is_active: boolean; sync_orders: boolean; sync_stock: boolean },
-    tenantId?: number
-  ): Promise<MarketplaceIntegration> => {
-    const res = await fetch(`${API_BASE_URL}/admin/marketplaces`, {
-      method: 'POST',
-      headers: getAdminHeaders(tenantId),
-      body: JSON.stringify(data),
-    });
-
-    const resData = await res.json();
-    if (!res.ok) throw new Error(resData.error || 'Erro ao salvar integração de marketplace');
-    return resData;
-  },
-
-  toggleMarketplace: async (id: number, tenantId?: number): Promise<MarketplaceIntegration> => {
-    const res = await fetch(`${API_BASE_URL}/admin/marketplaces/${id}/toggle`, {
-      method: 'PATCH',
-      headers: getAdminHeaders(tenantId),
-    });
-
-    const resData = await res.json();
-    if (!res.ok) throw new Error(resData.error || 'Erro ao alternar status do marketplace');
-    return resData;
-  },
-
   getProductMappings: async (tenantId?: number): Promise<MarketplaceProductMapping[]> => {
     const res = await fetch(`${API_BASE_URL}/admin/marketplaces/mappings`, {
       headers: getAdminHeaders(tenantId),
@@ -901,28 +863,6 @@ export const api = {
     return body;
   },
 
-  saveMarketplaceMapping: async (data: MarketplaceProductMappingInput, tenantId?: number): Promise<MarketplaceProductMapping> => {
-    const res = await fetch(`${API_BASE_URL}/admin/marketplaces/mappings`, {
-      method: 'POST',
-      headers: getAdminHeaders(tenantId),
-      body: JSON.stringify(data),
-    });
-    const body = await res.json();
-    if (!res.ok) throw new Error(body.error || 'Erro ao salvar mapeamento de SKU');
-    return body;
-  },
-
-  importMarketplaceProducts: async (data: MarketplaceProductImportInput, tenantId?: number): Promise<MarketplaceProductImportResponse> => {
-    const res = await fetch(`${API_BASE_URL}/admin/marketplaces/import-products`, {
-      method: 'POST',
-      headers: getAdminHeaders(tenantId),
-      body: JSON.stringify(data),
-    });
-    const body = await res.json();
-    if (!res.ok) throw new Error(body.error || 'Erro ao importar catalogo do marketplace');
-    return body;
-  },
-
   syncMarketplaceProducts: async (provider?: string, tenantId?: number): Promise<{ imported: number; updated: number; events_processed: number; results: Array<{ provider: string; status: string; imported: number; updated: number; events_processed: number; message: string }> }> => {
     const res = await fetch(`${API_BASE_URL}/admin/marketplaces/sync-products`, {
       method: 'POST',
@@ -977,15 +917,4 @@ export const api = {
     return res.json();
   },
 
-  syncProductToMarketplace: async (productId: number, provider: string, tenantId?: number): Promise<{ message: string; mapping: MarketplaceProductMapping }> => {
-    const res = await fetch(`${API_BASE_URL}/admin/marketplaces/sync-product`, {
-      method: 'POST',
-      headers: getAdminHeaders(tenantId),
-      body: JSON.stringify({ product_id: productId, provider }),
-    });
-
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Erro ao sincronizar produto com o marketplace');
-    return data;
-  }
 };

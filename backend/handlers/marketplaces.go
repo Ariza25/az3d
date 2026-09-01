@@ -54,7 +54,7 @@ func defaultTenantMarketplaceSettings(tenantID uint) models.TenantMarketplaceSet
 		MarketplaceControlsPrice:   true,
 		MarketplaceControlsStock:   true,
 		ContentSyncPolicy:          "imported_only",
-		NewImportedProductStatus:   "active",
+		NewImportedProductStatus:   "draft",
 		AutoCreateInternalOrders:   true,
 		AutoCreateFinancialEntries: true,
 	}
@@ -95,7 +95,7 @@ func normalizeImportedProductStatus(status string) string {
 	case "active", "draft":
 		return strings.ToLower(strings.TrimSpace(status))
 	default:
-		return "active"
+		return "draft"
 	}
 }
 
@@ -177,37 +177,6 @@ func safeState(tenantID uint, provider string) string {
 	return fmt.Sprintf("tenant_%d_%s_%d", tenantID, provider, time.Now().Unix())
 }
 
-func syncLegacyIntegration(tenantID uint, account models.MarketplaceAccount) {
-	var integration models.MarketplaceIntegration
-	err := database.DB.Where("tenant_id = ? AND provider = ?", tenantID, account.Provider).First(&integration).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		integration = models.MarketplaceIntegration{
-			TenantID:   tenantID,
-			Provider:   account.Provider,
-			SellerID:   account.SellerID,
-			SellerName: account.AccountName,
-			IsActive:   account.IsActive,
-			SyncOrders: account.SyncOrders,
-			SyncStock:  account.SyncStock,
-			ExpiresAt:  time.Now().Add(30 * 24 * time.Hour),
-		}
-		_ = database.DB.Create(&integration).Error
-		return
-	}
-	if err != nil {
-		return
-	}
-
-	integration.SellerID = account.SellerID
-	if strings.TrimSpace(account.AccountName) != "" {
-		integration.SellerName = account.AccountName
-	}
-	integration.IsActive = account.IsActive
-	integration.SyncOrders = account.SyncOrders
-	integration.SyncStock = account.SyncStock
-	_ = database.DB.Save(&integration).Error
-}
-
 func ensureMarketplaceAccounts(tenantID uint) {
 	for _, provider := range []string{"mercadolivre"} {
 		account := models.MarketplaceAccount{
@@ -223,104 +192,6 @@ func ensureMarketplaceAccounts(tenantID uint) {
 		}
 		database.DB.Where("tenant_id = ? AND provider = ?", tenantID, provider).FirstOrCreate(&account)
 	}
-}
-
-// GET /api/admin/marketplaces
-func (h *MarketplaceHandler) GetMarketplaceIntegrations(c *gin.Context) {
-	tenantID := getTenantID(c)
-
-	var integrations []models.MarketplaceIntegration
-	if err := database.DB.Where("tenant_id = ?", tenantID).Find(&integrations).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar integracoes de marketplaces"})
-		return
-	}
-
-	c.JSON(http.StatusOK, integrations)
-}
-
-// POST /api/admin/marketplaces
-func (h *MarketplaceHandler) SaveMarketplaceIntegration(c *gin.Context) {
-	tenantID := getTenantID(c)
-
-	var input models.MarketplaceIntegrationInput
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Dados invalidos: " + err.Error()})
-		return
-	}
-	input.Provider = normalizeProvider(input.Provider)
-
-	var integration models.MarketplaceIntegration
-	err := database.DB.Where("tenant_id = ? AND provider = ?", tenantID, input.Provider).First(&integration).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		integration = models.MarketplaceIntegration{
-			TenantID:   tenantID,
-			Provider:   input.Provider,
-			SellerID:   input.SellerID,
-			SellerName: input.SellerName,
-			IsActive:   input.IsActive,
-			SyncOrders: input.SyncOrders,
-			SyncStock:  input.SyncStock,
-			ExpiresAt:  time.Now().Add(30 * 24 * time.Hour),
-		}
-		if err := database.DB.Create(&integration).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao salvar integracao"})
-			return
-		}
-	} else if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar integracao"})
-		return
-	} else {
-		integration.SellerID = input.SellerID
-		if input.SellerName != "" {
-			integration.SellerName = input.SellerName
-		}
-		integration.IsActive = input.IsActive
-		integration.SyncOrders = input.SyncOrders
-		integration.SyncStock = input.SyncStock
-		if err := database.DB.Save(&integration).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao atualizar integracao"})
-			return
-		}
-	}
-
-	account := models.MarketplaceAccount{
-		TenantID:    tenantID,
-		Provider:    input.Provider,
-		AccountName: input.SellerName,
-		SellerID:    input.SellerID,
-		Marketplace: providerDefaultMarketplace(input.Provider),
-		IsActive:    input.IsActive,
-		SyncOrders:  input.SyncOrders,
-		SyncStock:   input.SyncStock,
-		IsConnected: false,
-		SyncStatus:  "pending_credentials",
-	}
-	database.DB.Where("tenant_id = ? AND provider = ?", tenantID, input.Provider).Assign(account).FirstOrCreate(&account)
-
-	c.JSON(http.StatusOK, integration)
-}
-
-// PATCH /api/admin/marketplaces/:id/toggle
-func (h *MarketplaceHandler) ToggleMarketplaceStatus(c *gin.Context) {
-	tenantID := getTenantID(c)
-	idStr := c.Param("id")
-
-	var integration models.MarketplaceIntegration
-	if err := database.DB.Where("tenant_id = ?", tenantID).First(&integration, idStr).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Integracao nao encontrada"})
-		return
-	}
-
-	integration.IsActive = !integration.IsActive
-	if err := database.DB.Save(&integration).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao alternar status da integracao"})
-		return
-	}
-	database.DB.Model(&models.MarketplaceAccount{}).
-		Where("tenant_id = ? AND provider = ?", tenantID, integration.Provider).
-		Update("is_active", integration.IsActive)
-
-	c.JSON(http.StatusOK, integration)
 }
 
 // GET /api/admin/marketplaces/accounts
@@ -783,97 +654,6 @@ func (h *MarketplaceHandler) GetProductMappings(c *gin.Context) {
 	c.JSON(http.StatusOK, mappings)
 }
 
-// POST /api/admin/marketplaces/mappings
-func (h *MarketplaceHandler) SaveProductMapping(c *gin.Context) {
-	tenantID := getTenantID(c)
-
-	var input models.MarketplaceProductMappingInput
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Dados invalidos: " + err.Error()})
-		return
-	}
-	provider := normalizeProvider(input.Provider)
-
-	var product models.Product
-	if err := database.DB.Where("tenant_id = ? AND id = ?", tenantID, input.ProductID).First(&product).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Produto nao encontrado"})
-		return
-	}
-	internalSKU := strings.TrimSpace(input.InternalSKU)
-	if internalSKU == "" {
-		internalSKU = product.SKU
-	}
-
-	now := time.Now()
-	var mapping models.MarketplaceProductMapping
-	err := database.DB.Where("tenant_id = ? AND provider = ? AND external_item_id = ?", tenantID, provider, input.ExternalItemID).First(&mapping).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		err = database.DB.Where("tenant_id = ? AND provider = ? AND product_id = ?", tenantID, provider, input.ProductID).First(&mapping).Error
-	}
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		mapping = models.MarketplaceProductMapping{TenantID: tenantID, Provider: provider}
-	} else if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar mapeamento"})
-		return
-	}
-
-	mapping.ProductID = input.ProductID
-	mapping.InternalSKU = internalSKU
-	mapping.ExternalSKU = strings.TrimSpace(input.ExternalSKU)
-	mapping.ExternalTitle = strings.TrimSpace(input.ExternalTitle)
-	mapping.ExternalItemID = strings.TrimSpace(input.ExternalItemID)
-	mapping.ExternalURL = strings.TrimSpace(input.ExternalURL)
-	mapping.SyncStatus = "mapped"
-	mapping.LastSyncedAt = &now
-	if err := database.DB.Save(&mapping).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao salvar mapeamento"})
-		return
-	}
-
-	database.DB.Preload("Product").First(&mapping, mapping.ID)
-	c.JSON(http.StatusOK, mapping)
-}
-
-// POST /api/admin/marketplaces/import-products
-func (h *MarketplaceHandler) ImportMarketplaceProducts(c *gin.Context) {
-	tenantID := getTenantID(c)
-
-	var input models.MarketplaceProductImportInput
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Dados invalidos: " + err.Error()})
-		return
-	}
-	provider := normalizeProvider(input.Provider)
-	if provider == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Marketplace obrigatorio"})
-		return
-	}
-
-	results := make([]models.MarketplaceProductImportResult, 0, len(input.Products))
-	created := 0
-	updated := 0
-	for _, item := range input.Products {
-		result, err := importMarketplaceCatalogItem(tenantID, provider, input.DefaultCategoryID, input.OverwriteLocal, item)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-		if result.Action == "created" {
-			created++
-		} else {
-			updated++
-		}
-		results = append(results, result)
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"provider": provider,
-		"created":  created,
-		"updated":  updated,
-		"results":  results,
-	})
-}
-
 func importMarketplaceCatalogItem(tenantID uint, provider string, defaultCategoryID uint, overwriteLocal bool, item models.MarketplaceCatalogItemInput) (models.MarketplaceProductImportResult, error) {
 	now := time.Now()
 	settings, err := getOrCreateTenantMarketplaceSettings(tenantID)
@@ -1122,66 +902,6 @@ func marketplaceProductSlug(provider string, externalID string, title string) st
 	return fmt.Sprintf("%s-%s-%s", provider, externalID, slug)
 }
 
-// POST /api/admin/marketplaces/sync-product
-func (h *MarketplaceHandler) SyncProductToMarketplace(c *gin.Context) {
-	tenantID := getTenantID(c)
-
-	var input models.MarketplaceProductSyncInput
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Dados invalidos"})
-		return
-	}
-	input.Provider = normalizeProvider(input.Provider)
-
-	var product models.Product
-	if err := database.DB.Where("tenant_id = ?", tenantID).First(&product, input.ProductID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Produto nao encontrado"})
-		return
-	}
-	if product.SKU == "" {
-		product.SKU = fmt.Sprintf("AZ3D-%d-%d", tenantID, product.ID)
-		_ = database.DB.Save(&product).Error
-	}
-
-	var account models.MarketplaceAccount
-	if err := database.DB.Where("tenant_id = ? AND provider = ? AND is_active = ?", tenantID, input.Provider, true).First(&account).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Conta do marketplace nao esta ativa ou configurada"})
-		return
-	}
-
-	now := time.Now()
-	extID := fmt.Sprintf("DRAFT-%s-%d", strings.ToUpper(input.Provider), product.ID)
-	extURL := ""
-
-	var mapping models.MarketplaceProductMapping
-	err := database.DB.Where("tenant_id = ? AND product_id = ? AND provider = ?", tenantID, product.ID, input.Provider).First(&mapping).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		mapping = models.MarketplaceProductMapping{TenantID: tenantID, ProductID: product.ID, Provider: input.Provider}
-	} else if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar mapeamento"})
-		return
-	}
-
-	mapping.InternalSKU = product.SKU
-	mapping.ExternalSKU = product.SKU
-	mapping.ExternalTitle = product.Title
-	mapping.ExternalItemID = extID
-	mapping.ExternalURL = extURL
-	mapping.SyncStatus = "pending_publish"
-	mapping.LastSyncedAt = &now
-	if err := database.DB.Save(&mapping).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao preparar mapeamento do produto"})
-		return
-	}
-
-	database.DB.Preload("Product").First(&mapping, mapping.ID)
-	c.JSON(http.StatusOK, gin.H{
-		"message": fmt.Sprintf("Mapeamento de '%s' preparado para %s. No MVP, a publicacao real do anuncio fica fora da sincronizacao automatica.", product.Title, marketplaceLabel(input.Provider)),
-		"mapping": mapping,
-		"account": account,
-	})
-}
-
 // POST /api/admin/marketplaces/sync-products
 func (h *MarketplaceHandler) SyncMarketplaceProducts(c *gin.Context) {
 	tenantID := getTenantID(c)
@@ -1399,7 +1119,7 @@ func (h *MarketplaceHandler) syncMarketplaceCatalogAccount(ctx context.Context, 
 func pendingMarketplaceItemEvents(tenantID uint, provider string) ([]models.MarketplaceWebhookEvent, error) {
 	var events []models.MarketplaceWebhookEvent
 	err := database.DB.
-		Where("tenant_id = ? AND provider = ? AND event_type = ? AND status IN ? AND external_id <> ''", tenantID, normalizeProvider(provider), "items", []string{"pending", "failed"}).
+		Where("tenant_id = ? AND provider = ? AND event_type = ? AND status IN ? AND external_id <> '' AND (next_attempt_at IS NULL OR next_attempt_at <= ?)", tenantID, normalizeProvider(provider), "items", []string{"pending", "failed"}, time.Now()).
 		Order("received_at asc").
 		Limit(500).
 		Find(&events).Error
@@ -2036,9 +1756,8 @@ func (h *MarketplaceHandler) ReceiveMarketplaceWebhook(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":   "Webhook registrado para processamento.",
-		"event_id":  event.ID,
-		"tenant_id": tenantID,
+		"message":  "Webhook registrado para processamento.",
+		"event_id": event.ID,
 	})
 	go h.ProcessMarketplaceQueue(context.Background(), 20)
 }

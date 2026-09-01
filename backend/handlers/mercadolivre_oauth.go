@@ -171,7 +171,6 @@ func (h *MarketplaceHandler) MercadoLivreOAuthCallback(c *gin.Context) {
 		h.redirectMarketplaceOAuthResult(c, "error", session.TenantID)
 		return
 	}
-	syncLegacyIntegration(session.TenantID, account)
 	h.redirectMarketplaceOAuthResult(c, "connected", session.TenantID)
 }
 

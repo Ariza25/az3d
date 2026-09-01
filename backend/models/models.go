@@ -763,23 +763,6 @@ type UpdateOrderStatusInput struct {
 
 // Entidades de Integração de Marketplaces (Mercado Livre, Shopee, Amazon)
 
-type MarketplaceIntegration struct {
-	ID           uint      `gorm:"primaryKey" json:"id"`
-	TenantID     uint      `gorm:"not null;index" json:"tenant_id"`
-	Tenant       *Tenant   `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
-	Provider     string    `gorm:"size:50;not null" json:"provider"` // mercadolivre, shopee, amazon
-	SellerID     string    `gorm:"size:100" json:"seller_id"`
-	SellerName   string    `gorm:"size:150" json:"seller_name"`
-	AccessToken  string    `gorm:"type:text" json:"-"`
-	RefreshToken string    `gorm:"type:text" json:"-"`
-	ExpiresAt    time.Time `json:"expires_at"`
-	IsActive     bool      `gorm:"default:true" json:"is_active"`
-	SyncOrders   bool      `gorm:"default:true" json:"sync_orders"`
-	SyncStock    bool      `gorm:"default:true" json:"sync_stock"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
-}
-
 type MarketplaceProductMapping struct {
 	ID             uint       `gorm:"primaryKey" json:"id"`
 	TenantID       uint       `gorm:"not null;index" json:"tenant_id"`
@@ -1035,20 +1018,6 @@ type MarketplaceOAuthSession struct {
 	CreatedAt             time.Time  `json:"-"`
 }
 
-type MarketplaceIntegrationInput struct {
-	Provider   string `json:"provider" binding:"required"`
-	SellerID   string `json:"seller_id"`
-	SellerName string `json:"seller_name"`
-	IsActive   bool   `json:"is_active"`
-	SyncOrders bool   `json:"sync_orders"`
-	SyncStock  bool   `json:"sync_stock"`
-}
-
-type MarketplaceProductSyncInput struct {
-	ProductID uint   `json:"product_id" binding:"required"`
-	Provider  string `json:"provider" binding:"required"`
-}
-
 type MarketplaceAccountInput struct {
 	Provider     string `json:"provider" binding:"required"`
 	AccountName  string `json:"account_name"`
@@ -1108,25 +1077,8 @@ type MarketplaceCatalogItemInput struct {
 	ColorStocks    []ProductColorStockInput `json:"color_stocks"`
 }
 
-type MarketplaceProductImportInput struct {
-	Provider          string                        `json:"provider" binding:"required"`
-	DefaultCategoryID uint                          `json:"default_category_id"`
-	OverwriteLocal    bool                          `json:"overwrite_local"`
-	Products          []MarketplaceCatalogItemInput `json:"products" binding:"required,min=1"`
-}
-
 type MarketplaceProductImportResult struct {
 	Action  string                    `json:"action"`
 	Product Product                   `json:"product"`
 	Mapping MarketplaceProductMapping `json:"mapping"`
-}
-
-type MarketplaceProductMappingInput struct {
-	ProductID      uint   `json:"product_id" binding:"required"`
-	Provider       string `json:"provider" binding:"required"`
-	InternalSKU    string `json:"internal_sku"`
-	ExternalSKU    string `json:"external_sku"`
-	ExternalTitle  string `json:"external_title"`
-	ExternalItemID string `json:"external_item_id" binding:"required"`
-	ExternalURL    string `json:"external_url"`
 }
