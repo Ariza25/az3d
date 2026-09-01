@@ -205,6 +205,33 @@ func TestFetchCatalogIncludesInactiveItemsAndPaginates(t *testing.T) {
 	}
 }
 
+func TestNormalizeItemKeepsMercadoLivreVariationsGrouped(t *testing.T) {
+	item := normalizeItem(mercadoItem{
+		ID: "MLB-123", Title: "Produto com variacoes", Price: 90, AvailableQuantity: 5, Status: "active",
+		Pictures: []mercadoPicture{
+			{ID: "PIC-BLACK", SecureURL: "https://img.example/preto.jpg"},
+			{ID: "PIC-WHITE", SecureURL: "https://img.example/branco.jpg"},
+		},
+		Variations: []mercadoVariation{
+			{ID: 1, Price: 90, AvailableQuantity: 2, PictureIDs: []string{"PIC-BLACK"}, AttributeCombinations: []mercadoAttribute{{ID: "COLOR", ValueName: "Preto"}}},
+			{ID: 2, Price: 95, AvailableQuantity: 3, PictureIDs: []string{"PIC-WHITE"}, AttributeCombinations: []mercadoAttribute{{ID: "COLOR", ValueName: "Branco"}}},
+		},
+	})
+
+	if len(item.Variants) != 2 || len(item.ColorStocks) != 2 || len(item.ColorImages) != 2 {
+		t.Fatalf("variation relations were not preserved: %#v", item)
+	}
+	if item.StockQty != 5 || item.Variants[0].ColorName != "Preto" || item.Variants[1].Price != 95 {
+		t.Fatalf("unexpected normalized variations: %#v", item)
+	}
+	if item.ColorStocks[1].ColorName != "Branco" || item.ColorStocks[1].StockQty != 3 {
+		t.Fatalf("unexpected variation stocks: %#v", item.ColorStocks)
+	}
+	if item.ColorImages[0].ImageURL != "https://img.example/preto.jpg" {
+		t.Fatalf("unexpected variation image: %#v", item.ColorImages[0])
+	}
+}
+
 func TestFetchCatalogItemsDeduplicatesAndRejectsAnotherSeller(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/items" {

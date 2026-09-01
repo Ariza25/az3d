@@ -54,7 +54,7 @@ func defaultTenantMarketplaceSettings(tenantID uint) models.TenantMarketplaceSet
 		MarketplaceControlsPrice:   true,
 		MarketplaceControlsStock:   true,
 		ContentSyncPolicy:          "imported_only",
-		NewImportedProductStatus:   "draft",
+		NewImportedProductStatus:   "active",
 		AutoCreateInternalOrders:   true,
 		AutoCreateFinancialEntries: true,
 	}
@@ -95,7 +95,7 @@ func normalizeImportedProductStatus(status string) string {
 	case "active", "draft":
 		return strings.ToLower(strings.TrimSpace(status))
 	default:
-		return "draft"
+		return "active"
 	}
 }
 
@@ -209,7 +209,7 @@ func syncLegacyIntegration(tenantID uint, account models.MarketplaceAccount) {
 }
 
 func ensureMarketplaceAccounts(tenantID uint) {
-	for _, provider := range []string{"shopee", "mercadolivre", "amazon"} {
+	for _, provider := range []string{"mercadolivre"} {
 		account := models.MarketplaceAccount{
 			TenantID:    tenantID,
 			Provider:    provider,
@@ -217,7 +217,8 @@ func ensureMarketplaceAccounts(tenantID uint) {
 			Marketplace: providerDefaultMarketplace(provider),
 			IsActive:    provider != "amazon",
 			SyncOrders:  true,
-			SyncStock:   provider != "amazon",
+			SyncCatalog: true,
+			SyncStock:   true,
 			SyncStatus:  "pending_credentials",
 		}
 		database.DB.Where("tenant_id = ? AND provider = ?", tenantID, provider).FirstOrCreate(&account)
@@ -353,7 +354,7 @@ func (h *MarketplaceHandler) SaveMarketplaceAccount(c *gin.Context) {
 	var account models.MarketplaceAccount
 	err := database.DB.Where("tenant_id = ? AND provider = ?", tenantID, provider).First(&account).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		account = models.MarketplaceAccount{TenantID: tenantID, Provider: provider}
+		account = models.MarketplaceAccount{TenantID: tenantID, Provider: provider, SyncCatalog: true}
 	} else if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar conta"})
 		return
@@ -383,6 +384,11 @@ func (h *MarketplaceHandler) SaveMarketplaceAccount(c *gin.Context) {
 	}
 	account.IsActive = input.IsActive
 	account.SyncOrders = input.SyncOrders
+	if input.SyncCatalog == nil {
+		account.SyncCatalog = true
+	} else {
+		account.SyncCatalog = *input.SyncCatalog
+	}
 	account.SyncStock = input.SyncStock
 	if account.SyncStatus == "" {
 		account.SyncStatus = "pending_credentials"
@@ -392,8 +398,6 @@ func (h *MarketplaceHandler) SaveMarketplaceAccount(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao salvar conta de marketplace"})
 		return
 	}
-	syncLegacyIntegration(tenantID, account)
-
 	c.JSON(http.StatusOK, account)
 }
 
@@ -503,7 +507,7 @@ func (h *MarketplaceHandler) CompleteMarketplaceOAuth(c *gin.Context) {
 	var account models.MarketplaceAccount
 	err := database.DB.Where("tenant_id = ? AND provider = ?", tenantID, provider).First(&account).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		account = models.MarketplaceAccount{TenantID: tenantID, Provider: provider, AccountName: marketplaceLabel(provider), Marketplace: providerDefaultMarketplace(provider)}
+		account = models.MarketplaceAccount{TenantID: tenantID, Provider: provider, AccountName: marketplaceLabel(provider), Marketplace: providerDefaultMarketplace(provider), SyncCatalog: true}
 	} else if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar conta"})
 		return
@@ -542,8 +546,6 @@ func (h *MarketplaceHandler) CompleteMarketplaceOAuth(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao salvar callback OAuth"})
 		return
 	}
-	syncLegacyIntegration(tenantID, account)
-
 	c.JSON(http.StatusOK, gin.H{
 		"account": account,
 		"message": marketplaceOAuthCallbackMessage(account),
@@ -922,7 +924,7 @@ func importMarketplaceCatalogItem(tenantID uint, provider string, defaultCategor
 		categoryID = defaultCategoryID
 	}
 	if categoryID == 0 {
-		categoryID = firstTenantCategoryID(tenantID)
+		categoryID = importedMarketplaceCategoryID(tenantID, provider)
 	}
 	if categoryID == 0 {
 		return models.MarketplaceProductImportResult{}, errors.New("Cadastre uma categoria antes de importar produtos do marketplace")
@@ -936,7 +938,7 @@ func importMarketplaceCatalogItem(tenantID uint, provider string, defaultCategor
 		imageURL = "https://images.unsplash.com/photo-1563089145-599997674d42?q=80&w=800&auto=format&fit=crop"
 	}
 
-	status := marketplaceImportedProductStatus(productFound, item.Status, settings.NewImportedProductStatus)
+	status := marketplaceImportedProductStatus(provider, productFound, item.Status, settings.NewImportedProductStatus)
 	inStock := item.StockQty > 0
 
 	if !productFound {
@@ -1055,7 +1057,12 @@ func importMarketplaceCatalogItem(tenantID uint, provider string, defaultCategor
 	return models.MarketplaceProductImportResult{Action: action, Product: product, Mapping: mapping}, nil
 }
 
-func marketplaceImportedProductStatus(productFound bool, marketplaceStatus string, newImportedProductStatus string) string {
+func marketplaceImportedProductStatus(provider string, productFound bool, marketplaceStatus string, newImportedProductStatus string) string {
+	// Anuncios ativos importados do Mercado Livre sao produtos prontos para venda:
+	// eles entram diretamente no catalogo publico do tenant, sem etapa de curadoria.
+	if normalizeProvider(provider) == "mercadolivre" && strings.EqualFold(strings.TrimSpace(marketplaceStatus), "active") {
+		return "active"
+	}
 	if !productFound {
 		return normalizeImportedProductStatus(newImportedProductStatus)
 	}
@@ -1070,9 +1077,16 @@ func marketplaceImportedProductStatus(productFound bool, marketplaceStatus strin
 	return status
 }
 
-func firstTenantCategoryID(tenantID uint) uint {
+func importedMarketplaceCategoryID(tenantID uint, provider string) uint {
+	provider = normalizeProvider(provider)
+	name := "Importados do " + marketplaceLabel(provider)
+	slug := "importados-" + provider
 	var category models.Category
-	if err := database.DB.Where("tenant_id = ?", tenantID).Order("id asc").First(&category).Error; err != nil {
+	if err := database.DB.Where("tenant_id = ? AND slug = ?", tenantID, slug).First(&category).Error; err == nil {
+		return category.ID
+	}
+	category = models.Category{TenantID: tenantID, Name: name, Slug: slug, Description: "Categoria criada automaticamente para produtos importados.", Icon: "shopping-bag"}
+	if err := database.DB.Create(&category).Error; err != nil {
 		return 0
 	}
 	return category.ID
@@ -1179,7 +1193,7 @@ func (h *MarketplaceHandler) SyncMarketplaceProducts(c *gin.Context) {
 	}
 	provider := normalizeProvider(input.Provider)
 
-	query := database.DB.Where("tenant_id = ? AND is_active = ? AND sync_stock = ?", tenantID, true, true)
+	query := database.DB.Where("tenant_id = ? AND is_active = ? AND sync_catalog = ?", tenantID, true, true)
 	if provider != "" {
 		query = query.Where("provider = ?", provider)
 	}
@@ -1319,7 +1333,7 @@ func (h *MarketplaceHandler) syncMarketplaceCatalogAccount(ctx context.Context, 
 		failures = append(failures, externalID+": "+reason)
 	}
 
-	defaultCategoryID := firstTenantCategoryID(tenantID)
+	defaultCategoryID := importedMarketplaceCategoryID(tenantID, account.Provider)
 	for _, item := range items {
 		importResult, err := importMarketplaceCatalogItem(
 			tenantID,
@@ -1443,13 +1457,16 @@ func marketplaceCatalogItemIDs(items []marketplaces.CatalogItem) map[string]stru
 
 func updateMarketplaceItemEventStatus(tenantID uint, provider string, externalID string, status string, errorMessage string) (int64, error) {
 	processedAt := time.Now()
+	updates := map[string]any{"status": status, "error_message": strings.TrimSpace(errorMessage), "processed_at": &processedAt, "next_attempt_at": nil}
+	if status == "failed" {
+		next := time.Now().Add(2 * time.Minute)
+		updates["retry_count"] = gorm.Expr("retry_count + 1")
+		updates["next_attempt_at"] = &next
+		updates["processed_at"] = nil
+	}
 	result := database.DB.Model(&models.MarketplaceWebhookEvent{}).
 		Where("tenant_id = ? AND provider = ? AND event_type = ? AND external_id = ? AND status IN ?", tenantID, normalizeProvider(provider), "items", strings.TrimSpace(externalID), []string{"pending", "failed"}).
-		Updates(map[string]any{
-			"status":        status,
-			"error_message": strings.TrimSpace(errorMessage),
-			"processed_at":  &processedAt,
-		})
+		Updates(updates)
 	return result.RowsAffected, result.Error
 }
 
@@ -1538,14 +1555,16 @@ func catalogVariantsToModel(items []marketplaces.CatalogVariant) []models.Produc
 	inputs := make([]models.ProductVariantInput, 0, len(items))
 	for _, item := range items {
 		inputs = append(inputs, models.ProductVariantInput{
-			ColorName:   item.ColorName,
-			Price:       item.Price,
-			Material:    item.Material,
-			LayerHeight: item.LayerHeight,
-			PrintTime:   item.PrintTime,
-			Weight:      item.Weight,
-			IsActive:    item.IsActive,
-			SortOrder:   item.SortOrder,
+			ColorName:     item.ColorName,
+			VariationName: defaultString(item.VariationName, item.ColorName),
+			Attributes:    defaultString(item.Attributes, "[]"),
+			Price:         item.Price,
+			Material:      item.Material,
+			LayerHeight:   item.LayerHeight,
+			PrintTime:     item.PrintTime,
+			Weight:        item.Weight,
+			IsActive:      item.IsActive,
+			SortOrder:     item.SortOrder,
 		})
 	}
 	return inputs
@@ -1967,15 +1986,37 @@ func (h *MarketplaceHandler) ReceiveMarketplaceWebhook(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Marketplace obrigatorio"})
 		return
 	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 1<<20)
 	body, err := c.GetRawData()
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Payload invalido"})
 		return
 	}
 	payload := map[string]any{}
-	_ = json.Unmarshal(body, &payload)
+	if err := json.Unmarshal(body, &payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Payload JSON invalido"})
+		return
+	}
+	if !h.validMarketplaceWebhookSignature(c, body) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Assinatura do webhook invalida"})
+		return
+	}
+	if provider == mercadoLivreProvider && !h.validMercadoLivreWebhookApplication(payload) {
+		c.JSON(http.StatusOK, gin.H{"message": "Notificacao ignorada: aplicacao nao reconhecida."})
+		return
+	}
 	tenantID := resolveWebhookTenantID(c, provider, payload)
+	if tenantID == 0 {
+		c.JSON(http.StatusOK, gin.H{"message": "Notificacao ignorada: conta do marketplace nao reconhecida."})
+		return
+	}
 	headersPayload, _ := json.Marshal(webhookHeaders(c))
+	dedupKey := marketplaceWebhookDedupKey(provider, payload)
+	var existing models.MarketplaceWebhookEvent
+	if err := database.DB.Where("dedup_key = ?", dedupKey).First(&existing).Error; err == nil {
+		c.JSON(http.StatusOK, gin.H{"message": "Webhook ja registrado.", "event_id": existing.ID})
+		return
+	}
 
 	event := models.MarketplaceWebhookEvent{
 		TenantID:         tenantID,
@@ -1983,6 +2024,7 @@ func (h *MarketplaceHandler) ReceiveMarketplaceWebhook(c *gin.Context) {
 		EventType:        webhookEventType(payload),
 		ExternalID:       webhookExternalID(payload),
 		ExternalResource: webhookExternalResource(payload),
+		DedupKey:         dedupKey,
 		Status:           "pending",
 		Payload:          string(body),
 		Headers:          string(headersPayload),
@@ -1993,11 +2035,43 @@ func (h *MarketplaceHandler) ReceiveMarketplaceWebhook(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusAccepted, gin.H{
+	c.JSON(http.StatusOK, gin.H{
 		"message":   "Webhook registrado para processamento.",
 		"event_id":  event.ID,
 		"tenant_id": tenantID,
 	})
+	go h.ProcessMarketplaceQueue(context.Background(), 20)
+}
+
+func (h *MarketplaceHandler) validMercadoLivreWebhookApplication(payload map[string]any) bool {
+	if h == nil || h.cfg == nil || strings.TrimSpace(h.cfg.MercadoLivreClientID) == "" {
+		return true
+	}
+	applicationID := webhookStringValue(payload, "application_id")
+	return applicationID == "" || applicationID == strings.TrimSpace(h.cfg.MercadoLivreClientID)
+}
+
+func (h *MarketplaceHandler) validMarketplaceWebhookSignature(c *gin.Context, body []byte) bool {
+	if h == nil || h.cfg == nil || strings.TrimSpace(h.cfg.MercadoLivreWebhookSecret) == "" {
+		return true
+	}
+	received := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(c.GetHeader("X-Signature"))), "sha256=")
+	decoded, err := hex.DecodeString(received)
+	if err != nil {
+		return false
+	}
+	mac := hmac.New(sha256.New, []byte(h.cfg.MercadoLivreWebhookSecret))
+	_, _ = mac.Write(body)
+	return hmac.Equal(decoded, mac.Sum(nil))
+}
+
+func marketplaceWebhookDedupKey(provider string, payload map[string]any) string {
+	id := webhookStringValue(payload, "_id")
+	if id == "" {
+		id = webhookEventType(payload) + "|" + webhookExternalResource(payload) + "|" + webhookStringValue(payload, "sent")
+	}
+	sum := sha256.Sum256([]byte(normalizeProvider(provider) + "|" + id))
+	return hex.EncodeToString(sum[:])
 }
 
 // GET /api/admin/marketplaces/webhook-events
@@ -2017,16 +2091,7 @@ func (h *MarketplaceHandler) GetMarketplaceWebhookEvents(c *gin.Context) {
 }
 
 func resolveWebhookTenantID(c *gin.Context, provider string, payload map[string]any) uint {
-	if header := strings.TrimSpace(c.GetHeader("X-Tenant-ID")); header != "" {
-		if parsed, err := strconv.Atoi(header); err == nil && parsed > 0 {
-			return uint(parsed)
-		}
-	}
-	if query := strings.TrimSpace(c.Query("tenant_id")); query != "" {
-		if parsed, err := strconv.Atoi(query); err == nil && parsed > 0 {
-			return uint(parsed)
-		}
-	}
+	_ = c // Tenant identity must never come from public headers or query params.
 	for _, key := range []string{"shop_id", "seller_id", "user_id", "merchant_id"} {
 		value := webhookStringValue(payload, key)
 		if value == "" {
@@ -2041,7 +2106,7 @@ func resolveWebhookTenantID(c *gin.Context, provider string, payload map[string]
 }
 
 func webhookHeaders(c *gin.Context) map[string]string {
-	allowed := []string{"User-Agent", "X-Shopee-Shopid", "X-Tenant-ID", "X-Topic", "X-Notification-Type"}
+	allowed := []string{"User-Agent", "X-Shopee-Shopid", "X-Topic", "X-Notification-Type", "X-Request-Id", "X-Signature"}
 	headers := map[string]string{}
 	for _, key := range allowed {
 		if value := strings.TrimSpace(c.GetHeader(key)); value != "" {

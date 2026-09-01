@@ -17,7 +17,7 @@ func TestMarketplaceImportedProductStatusUsesConfiguredStatusForNewInactiveProdu
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got := marketplaceImportedProductStatus(false, test.marketplaceStatus, test.configuredStatus)
+			got := marketplaceImportedProductStatus("shopee", false, test.marketplaceStatus, test.configuredStatus)
 			if got != test.want {
 				t.Fatalf("status = %q, want %q", got, test.want)
 			}
@@ -26,10 +26,16 @@ func TestMarketplaceImportedProductStatusUsesConfiguredStatusForNewInactiveProdu
 }
 
 func TestMarketplaceImportedProductStatusNormalizesExistingExternalStatus(t *testing.T) {
-	if got := marketplaceImportedProductStatus(true, "closed", "draft"); got != "paused" {
+	if got := marketplaceImportedProductStatus("mercadolivre", true, "closed", "draft"); got != "paused" {
 		t.Fatalf("closed existing product status = %q, want paused", got)
 	}
-	if got := marketplaceImportedProductStatus(true, "active", "draft"); got != "active" {
+	if got := marketplaceImportedProductStatus("mercadolivre", true, "active", "draft"); got != "active" {
 		t.Fatalf("active existing product status = %q, want active", got)
+	}
+}
+
+func TestMarketplaceImportedProductStatusPublishesNewMercadoLivreItem(t *testing.T) {
+	if got := marketplaceImportedProductStatus("mercadolivre", false, "active", "draft"); got != "active" {
+		t.Fatalf("new Mercado Livre product status = %q, want active", got)
 	}
 }

@@ -226,20 +226,22 @@ type ProductColorImage struct {
 }
 
 type ProductVariant struct {
-	ID          uint      `gorm:"primaryKey" json:"id"`
-	TenantID    uint      `gorm:"not null;index" json:"tenant_id"`
-	ProductID   uint      `gorm:"not null;index" json:"product_id"`
-	Product     *Product  `gorm:"foreignKey:ProductID" json:"product,omitempty"`
-	ColorName   string    `gorm:"size:80;not null" json:"color_name"`
-	Price       float64   `gorm:"not null" json:"price"`
-	Material    string    `gorm:"size:100" json:"material"`
-	LayerHeight string    `gorm:"size:50" json:"layer_height"`
-	PrintTime   string    `gorm:"size:50" json:"print_time"`
-	Weight      string    `gorm:"size:50" json:"weight"`
-	IsActive    bool      `gorm:"default:true" json:"is_active"`
-	SortOrder   int       `gorm:"default:0" json:"sort_order"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID            uint      `gorm:"primaryKey" json:"id"`
+	TenantID      uint      `gorm:"not null;index" json:"tenant_id"`
+	ProductID     uint      `gorm:"not null;index" json:"product_id"`
+	Product       *Product  `gorm:"foreignKey:ProductID" json:"product,omitempty"`
+	ColorName     string    `gorm:"size:80;not null" json:"color_name"`
+	VariationName string    `gorm:"size:180" json:"variation_name"`
+	Attributes    string    `gorm:"type:jsonb;default:'[]'" json:"attributes"`
+	Price         float64   `gorm:"not null" json:"price"`
+	Material      string    `gorm:"size:100" json:"material"`
+	LayerHeight   string    `gorm:"size:50" json:"layer_height"`
+	PrintTime     string    `gorm:"size:50" json:"print_time"`
+	Weight        string    `gorm:"size:50" json:"weight"`
+	IsActive      bool      `gorm:"default:true" json:"is_active"`
+	SortOrder     int       `gorm:"default:0" json:"sort_order"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 type ProductColorStock struct {
@@ -535,14 +537,16 @@ type ProductReviewInput struct {
 }
 
 type ProductVariantInput struct {
-	ColorName   string  `json:"color_name"`
-	Price       float64 `json:"price"`
-	Material    string  `json:"material"`
-	LayerHeight string  `json:"layer_height"`
-	PrintTime   string  `json:"print_time"`
-	Weight      string  `json:"weight"`
-	IsActive    bool    `json:"is_active"`
-	SortOrder   int     `json:"sort_order"`
+	ColorName     string  `json:"color_name"`
+	VariationName string  `json:"variation_name"`
+	Attributes    string  `json:"attributes"`
+	Price         float64 `json:"price"`
+	Material      string  `json:"material"`
+	LayerHeight   string  `json:"layer_height"`
+	PrintTime     string  `json:"print_time"`
+	Weight        string  `json:"weight"`
+	IsActive      bool    `json:"is_active"`
+	SortOrder     int     `json:"sort_order"`
 }
 
 type ProductColorStockInput struct {
@@ -810,6 +814,7 @@ type MarketplaceAccount struct {
 	IsActive             bool       `gorm:"default:true" json:"is_active"`
 	IsConnected          bool       `gorm:"default:false" json:"is_connected"`
 	SyncOrders           bool       `gorm:"default:true" json:"sync_orders"`
+	SyncCatalog          bool       `gorm:"default:true" json:"sync_catalog"`
 	SyncStock            bool       `gorm:"default:true" json:"sync_stock"`
 	SyncStatus           string     `gorm:"size:30;default:'pending_credentials'" json:"sync_status"`
 	LastSyncAt           *time.Time `json:"last_sync_at,omitempty"`
@@ -929,7 +934,10 @@ type MarketplaceWebhookEvent struct {
 	EventType        string     `gorm:"size:100;index" json:"event_type"`
 	ExternalID       string     `gorm:"size:160;index" json:"external_id"`
 	ExternalResource string     `gorm:"size:500" json:"external_resource"`
+	DedupKey         string     `gorm:"size:190;index" json:"dedup_key"`
 	Status           string     `gorm:"size:30;default:'pending'" json:"status"`
+	RetryCount       int        `gorm:"default:0" json:"retry_count"`
+	NextAttemptAt    *time.Time `gorm:"index" json:"next_attempt_at,omitempty"`
 	Payload          string     `gorm:"type:text" json:"payload"`
 	Headers          string     `gorm:"type:text" json:"headers,omitempty"`
 	ErrorMessage     string     `gorm:"type:text" json:"error_message,omitempty"`
@@ -1051,6 +1059,7 @@ type MarketplaceAccountInput struct {
 	RefreshToken string `json:"refresh_token"`
 	IsActive     bool   `json:"is_active"`
 	SyncOrders   bool   `json:"sync_orders"`
+	SyncCatalog  *bool  `json:"sync_catalog"`
 	SyncStock    bool   `json:"sync_stock"`
 }
 

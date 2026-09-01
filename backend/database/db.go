@@ -180,6 +180,11 @@ func InitDB(cfg *config.Config) *gorm.DB {
 		log.Fatalf("Erro na migração do banco de dados: %v", err)
 	}
 
+	// Backfill automation fields before enforcing webhook idempotency.
+	db.Exec("UPDATE marketplace_accounts SET sync_catalog = true WHERE sync_catalog IS NULL")
+	db.Exec("UPDATE marketplace_webhook_events SET dedup_key = 'legacy-' || id::text WHERE dedup_key IS NULL OR dedup_key = ''")
+	db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_marketplace_webhook_dedup_key ON marketplace_webhook_events (dedup_key)")
+
 	if err := ensureTenantCascadeConstraints(db); err != nil {
 		log.Fatalf("Erro ao configurar exclusao em cascata por tenant: %v", err)
 	}

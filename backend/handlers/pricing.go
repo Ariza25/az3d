@@ -139,7 +139,9 @@ func tenantSettingsFromDomains(tenantID uint) (models.TenantSettings, error) {
 		return models.TenantSettings{}, err
 	}
 
-	settings, _ := getOrCreateTenantSettings(tenantID)
+	// Compatibility response assembled from the canonical domain tables. The
+	// legacy tenant_settings row is no longer rewritten on every read.
+	settings := defaultTenantSettings(tenantID)
 	settings.TenantID = tenantID
 	settings.StoreName = store.StoreName
 	settings.LogoURL = store.LogoURL
@@ -159,16 +161,11 @@ func tenantSettingsFromDomains(tenantID uint) (models.TenantSettings, error) {
 	settings.DefaultFixedFee = pricing.DefaultFixedFee
 	settings.DeliveryPickupEnabled = fulfillment.DeliveryPickupEnabled
 	settings.DeliveryShipEnabled = fulfillment.DeliveryShipEnabled
-	_ = database.DB.Save(&settings).Error
-
 	return settings, nil
 }
 
 func syncTenantSettingsDomains(tenantID uint, input models.TenantSettingsInput) (models.TenantSettings, error) {
-	legacy, err := getOrCreateTenantSettings(tenantID)
-	if err != nil {
-		return legacy, err
-	}
+	legacy := defaultTenantSettings(tenantID)
 	store, err := getOrCreateTenantStoreSettings(tenantID)
 	if err != nil {
 		return legacy, err

@@ -18,6 +18,7 @@ interface PricingCalculatorProps {
   tenantId?: number;
   tenantSettings?: TenantSettings | null;
   onSettingsSaved?: (settings: TenantSettings) => void;
+  onProductPricingApplied?: (product: Product) => void;
 }
 
 interface ExcelCalculatedRow {
@@ -48,6 +49,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
   tenantId,
   tenantSettings,
   onSettingsSaved,
+  onProductPricingApplied,
 }) => {
   const [input, setInput] = useState<PrintingPricingInput>(() => inputFromTenantSettings(tenantSettings));
   const [selectedProductId, setSelectedProductId] = useState('');
@@ -55,6 +57,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
   const [excelRows, setExcelRows] = useState<ExcelCalculatedRow[]>([]);
   const [isCalculating, setIsCalculating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isApplying, setIsApplying] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -137,6 +140,22 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
       setError(err.message || 'Erro ao salvar parametros');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const applyToSelectedProduct = async () => {
+    const productId = Number(selectedProductId);
+    if (!productId || !result) return;
+    setIsApplying(true);
+    setError(null);
+    try {
+      const response = await api.applyProductPricing(productId, input, tenantId);
+      setResult(response.result);
+      onProductPricingApplied?.(response.product);
+    } catch (err: any) {
+      setError(err.message || 'Erro ao aplicar preco ao produto');
+    } finally {
+      setIsApplying(false);
     }
   };
 
@@ -227,6 +246,15 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
           >
             {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             <span>{saved ? 'Parametros salvos' : 'Salvar no tenant'}</span>
+          </button>
+          <button
+            type="button"
+            onClick={applyToSelectedProduct}
+            disabled={isApplying || !selectedProductId || !result}
+            className="flex items-center justify-center gap-2 rounded-xl border border-laser-500/40 bg-laser-500/10 px-4 py-2 text-xs font-bold text-laser-200 transition-colors hover:bg-laser-500/20 disabled:opacity-40"
+          >
+            {isApplying ? <Loader2 className="h-4 w-4 animate-spin" /> : <DollarSign className="h-4 w-4" />}
+            <span>Aplicar ao produto</span>
           </button>
         </div>
       </div>

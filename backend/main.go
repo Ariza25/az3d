@@ -60,6 +60,7 @@ func main() {
 	shipmentHandler := handlers.NewShipmentHandler(cfg)
 	platformHandler := handlers.NewPlatformHandler(cfg)
 	handlers.StartTrackingSyncJob(cfg)
+	handlers.StartMarketplaceSyncJob(cfg, marketplaceHandler)
 
 	r.Static("/uploads", "./uploads")
 
@@ -143,9 +144,6 @@ func main() {
 			admin.POST("/payments/mercadopago/oauth/refresh", mercadoPagoHandler.RefreshOAuth)
 			admin.DELETE("/payments/mercadopago/oauth", mercadoPagoHandler.DisconnectOAuth)
 
-			admin.GET("/marketplaces", marketplaceHandler.GetMarketplaceIntegrations)
-			admin.POST("/marketplaces", marketplaceHandler.SaveMarketplaceIntegration)
-			admin.PATCH("/marketplaces/:id/toggle", marketplaceHandler.ToggleMarketplaceStatus)
 			admin.GET("/marketplaces/settings", marketplaceHandler.GetMarketplaceSettings)
 			admin.PATCH("/marketplaces/settings", marketplaceHandler.UpdateMarketplaceSettings)
 			admin.GET("/marketplaces/accounts", marketplaceHandler.GetMarketplaceAccounts)
@@ -155,9 +153,6 @@ func main() {
 			admin.POST("/marketplaces/refresh-tokens", marketplaceHandler.RefreshMarketplaceTokens)
 			admin.POST("/marketplaces/test", marketplaceHandler.TestMarketplaceConnection)
 			admin.GET("/marketplaces/mappings", marketplaceHandler.GetProductMappings)
-			admin.POST("/marketplaces/mappings", marketplaceHandler.SaveProductMapping)
-			admin.POST("/marketplaces/import-products", marketplaceHandler.ImportMarketplaceProducts)
-			admin.POST("/marketplaces/sync-product", marketplaceHandler.SyncProductToMarketplace)
 			admin.POST("/marketplaces/sync-products", marketplaceHandler.SyncMarketplaceProducts)
 			admin.POST("/marketplaces/sync-orders", marketplaceHandler.SyncMarketplaceOrders)
 			admin.GET("/marketplaces/external-orders", marketplaceHandler.GetExternalOrders)

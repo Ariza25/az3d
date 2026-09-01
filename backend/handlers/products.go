@@ -119,21 +119,30 @@ func syncProductVariants(tenantID uint, productID uint, inputs []models.ProductV
 
 	for _, input := range inputs {
 		colorName := strings.TrimSpace(input.ColorName)
+		variationName := strings.TrimSpace(input.VariationName)
+		if variationName == "" {
+			variationName = colorName
+		}
+		if colorName == "" {
+			colorName = variationName
+		}
 		if colorName == "" || input.Price <= 0 {
 			continue
 		}
 
 		variant := models.ProductVariant{
-			TenantID:    tenantID,
-			ProductID:   productID,
-			ColorName:   colorName,
-			Price:       input.Price,
-			Material:    strings.TrimSpace(input.Material),
-			LayerHeight: strings.TrimSpace(input.LayerHeight),
-			PrintTime:   strings.TrimSpace(input.PrintTime),
-			Weight:      strings.TrimSpace(input.Weight),
-			IsActive:    input.IsActive,
-			SortOrder:   input.SortOrder,
+			TenantID:      tenantID,
+			ProductID:     productID,
+			ColorName:     colorName,
+			VariationName: variationName,
+			Attributes:    defaultString(input.Attributes, "[]"),
+			Price:         input.Price,
+			Material:      strings.TrimSpace(input.Material),
+			LayerHeight:   strings.TrimSpace(input.LayerHeight),
+			PrintTime:     strings.TrimSpace(input.PrintTime),
+			Weight:        strings.TrimSpace(input.Weight),
+			IsActive:      input.IsActive,
+			SortOrder:     input.SortOrder,
 		}
 		if err := database.DB.Create(&variant).Error; err != nil {
 			return err

@@ -238,7 +238,7 @@ func getOrCreateMercadoLivreAccount(tenantID uint) (models.MarketplaceAccount, e
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		account = models.MarketplaceAccount{
 			TenantID: tenantID, Provider: mercadoLivreProvider, AccountName: "Mercado Livre",
-			Marketplace: "MLB", IsActive: true, SyncOrders: true, SyncStock: true,
+			Marketplace: "MLB", IsActive: true, SyncCatalog: true, SyncOrders: true, SyncStock: true,
 		}
 		return account, nil
 	}

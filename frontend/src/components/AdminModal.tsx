@@ -5,7 +5,6 @@ import {
   Order,
   Tenant,
   ProductInput,
-  MarketplaceIntegration,
   MarketplaceProductMapping,
   TenantSettings,
   StockMovement,
@@ -17,8 +16,10 @@ import { api } from '../services/api';
 import { ProductFormModal } from './ProductFormModal';
 import { PricingCalculator } from './PricingCalculator';
 import { PricingManagementPanel } from './PricingManagementPanel';
+import { ProductionCostsPanel } from './ProductionCostsPanel';
 import { FinancePanel } from './FinancePanel';
 import { MarketplaceConnectionsPanel } from './MarketplaceConnectionsPanel';
+import { CatalogCategoriesPanel } from './CatalogCategoriesPanel';
 import { AdminDashboard } from '../features/admin/components/AdminDashboard';
 import { AdminInventory } from '../features/admin/components/AdminInventory';
 import { MercadoPagoSettings } from '../features/admin/components/MercadoPagoSettings';
@@ -36,7 +37,6 @@ import {
   ToggleLeft,
   ToggleRight,
   RefreshCw,
-  ExternalLink,
   Calculator,
   Settings,
   BarChart3,
@@ -45,34 +45,6 @@ import {
   Activity,
   Clock,
 } from 'lucide-react';
-
-// Mapa de metadados visuais dos marketplaces
-const MARKETPLACE_META: Record<string, { label: string; color: string; bg: string; border: string; icon: string; badge: string }> = {
-  mercadolivre: {
-    label: 'Mercado Livre',
-    color: 'text-yellow-400',
-    bg: 'bg-yellow-500/10',
-    border: 'border-yellow-500/30',
-    icon: '🛍️',
-    badge: 'bg-yellow-400 text-yellow-950',
-  },
-  shopee: {
-    label: 'Shopee',
-    color: 'text-orange-400',
-    bg: 'bg-orange-500/10',
-    border: 'border-orange-500/30',
-    icon: '🛒',
-    badge: 'bg-orange-400 text-orange-950',
-  },
-  amazon: {
-    label: 'Amazon Seller',
-    color: 'text-cyan-400',
-    bg: 'bg-cyan-500/10',
-    border: 'border-cyan-500/30',
-    icon: '📦',
-    badge: 'bg-cyan-400 text-cyan-950',
-  },
-};
 
 const ORDER_STATUS_LABELS: Record<string, string> = {
   pending_confirmation: 'Aguardando confirmacao',
@@ -94,6 +66,13 @@ interface AdminModalProps {
   onRefreshProducts: () => void;
 }
 
+type AdminSection = 'dashboard' | 'products' | 'orders' | 'inventory' | 'finance' | 'pricing' | 'settings' | 'marketplaces';
+
+const initialAdminSection = (): AdminSection => {
+  const value = new URLSearchParams(window.location.search).get('section') as AdminSection | null;
+  return value && ['dashboard', 'products', 'orders', 'inventory', 'finance', 'pricing', 'settings', 'marketplaces'].includes(value) ? value : 'dashboard';
+};
+
 export const AdminModal: React.FC<AdminModalProps> = ({
   isOpen,
   onClose,
@@ -102,18 +81,13 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   categories,
   onRefreshProducts,
 }) => {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'categories' | 'orders' | 'inventory' | 'finance' | 'pricing' | 'settings' | 'marketplaces' | 'carriers'>('dashboard');
+  const [activeTab, setActiveTab] = useState<AdminSection>(initialAdminSection);
   
   // Estados para Produtos
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isProductFormOpen, setIsProductFormOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-
-  // Estados para Categorias
-  const [newCatName, setNewCatName] = useState('');
-  const [newCatDesc, setNewCatDesc] = useState('');
-  const [newCatIcon, setNewCatIcon] = useState('box');
 
   // Estados para Pedidos Admin
   const [orders, setOrders] = useState<Order[]>([]);
@@ -142,20 +116,22 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [shipmentForm, setShipmentForm] = useState({ order_id: 0, carrier: 'correios', tracking_code: '' });
   const [syncingShipmentId, setSyncingShipmentId] = useState<number | 'all' | null>(null);
 
-  // Estados para Marketplaces
-  const [marketplaces, setMarketplaces] = useState<MarketplaceIntegration[]>([]);
   const [mappings, setMappings] = useState<MarketplaceProductMapping[]>([]);
-  const [syncingProduct, setSyncingProduct] = useState<{ productId: number; provider: string } | null>(null);
 
   // Estados gerais
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Carregar produtos e pedidos do tenant ativo
   useEffect(() => {
-    if (isOpen && activeTenant) {
-      loadTenantData();
-    }
-  }, [isOpen, activeTenant]);
+    if (isOpen && activeTenant) void loadTenantData(activeTab);
+  }, [isOpen, activeTenant, activeTab]);
+
+  useEffect(() => {
+    if (!isOpen || window.location.pathname.includes('/marketplaces/callback')) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set('section', activeTab);
+    window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+  }, [activeTab, isOpen]);
 
   useEffect(() => {
     if (stockAdjustment.product_id || products.length === 0) return;
@@ -169,30 +145,22 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     });
   }, [products, stockAdjustment.product_id]);
 
-  const loadTenantData = async () => {
+  const loadTenantData = async (section: AdminSection = activeTab) => {
     if (!activeTenant) return;
     try {
-      const [prods, ords, mkts, maps, settings, movements, alerts, carriers, loadedShipments] = await Promise.all([
-        api.getAdminProducts(activeTenant.id),
-        api.getAdminOrders(activeTenant.id).catch(() => []),
-        api.getMarketplaces(activeTenant.id).catch(() => []),
-        api.getProductMappings(activeTenant.id).catch(() => []),
-        api.getAdminTenantSettings(activeTenant.id).catch(() => null),
-        api.getStockMovements(activeTenant.id).catch(() => []),
-        api.getStockAlerts(activeTenant.id).catch(() => []),
-        api.getCarrierAccounts(activeTenant.id).catch(() => []),
-        api.getShipments(activeTenant.id).catch(() => []),
-      ]);
-      setProducts(prods);
-      setOrders(ords);
-      setMarketplaces(mkts);
-      setMappings(maps);
-      setTenantSettings(settings);
-      setStockMovements(movements);
-      setStockAlerts(alerts);
-      setCarrierAccounts(carriers);
-      setShipments(loadedShipments);
-      setShipmentForm((prev) => ({ ...prev, order_id: prev.order_id || ords[0]?.id || 0 }));
+      if (['dashboard', 'products', 'inventory', 'pricing', 'finance', 'marketplaces'].includes(section)) setProducts(await api.getAdminProducts(activeTenant.id));
+      if (section === 'dashboard' || section === 'orders') {
+        const [ords, carriers, loadedShipments] = await Promise.all([api.getAdminOrders(activeTenant.id).catch(() => []), api.getCarrierAccounts(activeTenant.id).catch(() => []), api.getShipments(activeTenant.id).catch(() => [])]);
+        setOrders(ords); setCarrierAccounts(carriers); setShipments(loadedShipments);
+        setShipmentForm((prev) => ({ ...prev, order_id: prev.order_id || ords[0]?.id || 0 }));
+      }
+      if (section === 'inventory' || section === 'dashboard') {
+        const [movements, alerts] = await Promise.all([api.getStockMovements(activeTenant.id).catch(() => []), api.getStockAlerts(activeTenant.id).catch(() => [])]);
+        setStockMovements(movements); setStockAlerts(alerts);
+      }
+      if (section === 'settings' || section === 'pricing' || section === 'marketplaces') setTenantSettings(await api.getAdminTenantSettings(activeTenant.id).catch(() => null));
+      if (section === 'settings') setCarrierAccounts(await api.getCarrierAccounts(activeTenant.id).catch(() => []));
+      if (section === 'marketplaces') setMappings(await api.getProductMappings(activeTenant.id).catch(() => []));
     } catch (err: any) {
       console.error('Erro ao carregar dados do admin:', err);
     }
@@ -226,21 +194,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     }
   };
 
-  // Handlers de Categorias
-  const handleCreateCategory = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activeTenant || !newCatName.trim()) return;
-    try {
-      await api.createCategory({ name: newCatName, description: newCatDesc, icon: newCatIcon }, activeTenant.id);
-      setMessage({ type: 'success', text: `Categoria "${newCatName}" criada com sucesso!` });
-      setNewCatName('');
-      setNewCatDesc('');
-      onRefreshProducts();
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.message || 'Erro ao criar categoria' });
-    }
-  };
-
   // Handler de Status de Pedido
   const handleStatusChange = async (orderId: number, newStatus: string) => {
     if (!activeTenant) return;
@@ -250,33 +203,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       loadTenantData();
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Erro ao atualizar pedido' });
-    }
-  };
-
-  // Handlers de Marketplace
-  const handleToggleMarketplace = async (id: number) => {
-    if (!activeTenant) return;
-    try {
-      const updated = await api.toggleMarketplace(id, activeTenant.id);
-      setMarketplaces((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
-      setMessage({ type: 'success', text: `Integração ${updated.is_active ? 'ativada' : 'desativada'} com sucesso!` });
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.message || 'Erro ao alternar integração' });
-    }
-  };
-
-  const handleSyncProduct = async (productId: number, provider: string) => {
-    if (!activeTenant) return;
-    setSyncingProduct({ productId, provider });
-    try {
-      const result = await api.syncProductToMarketplace(productId, provider, activeTenant.id);
-      setMessage({ type: 'success', text: result.message });
-      const maps = await api.getProductMappings(activeTenant.id).catch(() => []);
-      setMappings(maps);
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.message || 'Erro ao sincronizar produto' });
-    } finally {
-      setSyncingProduct(null);
     }
   };
 
@@ -436,14 +362,12 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const stockAdjustmentProduct = products.find((product) => product.id === stockAdjustment.product_id) || products[0];
   const tenantNavigation = [
     { id: 'dashboard' as const, label: 'Visão geral', hint: 'Resumo da operação', icon: BarChart3 },
-    { id: 'products' as const, label: 'Produtos', hint: `${products.length} cadastrados`, icon: Package },
-    { id: 'categories' as const, label: 'Categorias', hint: `${categories.length} grupos`, icon: Tag },
-    { id: 'orders' as const, label: 'Pedidos', hint: `${orders.length} vendas`, icon: ShoppingBag },
+    { id: 'products' as const, label: 'Catálogo', hint: `${products.length} produtos · ${categories.length} categorias`, icon: Package },
+    { id: 'orders' as const, label: 'Pedidos e envios', hint: `${orders.length} vendas`, icon: ShoppingBag },
     { id: 'inventory' as const, label: 'Estoque', hint: `${lowStockItems.length} alertas`, icon: Package },
     { id: 'pricing' as const, label: 'Precificação', hint: 'Custos e margens', icon: Calculator },
     { id: 'finance' as const, label: 'Financeiro', hint: 'Receita e resultado', icon: TrendingUp },
-    { id: 'marketplaces' as const, label: 'Marketplaces', hint: `${marketplaces.length} canais`, icon: ShoppingCart },
-    { id: 'carriers' as const, label: 'Transportadoras', hint: `${carrierAccounts.length} contas`, icon: Truck },
+    { id: 'marketplaces' as const, label: 'Mercado Livre', hint: 'Canal conectado', icon: ShoppingCart },
     { id: 'settings' as const, label: 'Configurações', hint: 'Loja e pagamentos', icon: Settings },
   ];
 
@@ -654,76 +578,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             </div>
           )}
 
-          {/* TAB 2: CATEGORIAS */}
-          {activeTab === 'categories' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Formulário de Categoria */}
-              <div className="bg-chumbo-950 p-5 rounded-2xl border border-chumbo-800 space-y-4">
-                <h3 className="text-sm font-bold text-white flex items-center space-x-2">
-                  <Plus className="w-4 h-4 text-laser-400" />
-                  <span>Nova Categoria</span>
-                </h3>
-                <form onSubmit={handleCreateCategory} className="space-y-3 text-xs">
-                  <div>
-                    <label className="text-slate-400 block mb-1">Nome da Categoria</label>
-                    <input
-                      type="text"
-                      required
-                      value={newCatName}
-                      onChange={(e) => setNewCatName(e.target.value)}
-                      placeholder="Ex: Engrenagens & Mecânica"
-                      className="w-full bg-chumbo-900 border border-chumbo-750 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-laser-400"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-slate-400 block mb-1">Descrição Breve</label>
-                    <input
-                      type="text"
-                      value={newCatDesc}
-                      onChange={(e) => setNewCatDesc(e.target.value)}
-                      placeholder="Ex: Peças técnicas de alta tolerância"
-                      className="w-full bg-chumbo-900 border border-chumbo-750 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-laser-400"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-slate-400 block mb-1">Ícone (Lucide Icon)</label>
-                    <input
-                      type="text"
-                      value={newCatIcon}
-                      onChange={(e) => setNewCatIcon(e.target.value)}
-                      placeholder="cpu, shield, wrench, sparkles"
-                      className="w-full bg-chumbo-900 border border-chumbo-750 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-laser-400"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    className="w-full py-2.5 rounded-xl bg-white text-chumbo-950 font-bold hover:bg-slate-200 transition-all shadow-md"
-                  >
-                    Salvar Categoria
-                  </button>
-                </form>
-              </div>
-
-              {/* Lista de Categorias */}
-              <div className="md:col-span-2 space-y-3">
-                <h3 className="text-sm font-bold text-white">Categorias Cadastradas no Tenant #{activeTenant?.id}</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {categories.map((c) => (
-                    <div key={c.id} className="p-4 rounded-xl bg-chumbo-950/80 border border-chumbo-800 flex items-start space-x-3">
-                      <div className="p-2.5 rounded-lg bg-chumbo-900 text-laser-400 border border-chumbo-700">
-                        <Tag className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-bold text-white">{c.name}</h4>
-                        <p className="text-xs text-slate-400 mt-0.5">{c.description || 'Sem descrição'}</p>
-                        <span className="text-[10px] font-mono text-slate-500 mt-1 block">Slug: {c.slug}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
+          {activeTab === 'products' && <CatalogCategoriesPanel tenantId={activeTenant?.id} categories={categories} onCreated={onRefreshProducts} onMessage={setMessage} />}
 
           {/* TAB 3: PEDIDOS */}
           {activeTab === 'orders' && (
@@ -908,13 +763,31 @@ export const AdminModal: React.FC<AdminModalProps> = ({
           {/* TAB 4: PRECIFICACAO */}
           {activeTab === 'pricing' && (
             <div className="space-y-6">
-              <PricingCalculator
+              <div>
+                <h3 className="text-sm font-bold text-white">Central de custos e precificacao 3D</h3>
+                <p className="mt-1 text-xs text-slate-400">Todos os calculos de filamento, energia, tempo, perdas, taxas e margem ficam concentrados nesta aba.</p>
+              </div>
+              <details open className="rounded-2xl border border-chumbo-800 bg-chumbo-950/40 p-4">
+                <summary className="cursor-pointer text-sm font-bold text-white">Calculadora</summary>
+                <div className="mt-4"><PricingCalculator
                 products={products}
                 tenantId={activeTenant?.id}
                 tenantSettings={tenantSettings}
                 onSettingsSaved={setTenantSettings}
-              />
-              <PricingManagementPanel tenantId={activeTenant?.id} products={products} />
+                onProductPricingApplied={() => {
+                  void loadTenantData();
+                  onRefreshProducts();
+                }}
+                /></div>
+              </details>
+              <details className="rounded-2xl border border-chumbo-800 bg-chumbo-950/40 p-4">
+                <summary className="cursor-pointer text-sm font-bold text-white">Materiais, impressoras, canais e cenários</summary>
+                <div className="mt-4"><PricingManagementPanel tenantId={activeTenant?.id} products={products} /></div>
+              </details>
+              <details className="rounded-2xl border border-chumbo-800 bg-chumbo-950/40 p-4">
+                <summary className="cursor-pointer text-sm font-bold text-white">Custos fixos e custos reais</summary>
+                <div className="mt-4"><ProductionCostsPanel tenantId={activeTenant?.id} products={products} /></div>
+              </details>
             </div>
           )}
 
@@ -922,7 +795,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             <FinancePanel tenantId={activeTenant?.id} products={products} />
           )}
 
-          {activeTab === 'carriers' && (
+          {activeTab === 'settings' && (
             <div className="space-y-6">
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                 <div>
@@ -1110,7 +983,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             <div className="space-y-5">
               <div>
                 <h3 className="text-sm font-bold text-white">Configuracoes da loja</h3>
-                <p className="mt-1 text-xs text-slate-400">Identidade da vitrine, formas de entrega e presets usados como base para precificacao.</p>
+                <p className="mt-1 text-xs text-slate-400">Identidade da vitrine, pagamentos e formas de entrega.</p>
               </div>
 
               {activeTenant && <MercadoPagoSettings tenantId={activeTenant.id} />}
@@ -1132,34 +1005,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                   <label className="text-xs font-mono uppercase text-slate-400">Cor de destaque</label>
                   <input type="color" value={tenantSettings.accent_color || '#ffffff'} onChange={(e) => updateTenantSetting('accent_color', e.target.value)} className="h-11 w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-2 py-1" />
                 </div>
-              </div>
-
-              <div className="grid gap-3 md:grid-cols-4">
-                {[
-                  ['default_spool_price', 'Preco rolo'],
-                  ['default_spool_weight', 'Peso rolo'],
-                  ['default_printer_power_kw', 'Potencia kW'],
-                  ['default_energy_tariff', 'Energia R$/kWh'],
-                  ['default_packaging_cost', 'Embalagem'],
-                  ['default_labor_cost', 'Mao de obra'],
-                  ['default_extra_cost', 'Extras'],
-                  ['default_failure_rate_percent', 'Falha %'],
-                  ['default_margin_percent', 'Margem %'],
-                  ['default_platform_fee_percent', 'Plataforma %'],
-                  ['default_payment_fee_percent', 'Pagamento %'],
-                  ['default_fixed_fee', 'Taxa fixa'],
-                ].map(([field, label]) => (
-                  <div key={field} className="space-y-1.5">
-                    <label className="text-xs font-mono uppercase text-slate-400">{label}</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={Number(tenantSettings[field as keyof TenantSettings]) || 0}
-                      onChange={(e) => updateTenantSetting(field as keyof TenantSettings, Number(e.target.value) || 0)}
-                      className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-4 py-2.5 text-sm text-white focus:outline-none focus:border-laser-400"
-                    />
-                  </div>
-                ))}
               </div>
 
               <div className="flex flex-wrap gap-3">
@@ -1199,165 +1044,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                 onMessage={setMessage}
               />
 
-              {/* Cards dos Marketplaces */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {(['mercadolivre', 'shopee', 'amazon'] as const).map((provider) => {
-                  const meta = MARKETPLACE_META[provider];
-                  const integration = marketplaces.find((m) => m.provider === provider);
-                  const isActive = integration?.is_active ?? false;
-
-                  return (
-                    <div key={provider} className={`rounded-2xl border p-5 space-y-4 transition-all ${isActive ? `${meta.bg} ${meta.border}` : 'bg-chumbo-950/60 border-chumbo-800'}`}>
-                      {/* Header do Card */}
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-2xl">{meta.icon}</span>
-                          <div>
-                            <span className={`text-sm font-extrabold ${isActive ? meta.color : 'text-slate-300'}`}>{meta.label}</span>
-                            {integration && (
-                              <p className="text-[10px] text-slate-400 font-mono mt-0.5 truncate max-w-[130px]">{integration.seller_name}</p>
-                            )}
-                          </div>
-                        </div>
-                        {/* Toggle de Ativação */}
-                        <button
-                          onClick={() => integration && handleToggleMarketplace(integration.id)}
-                          disabled={!integration}
-                          title={isActive ? 'Desativar integração' : 'Ativar integração'}
-                          className={`transition-all ${!integration ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'}`}
-                        >
-                          {isActive
-                            ? <ToggleRight className={`w-8 h-8 ${meta.color}`} />
-                            : <ToggleLeft className="w-8 h-8 text-slate-500" />}
-                        </button>
-                      </div>
-
-                      {/* Status Badge */}
-                      <div className="flex items-center space-x-2">
-                        <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${isActive ? `${meta.badge}` : 'bg-chumbo-800 text-slate-400'}`}>
-                          {isActive ? '● CONECTADO' : '○ PENDENTE'}
-                        </span>
-                        {integration && (
-                          <span className="text-[10px] text-slate-500 font-mono truncate">ID: {integration.seller_id}</span>
-                        )}
-                      </div>
-
-                      {/* Chaves de Sincronização */}
-                      {integration && (
-                        <div className="space-y-1 text-xs">
-                          <div className="flex items-center justify-between text-slate-400">
-                            <span>Importar Pedidos</span>
-                            <span className={integration.sync_orders ? 'text-emerald-400 font-bold' : 'text-slate-500'}>{
-                              integration.sync_orders ? '✓ Ativo' : '✗ Inativo'
-                            }</span>
-                          </div>
-                          <div className="flex items-center justify-between text-slate-400">
-                            <span>Sync de Estoque</span>
-                            <span className={integration.sync_stock ? 'text-emerald-400 font-bold' : 'text-slate-500'}>{
-                              integration.sync_stock ? '✓ Ativo' : '✗ Inativo'
-                            }</span>
-                          </div>
-                        </div>
-                      )}
-
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Tabela de Mapeamento de Produtos por Marketplace */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-white">Catalogo mapeado por marketplace</h3>
-                  <span className="text-xs text-slate-400 font-mono">{mappings.length} mapeamento(s)</span>
-                </div>
-
-                {/* Mapeamento rapido por produto */}
-                <div className="rounded-2xl border border-chumbo-800 overflow-hidden bg-chumbo-950/60">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-chumbo-950 text-slate-400 font-mono uppercase text-[10px]">
-                      <tr>
-                        <th className="p-3">Produto</th>
-                        <th className="p-3">Mapear em</th>
-                        <th className="p-3">Status</th>
-                        <th className="p-3">Anúncio Externo</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-chumbo-850 text-slate-300">
-                      {products.slice(0, 5).map((p) => (
-                        <tr key={p.id} className="hover:bg-chumbo-850/50 transition-colors">
-                          <td className="p-3">
-                            <div className="flex items-center space-x-2">
-                              <img src={p.image_url} alt={p.title} className="w-8 h-8 rounded-lg object-cover border border-chumbo-700" />
-                              <div>
-                                <span className="font-semibold text-white block truncate max-w-[160px]">{p.title}</span>
-                                <span className="text-[10px] text-slate-500 font-mono">R$ {p.price.toFixed(2).replace('.', ',')}</span>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="p-3">
-                            <div className="flex items-center space-x-1.5">
-                              {(['mercadolivre', 'shopee', 'amazon'] as const).map((prov) => {
-                                const meta = MARKETPLACE_META[prov];
-                                const isSyncing = syncingProduct?.productId === p.id && syncingProduct?.provider === prov;
-                                const isMapped = mappings.some((m) => m.product_id === p.id && m.provider === prov);
-                                return (
-                                  <button
-                                    key={prov}
-                                    onClick={() => handleSyncProduct(p.id, prov)}
-                                    disabled={isSyncing}
-                                    title={`Preparar mapeamento com ${meta.label}`}
-                                    className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition-all ${
-                                      isMapped
-                                        ? `${meta.bg} ${meta.color} ${meta.border}`
-                                        : 'bg-chumbo-900 text-slate-500 border-chumbo-700 hover:border-chumbo-600'
-                                    }`}
-                                  >
-                                    {isSyncing ? '...' : `${meta.icon} ${meta.label.split(' ')[0]}`}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </td>
-                          <td className="p-3">
-                            {mappings.filter((m) => m.product_id === p.id).length > 0 ? (
-                              <span className="text-emerald-400 font-bold text-[10px] font-mono">Mapeado</span>
-                            ) : (
-                              <span className="text-slate-500 text-[10px] font-mono">Nao mapeado</span>
-                            )}
-                          </td>
-                          <td className="p-3">
-                            <div className="space-y-0.5">
-                              {mappings.filter((m) => m.product_id === p.id).map((m) => (
-                                <a
-                                  key={m.id}
-                                  href={m.external_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className={`flex items-center space-x-1 text-[10px] ${MARKETPLACE_META[m.provider]?.color || 'text-slate-400'} hover:underline`}
-                                >
-                                  <ExternalLink className="w-3 h-3" />
-                                  <span className="font-mono truncate max-w-[130px]">{m.external_item_id}</span>
-                                </a>
-                              ))}
-                              {mappings.filter((m) => m.product_id === p.id).length === 0 && (
-                                <span className="text-slate-600 text-[10px] font-mono">–</span>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                      {products.length === 0 && (
-                        <tr>
-                          <td colSpan={4} className="p-8 text-center text-slate-400 font-mono text-xs">
-                            Nenhum produto cadastrado para sincronizar.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
             </div>
           )}
 

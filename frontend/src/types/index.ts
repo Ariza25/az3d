@@ -110,6 +110,8 @@ export interface ProductVariant {
   tenant_id?: number;
   product_id?: number;
   color_name: string;
+  variation_name?: string;
+  attributes?: string;
   price: number;
   material?: string;
   layer_height?: string;
@@ -587,6 +589,7 @@ export interface MarketplaceAccount {
   is_active: boolean;
   is_connected: boolean;
   sync_orders: boolean;
+  sync_catalog: boolean;
   sync_stock: boolean;
   sync_status: string;
   last_sync_at?: string;
@@ -605,6 +608,7 @@ export interface MarketplaceAccountInput {
   refresh_token?: string;
   is_active: boolean;
   sync_orders: boolean;
+  sync_catalog?: boolean;
   sync_stock: boolean;
 }
 

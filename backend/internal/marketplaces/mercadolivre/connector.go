@@ -482,7 +482,7 @@ func (c *Connector) fetchItems(ctx context.Context, baseURL string, token string
 		endpoint, _ := url.Parse(baseURL + "/items")
 		query := endpoint.Query()
 		query.Set("ids", strings.Join(itemIDs[start:end], ","))
-		query.Set("attributes", "id,seller_id,title,price,available_quantity,thumbnail,pictures,permalink,seller_custom_field,attributes,status")
+		query.Set("attributes", "id,seller_id,title,price,available_quantity,thumbnail,pictures,permalink,seller_custom_field,attributes,variations,status")
 		endpoint.RawQuery = query.Encode()
 
 		var response []struct {
@@ -546,10 +546,12 @@ type mercadoItem struct {
 	Permalink         string             `json:"permalink"`
 	SellerCustomField string             `json:"seller_custom_field"`
 	Attributes        []mercadoAttribute `json:"attributes"`
+	Variations        []mercadoVariation `json:"variations"`
 	Status            string             `json:"status"`
 }
 
 type mercadoPicture struct {
+	ID        string `json:"id"`
 	URL       string `json:"url"`
 	SecureURL string `json:"secure_url"`
 }
@@ -558,6 +560,16 @@ type mercadoAttribute struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
 	ValueName string `json:"value_name"`
+}
+
+type mercadoVariation struct {
+	ID                    int64              `json:"id"`
+	Price                 float64            `json:"price"`
+	AvailableQuantity     int                `json:"available_quantity"`
+	SellerCustomField     string             `json:"seller_custom_field"`
+	AttributeCombinations []mercadoAttribute `json:"attribute_combinations"`
+	Attributes            []mercadoAttribute `json:"attributes"`
+	PictureIDs            []string           `json:"picture_ids"`
 }
 
 type mercadoTokenResponse struct {
@@ -709,6 +721,21 @@ func normalizeItem(item mercadoItem) mp.CatalogItem {
 		status = "paused"
 	}
 
+	variants, colorStocks, colorImages := normalizeVariations(item, imageURL, status == "active")
+	stockQty := maxInt(item.AvailableQuantity, 0)
+	if len(variants) > 0 {
+		stockQty = 0
+		for _, stock := range colorStocks {
+			stockQty += maxInt(stock.StockQty, 0)
+		}
+	}
+	if len(colorImages) == 0 {
+		colorImages = []mp.CatalogColorImage{{ColorName: "Padrao", ImageURL: imageURL, SortOrder: 0}}
+	}
+	if len(colorStocks) == 0 {
+		colorStocks = []mp.CatalogColorStock{{ColorName: "Padrao", StockQty: stockQty}}
+	}
+
 	return mp.CatalogItem{
 		ExternalItemID: item.ID,
 		ExternalSKU:    sku,
@@ -719,15 +746,110 @@ func normalizeItem(item mercadoItem) mp.CatalogItem {
 		Price:          item.Price,
 		ImageURL:       imageURL,
 		Material:       material,
-		StockQty:       maxInt(item.AvailableQuantity, 0),
+		StockQty:       stockQty,
 		Status:         status,
-		ColorImages:    []mp.CatalogColorImage{{ColorName: "Padrao", ImageURL: imageURL, SortOrder: 0}},
-		ColorStocks:    []mp.CatalogColorStock{{ColorName: "Padrao", StockQty: maxInt(item.AvailableQuantity, 0)}},
+		ColorImages:    colorImages,
+		ColorStocks:    colorStocks,
+		Variants:       variants,
 		Raw: map[string]any{
 			"available_quantity": strconv.Itoa(item.AvailableQuantity),
 			"seller_id":          strconv.FormatInt(item.SellerID, 10),
 		},
 	}
+}
+
+func normalizeVariations(item mercadoItem, fallbackImageURL string, active bool) ([]mp.CatalogVariant, []mp.CatalogColorStock, []mp.CatalogColorImage) {
+	variants := make([]mp.CatalogVariant, 0, len(item.Variations))
+	stocks := make([]mp.CatalogColorStock, 0, len(item.Variations))
+	images := make([]mp.CatalogColorImage, 0, len(item.Variations))
+	pictures := make(map[string]string, len(item.Pictures))
+	for _, picture := range item.Pictures {
+		pictureURL := strings.TrimSpace(picture.SecureURL)
+		if pictureURL == "" {
+			pictureURL = strings.TrimSpace(picture.URL)
+		}
+		if picture.ID != "" && pictureURL != "" {
+			pictures[picture.ID] = pictureURL
+		}
+	}
+
+	for index, variation := range item.Variations {
+		name := variationName(variation, index)
+		price := variation.Price
+		if price <= 0 {
+			price = item.Price
+		}
+		material := attributeValue(variation.Attributes, "MATERIAL")
+		if material == "" {
+			material = attributeValue(variation.AttributeCombinations, "MATERIAL")
+		}
+		variants = append(variants, mp.CatalogVariant{
+			ColorName:     name,
+			VariationName: name,
+			Attributes:    variationAttributesJSON(variation.AttributeCombinations),
+			Price:         price,
+			Material:      material,
+			IsActive:      active,
+			SortOrder:     index,
+		})
+		stocks = append(stocks, mp.CatalogColorStock{ColorName: name, StockQty: maxInt(variation.AvailableQuantity, 0)})
+
+		variationImageURL := fallbackImageURL
+		for _, pictureID := range variation.PictureIDs {
+			if pictureURL := pictures[pictureID]; pictureURL != "" {
+				variationImageURL = pictureURL
+				break
+			}
+		}
+		if variationImageURL != "" {
+			images = append(images, mp.CatalogColorImage{ColorName: name, ImageURL: variationImageURL, SortOrder: index})
+		}
+	}
+	return variants, stocks, images
+}
+
+func variationAttributesJSON(attributes []mercadoAttribute) string {
+	values := make([]map[string]string, 0, len(attributes))
+	for _, attribute := range attributes {
+		name := strings.TrimSpace(attribute.Name)
+		if name == "" {
+			name = strings.TrimSpace(attribute.ID)
+		}
+		value := strings.TrimSpace(attribute.ValueName)
+		if name != "" && value != "" {
+			values = append(values, map[string]string{"name": name, "value": value})
+		}
+	}
+	payload, err := json.Marshal(values)
+	if err != nil {
+		return "[]"
+	}
+	return string(payload)
+}
+
+func variationName(variation mercadoVariation, index int) string {
+	parts := make([]string, 0, len(variation.AttributeCombinations))
+	for _, attribute := range variation.AttributeCombinations {
+		if value := strings.TrimSpace(attribute.ValueName); value != "" {
+			parts = append(parts, value)
+		}
+	}
+	if len(parts) > 0 {
+		return strings.Join(parts, " / ")
+	}
+	if variation.ID != 0 {
+		return strconv.FormatInt(variation.ID, 10)
+	}
+	return fmt.Sprintf("Variacao %d", index+1)
+}
+
+func attributeValue(attributes []mercadoAttribute, id string) string {
+	for _, attribute := range attributes {
+		if strings.EqualFold(strings.TrimSpace(attribute.ID), id) {
+			return strings.TrimSpace(attribute.ValueName)
+		}
+	}
+	return ""
 }
 
 func normalizeOrder(order mercadoOrder) mp.Order {

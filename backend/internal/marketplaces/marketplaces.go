@@ -61,14 +61,16 @@ type CatalogColorStock struct {
 }
 
 type CatalogVariant struct {
-	ColorName   string
-	Price       float64
-	Material    string
-	LayerHeight string
-	PrintTime   string
-	Weight      string
-	IsActive    bool
-	SortOrder   int
+	ColorName     string
+	VariationName string
+	Attributes    string
+	Price         float64
+	Material      string
+	LayerHeight   string
+	PrintTime     string
+	Weight        string
+	IsActive      bool
+	SortOrder     int
 }
 
 type CatalogSyncResult struct {

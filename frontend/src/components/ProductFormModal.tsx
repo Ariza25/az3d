@@ -1,17 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Product, Category, ProductInput, TenantSettings } from '../types';
-import { X, Layers, Save, PackagePlus, AlertCircle, Calculator, DollarSign, Zap, Plus, Trash2, Loader2 } from 'lucide-react';
+import { Product, Category, ProductInput } from '../types';
+import { X, Layers, Save, PackagePlus, AlertCircle, Plus, Trash2 } from 'lucide-react';
 import { api, resolveApiAssetUrl } from '../services/api';
-import {
-  DEFAULT_PRINTING_PRICING,
-  PrintingPricingInput,
-  PrintingPricingResult,
-  currencyBRL,
-  formatPrintDuration,
-  formatWeight,
-  parsePrintMinutes,
-  parseWeightGrams,
-} from '../utils/printingPricing';
 
 interface ProductFormModalProps {
   isOpen: boolean;
@@ -23,22 +13,6 @@ interface ProductFormModalProps {
 
 const DEFAULT_PRODUCT_IMAGE_URL =
   'https://images.unsplash.com/photo-1563089145-599997674d42?q=80&w=800&auto=format&fit=crop';
-
-const mergeTenantPricingDefaults = (input: PrintingPricingInput, settings: TenantSettings): PrintingPricingInput => ({
-  ...input,
-  spoolPrice: settings.default_spool_price ?? input.spoolPrice,
-  spoolWeightGrams: settings.default_spool_weight ?? input.spoolWeightGrams,
-  printerPowerKw: settings.default_printer_power_kw ?? input.printerPowerKw,
-  energyTariffPerKwh: settings.default_energy_tariff ?? input.energyTariffPerKwh,
-  packagingCost: settings.default_packaging_cost ?? input.packagingCost,
-  laborCost: settings.default_labor_cost ?? input.laborCost,
-  extraCost: settings.default_extra_cost ?? input.extraCost,
-  failureRatePercent: settings.default_failure_rate_percent ?? input.failureRatePercent,
-  marginPercent: settings.default_margin_percent ?? input.marginPercent,
-  platformFeePercent: settings.default_platform_fee_percent ?? input.platformFeePercent,
-  paymentFeePercent: settings.default_payment_fee_percent ?? input.paymentFeePercent,
-  fixedFee: settings.default_fixed_fee ?? input.fixedFee,
-});
 
 const createDefaultProductInput = (categoryId: number): ProductInput => ({
   title: '',
@@ -76,17 +50,11 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 }) => {
   const [formData, setFormData] = useState<ProductInput>(() => createDefaultProductInput(categories[0]?.id || 1));
 
-  const [pricingInput, setPricingInput] = useState<PrintingPricingInput>(DEFAULT_PRINTING_PRICING);
-  const [pricingResult, setPricingResult] = useState<PrintingPricingResult | null>(null);
-  const [isPricingCalculating, setIsPricingCalculating] = useState(false);
-  const [pricingSnapshotApplied, setPricingSnapshotApplied] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (productToEdit) {
-      const editWeight = parseWeightGrams(productToEdit.weight);
-      const editMinutes = parsePrintMinutes(productToEdit.print_time);
       setFormData({
         title: productToEdit.title,
         slug: productToEdit.slug,
@@ -135,34 +103,11 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
             }))
           : [],
       });
-      setPricingInput((prev) => ({
-        ...prev,
-        productWeightGrams: editWeight || prev.productWeightGrams,
-        printMinutes: editMinutes || prev.printMinutes,
-      }));
     } else {
       setFormData(createDefaultProductInput(categories[0]?.id || 1));
-      setPricingInput(DEFAULT_PRINTING_PRICING);
     }
-    setPricingResult(null);
-    setPricingSnapshotApplied(false);
     setError(null);
   }, [productToEdit, categories, isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    let mounted = true;
-    api
-      .getAdminTenantSettings()
-      .then((settings) => {
-        if (!mounted) return;
-        setPricingInput((prev) => mergeTenantPricingDefaults(prev, settings));
-      })
-      .catch(() => undefined);
-    return () => {
-      mounted = false;
-    };
-  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -188,42 +133,6 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const updatePricingNumber = (field: keyof PrintingPricingInput, value: string) => {
-    setPricingInput((prev) => ({ ...prev, [field]: Number(value) || 0 }));
-    setPricingResult(null);
-    setPricingSnapshotApplied(false);
-  };
-
-  const calculatePricing = async () => {
-    setIsPricingCalculating(true);
-    setError(null);
-    try {
-      const response = await api.calculatePricing(pricingInput);
-      setPricingInput(response.input);
-      setPricingResult(response.result);
-      return response;
-    } catch (err: any) {
-      setError(err.message || 'Erro ao calcular precificacao');
-      return null;
-    } finally {
-      setIsPricingCalculating(false);
-    }
-  };
-
-  const applySuggestedPrice = async () => {
-    const response = pricingResult ? { input: pricingInput, result: pricingResult } : await calculatePricing();
-    if (!response) return;
-
-    setFormData((prev) => ({
-      ...prev,
-      price: Number(response.result.suggestedPrice.toFixed(2)),
-      weight: formatWeight(response.input.productWeightGrams + response.input.supportWeightGrams),
-      print_time: formatPrintDuration(response.input.printMinutes),
-      pricing_snapshot: response.input,
-    }));
-    setPricingSnapshotApplied(true);
   };
 
   const updateColorImage = (index: number, field: 'color_name' | 'image_url', value: string) => {
@@ -391,10 +300,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 step="0.01"
                 required
                 value={formData.price}
-                onChange={(e) => {
-                  setFormData({ ...formData, price: parseFloat(e.target.value) || 0, pricing_snapshot: undefined });
-                  setPricingSnapshotApplied(false);
-                }}
+                onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0, pricing_snapshot: undefined })}
                 className="w-full bg-chumbo-950 border border-chumbo-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-laser-400 transition-colors"
               />
             </div>
@@ -569,7 +475,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               </div>
               {(formData.variants || []).map((variant, index) => (
                 <div key={index} className="grid grid-cols-1 gap-3 rounded-xl border border-chumbo-800 p-3 md:grid-cols-3">
-                  <input value={variant.color_name} onChange={(e) => updateVariant(index, 'color_name', e.target.value)} placeholder="Cor/acabamento" className="w-full bg-chumbo-950 border border-chumbo-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-laser-400" />
+                  <input value={variant.variation_name || variant.color_name} onChange={(e) => { updateVariant(index, 'variation_name', e.target.value); updateVariant(index, 'color_name', e.target.value); }} placeholder="Variação (cor, tamanho, voltagem...)" className="w-full bg-chumbo-950 border border-chumbo-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-laser-400" />
                   <input type="number" step="0.01" value={variant.price} onChange={(e) => updateVariant(index, 'price', e.target.value)} placeholder="Preco" className="w-full bg-chumbo-950 border border-chumbo-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-laser-400" />
                   <input value={variant.print_time || ''} onChange={(e) => updateVariant(index, 'print_time', e.target.value)} placeholder="Tempo" className="w-full bg-chumbo-950 border border-chumbo-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-laser-400" />
                   <input value={variant.material || ''} onChange={(e) => updateVariant(index, 'material', e.target.value)} placeholder="Material" className="w-full bg-chumbo-950 border border-chumbo-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-laser-400" />
@@ -656,103 +562,6 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   onChange={(e) => setFormData({ ...formData, stock_qty: parseInt(e.target.value) || 0 })}
                   className="w-full bg-chumbo-950 border border-chumbo-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-laser-400"
                 />
-              </div>
-            </div>
-          </div>
-
-          {/* Botões de Ação */}
-          <div className="pt-4 border-t border-chumbo-800 space-y-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div className="flex items-center space-x-2 text-xs font-mono text-laser-400">
-                <Calculator className="w-4 h-4" />
-                <span className="uppercase tracking-widest font-bold">Calculo de custo e taxas</span>
-              </div>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <button
-                  type="button"
-                  onClick={calculatePricing}
-                  disabled={isPricingCalculating}
-                  className="flex items-center justify-center space-x-2 rounded-xl border border-chumbo-700 bg-chumbo-950 px-4 py-2 text-xs font-bold text-slate-200 transition-all hover:bg-chumbo-800 disabled:opacity-60"
-                >
-                  {isPricingCalculating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Calculator className="h-4 w-4" />}
-                  <span>Calcular</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={applySuggestedPrice}
-                  disabled={isPricingCalculating}
-                  className="flex items-center justify-center space-x-2 rounded-xl bg-laser-400 px-4 py-2 text-xs font-bold text-chumbo-950 transition-all hover:bg-laser-300 active:scale-95 disabled:opacity-60"
-                >
-                  {isPricingCalculating ? <Loader2 className="h-4 w-4 animate-spin" /> : <DollarSign className="h-4 w-4" />}
-                  <span>{pricingSnapshotApplied ? 'Preco aplicado' : 'Aplicar preco sugerido'}</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-mono text-slate-400 block uppercase">Peso modelo</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={pricingInput.productWeightGrams}
-                  onChange={(e) => updatePricingNumber('productWeightGrams', e.target.value)}
-                  className="w-full bg-chumbo-950 border border-chumbo-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-laser-400"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-mono text-slate-400 block uppercase">Suporte (g)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={pricingInput.supportWeightGrams}
-                  onChange={(e) => updatePricingNumber('supportWeightGrams', e.target.value)}
-                  className="w-full bg-chumbo-950 border border-chumbo-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-laser-400"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-mono text-slate-400 block uppercase">Tempo total (min)</label>
-                <input
-                  type="number"
-                  value={pricingInput.printMinutes}
-                  onChange={(e) => updatePricingNumber('printMinutes', e.target.value)}
-                  className="w-full bg-chumbo-950 border border-chumbo-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-laser-400"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-mono text-slate-400 block uppercase">Taxa plataforma (%)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={pricingInput.platformFeePercent}
-                  onChange={(e) => updatePricingNumber('platformFeePercent', e.target.value)}
-                  className="w-full bg-chumbo-950 border border-chumbo-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-laser-400"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              <div className="rounded-xl border border-chumbo-800 bg-chumbo-950/70 p-3">
-                <Zap className="mb-2 h-4 w-4 text-laser-300" />
-                <span className="block text-[10px] font-mono uppercase text-slate-500">Custo direto</span>
-                <strong className="text-sm text-white">{pricingResult ? currencyBRL(pricingResult.directCost) : '--'}</strong>
-              </div>
-              <div className="rounded-xl border border-chumbo-800 bg-chumbo-950/70 p-3">
-                <DollarSign className="mb-2 h-4 w-4 text-laser-300" />
-                <span className="block text-[10px] font-mono uppercase text-slate-500">Taxas</span>
-                <strong className="text-sm text-white">{pricingResult ? currencyBRL(pricingResult.totalFees) : '--'}</strong>
-              </div>
-              <div className="rounded-xl border border-laser-500/30 bg-laser-500/10 p-3 md:col-span-2">
-                <span className="block text-[10px] font-mono font-bold uppercase text-laser-300">Preco sugerido</span>
-                <strong className="text-xl text-white">{pricingResult ? currencyBRL(pricingResult.suggestedPrice) : '--'}</strong>
-                {pricingResult && (
-                  <span className="ml-2 text-xs text-slate-300">
-                    lucro {currencyBRL(pricingResult.profit)}
-                  </span>
-                )}
               </div>
             </div>
           </div>
