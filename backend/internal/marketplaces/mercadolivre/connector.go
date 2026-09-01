@@ -26,6 +26,8 @@ const (
 	financialEnrichmentWorkers = 5
 )
 
+var catalogSearchStatuses = []string{"", "paused", "closed", "pending", "not_yet_active", "inactive"}
+
 // APIError exposes only the HTTP status and operation. Response bodies are
 // intentionally omitted because Mercado Livre responses may contain sensitive
 // seller or buyer data.
@@ -407,11 +409,36 @@ func isOptionalFinancialDetailUnavailable(err error) bool {
 func (c *Connector) fetchItemIDs(ctx context.Context, baseURL string, account mp.Account) ([]string, error) {
 	itemIDs := make([]string, 0, catalogPageSize)
 	seen := make(map[string]struct{})
+	for _, status := range catalogSearchStatuses {
+		statusItemIDs, err := c.fetchItemIDsByStatus(ctx, baseURL, account, status)
+		if err != nil {
+			var apiErr *APIError
+			if status != "" && errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusBadRequest {
+				continue
+			}
+			return nil, err
+		}
+		for _, itemID := range statusItemIDs {
+			if _, exists := seen[itemID]; exists {
+				continue
+			}
+			seen[itemID] = struct{}{}
+			itemIDs = append(itemIDs, itemID)
+		}
+	}
+	return itemIDs, nil
+}
+
+func (c *Connector) fetchItemIDsByStatus(ctx context.Context, baseURL string, account mp.Account, status string) ([]string, error) {
+	itemIDs := make([]string, 0, catalogPageSize)
 	for offset := 0; ; {
 		endpoint, _ := url.Parse(baseURL + "/users/" + url.PathEscape(account.SellerID) + "/items/search")
 		query := endpoint.Query()
 		query.Set("limit", strconv.Itoa(catalogPageSize))
 		query.Set("offset", strconv.Itoa(offset))
+		if status != "" {
+			query.Set("status", status)
+		}
 		endpoint.RawQuery = query.Encode()
 
 		var response struct {
@@ -429,10 +456,6 @@ func (c *Connector) fetchItemIDs(ctx context.Context, baseURL string, account mp
 			if itemID == "" {
 				continue
 			}
-			if _, exists := seen[itemID]; exists {
-				continue
-			}
-			seen[itemID] = struct{}{}
 			itemIDs = append(itemIDs, itemID)
 		}
 

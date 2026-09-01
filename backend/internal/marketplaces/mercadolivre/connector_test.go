@@ -124,26 +124,36 @@ func TestOrderAccessForbiddenIsClassified(t *testing.T) {
 
 func TestFetchCatalogIncludesInactiveItemsAndPaginates(t *testing.T) {
 	var mu sync.Mutex
-	offsets := []int{}
+	requests := []string{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/users/12345/items/search":
-			if status := r.URL.Query().Get("status"); status != "" {
-				t.Errorf("status filter = %q, want empty to include inactive items", status)
-			}
 			if limit := r.URL.Query().Get("limit"); limit != strconv.Itoa(catalogPageSize) {
 				t.Errorf("limit = %q", limit)
 			}
+			status := r.URL.Query().Get("status")
 			offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
 			mu.Lock()
-			offsets = append(offsets, offset)
+			requests = append(requests, fmt.Sprintf("%s:%d", status, offset))
 			mu.Unlock()
-			results := []string{"MLB-PAUSED", "MLB-ACTIVE"}
-			if offset > 0 {
-				results = []string{"MLB-CLOSED"}
+			results := []string{}
+			total := 0
+			switch status {
+			case "":
+				results, total = []string{"MLB-ACTIVE"}, 1
+			case "paused":
+				results, total = []string{"MLB-PAUSED", "MLB-ACTIVE"}, 3
+				if offset > 0 {
+					results = []string{"MLB-CLOSED"}
+				}
+			case "closed":
+				results, total = []string{"MLB-CLOSED"}, 1
+			case "inactive":
+				http.Error(w, `{"message":"invalid status"}`, http.StatusBadRequest)
+				return
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"paging":  map[string]any{"total": 3, "offset": offset, "limit": catalogPageSize},
+				"paging":  map[string]any{"total": total, "offset": offset, "limit": catalogPageSize},
 				"results": results,
 			})
 		case "/items":
@@ -181,12 +191,13 @@ func TestFetchCatalogIncludesInactiveItemsAndPaginates(t *testing.T) {
 		t.Fatalf("items = %d, want 3: %#v", len(result.Items), result.Items)
 	}
 	mu.Lock()
-	gotOffsets := append([]int(nil), offsets...)
+	gotRequests := append([]string(nil), requests...)
 	mu.Unlock()
-	if fmt.Sprint(gotOffsets) != "[0 2]" {
-		t.Fatalf("offsets = %v, want [0 2]", gotOffsets)
+	wantRequests := "[:0 paused:0 paused:2 closed:0 pending:0 not_yet_active:0 inactive:0]"
+	if fmt.Sprint(gotRequests) != wantRequests {
+		t.Fatalf("requests = %v, want %s", gotRequests, wantRequests)
 	}
-	if result.Items[0].Status != "paused" || result.Items[1].Status != "active" || result.Items[2].Status != "paused" {
+	if result.Items[0].Status != "active" || result.Items[1].Status != "paused" || result.Items[2].Status != "paused" {
 		t.Fatalf("unexpected normalized statuses: %#v", result.Items)
 	}
 	if result.Message != "3 anuncio(s) encontrados no Mercado Livre" {
