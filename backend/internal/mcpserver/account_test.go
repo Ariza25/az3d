@@ -120,6 +120,36 @@ func TestShopeeDatabaseAccountSourceUsesShopGrantAndPersistsRefresh(t *testing.T
 	}
 }
 
+func TestAmazonDatabaseAccountSourceUsesSellerGrantAndMarketplace(t *testing.T) {
+	key := "12345678901234567890123456789012"
+	store := &memoryAccountStore{account: models.MarketplaceAccount{
+		ID: 15, TenantID: 7, Provider: "amazon", SellerID: "A2SELLER", Marketplace: "A2Q3Y263D00KWC",
+		AccessToken: "access", RefreshToken: "refresh", IsActive: true, IsConnected: true,
+	}}
+	source := newAmazonDatabaseAccountSource(store, &fakeConnector{provider: "amazon"}, 7, key)
+
+	account, err := source.Account(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if store.provider != "amazon" || account.SellerID != "A2SELLER" || account.Marketplace != "A2Q3Y263D00KWC" {
+		t.Fatalf("wrong Amazon grant loaded: provider=%q account=%#v", store.provider, account)
+	}
+}
+
+func TestAmazonDatabaseAccountSourceRequiresMarketplace(t *testing.T) {
+	store := &memoryAccountStore{account: models.MarketplaceAccount{
+		TenantID: 7, Provider: "amazon", SellerID: "A2SELLER", AccessToken: "access",
+		IsActive: true, IsConnected: true,
+	}}
+	source := newAmazonDatabaseAccountSource(store, &fakeConnector{provider: "amazon"}, 7, "12345678901234567890123456789012")
+
+	_, err := source.Account(context.Background())
+	if !errors.Is(err, ErrAmazonAccountMissing) {
+		t.Fatalf("missing marketplace should reject Amazon account, got %v", err)
+	}
+}
+
 type refreshingStaticAccountSource struct {
 	current      marketplaces.Account
 	refreshed    marketplaces.Account

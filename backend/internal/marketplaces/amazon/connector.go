@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -20,6 +21,24 @@ import (
 
 type Connector struct {
 	client *http.Client
+}
+
+type APIError struct {
+	Operation  string
+	StatusCode int
+}
+
+func (e *APIError) Error() string {
+	return fmt.Sprintf("amazon SP-API %s retornou HTTP %d", e.Operation, e.StatusCode)
+}
+
+func IsUnauthorized(err error) bool {
+	var apiErr *APIError
+	return errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusUnauthorized
+}
+
+func (c *Connector) IsUnauthorized(err error) bool {
+	return IsUnauthorized(err)
 }
 
 func New() *Connector {
@@ -145,7 +164,7 @@ func (c *Connector) FetchCatalog(ctx context.Context, account mp.Account) (mp.Ca
 	}
 	defer res.Body.Close()
 	if res.StatusCode >= 300 {
-		return mp.CatalogSyncResult{Provider: c.Provider()}, fmt.Errorf("amazon SP-API retornou HTTP %d; confirme assinatura SigV4 e roles da app", res.StatusCode)
+		return mp.CatalogSyncResult{Provider: c.Provider()}, &APIError{Operation: "/listings/2021-08-01/items", StatusCode: res.StatusCode}
 	}
 
 	var response amazonListingsResponse
@@ -227,7 +246,7 @@ func (c *Connector) getSignedJSON(ctx context.Context, endpoint string, token st
 	}
 	defer res.Body.Close()
 	if res.StatusCode >= 300 {
-		return fmt.Errorf("amazon SP-API retornou HTTP %d; confirme assinatura SigV4 e roles da app", res.StatusCode)
+		return &APIError{Operation: req.URL.Path, StatusCode: res.StatusCode}
 	}
 	return json.NewDecoder(res.Body).Decode(out)
 }
@@ -432,6 +451,11 @@ func defaultCurrency(currency string) string {
 }
 
 func applyAmazonSigV4(req *http.Request) {
+	now := time.Now().UTC()
+	req.Header.Set("Host", req.URL.Host)
+	req.Header.Set("x-amz-date", now.Format("20060102T150405Z"))
+	req.Header.Set("User-Agent", "AZ3D/0.1.0 (Language=Go)")
+
 	accessKey := strings.TrimSpace(os.Getenv("AMAZON_AWS_ACCESS_KEY_ID"))
 	secretKey := strings.TrimSpace(os.Getenv("AMAZON_AWS_SECRET_ACCESS_KEY"))
 	sessionToken := strings.TrimSpace(os.Getenv("AMAZON_AWS_SESSION_TOKEN"))
@@ -456,11 +480,8 @@ func applyAmazonSigV4(req *http.Request) {
 		region = "us-east-1"
 	}
 	service := "execute-api"
-	now := time.Now().UTC()
 	amzDate := now.Format("20060102T150405Z")
 	dateStamp := now.Format("20060102")
-	req.Header.Set("Host", req.URL.Host)
-	req.Header.Set("x-amz-date", amzDate)
 	if sessionToken != "" {
 		req.Header.Set("x-amz-security-token", sessionToken)
 	}

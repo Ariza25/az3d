@@ -165,6 +165,39 @@ func TestShopeeMCPUsesIndependentServerAndToolNames(t *testing.T) {
 	}
 }
 
+func TestAmazonMCPUsesIndependentServerAndToolNames(t *testing.T) {
+	service := New(&fakeConnector{provider: "amazon"}, staticAccountSource{account: marketplaces.Account{
+		Provider: "amazon", SellerID: "A2SELLER", Marketplace: "A2Q3Y263D00KWC", AccessToken: "token",
+	}})
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := service.MCPServer().Connect(context.Background(), serverTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer serverSession.Close()
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "az3d-amazon-test", Version: "1"}, nil)
+	clientSession, err := client.Connect(context.Background(), clientTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer clientSession.Close()
+
+	tools, err := clientSession.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"amazon_connection_status", "amazon_list_items", "amazon_list_orders", "amazon_sales_summary"}
+	if len(tools.Tools) != len(want) {
+		t.Fatalf("tools = %d, want %d", len(tools.Tools), len(want))
+	}
+	for index, name := range want {
+		if tools.Tools[index].Name != name {
+			t.Fatalf("tool %d = %q, want %q", index, tools.Tools[index].Name, name)
+		}
+	}
+}
+
 func TestToolRejectsUnsafeQueryRanges(t *testing.T) {
 	service := New(&fakeConnector{}, staticAccountSource{account: marketplaces.Account{
 		SellerID: "12345", AccessToken: "token",

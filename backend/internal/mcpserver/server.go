@@ -48,6 +48,11 @@ func serviceOptions(connector marketplaces.Connector) ServiceOptions {
 			ServerName: "az3d-shopee-seller", ToolPrefix: "shopee", MarketplaceLabel: "Shopee",
 			SummaryMessage: "Resumo calculado com todos os pedidos pagos encontrados no periodo. O valor liquido usa o repasse da Shopee quando o detalhe financeiro esta disponivel; pedidos ainda sem repasse sao marcados como incompletos.",
 		}
+	case "amazon":
+		return ServiceOptions{
+			ServerName: "az3d-amazon-seller", ToolPrefix: "amazon", MarketplaceLabel: "Amazon Seller",
+			SummaryMessage: "Resumo calculado com os pedidos encontrados na Amazon SP-API. O valor liquido e estimado com os campos financeiros disponiveis na API; detalhes ausentes permanecem sinalizados como incompletos.",
+		}
 	default:
 		return ServiceOptions{
 			ServerName: "az3d-" + provider + "-seller", ToolPrefix: provider, MarketplaceLabel: provider,

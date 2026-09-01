@@ -17,6 +17,7 @@ import (
 var (
 	ErrMELIAccountMissing   = errors.New("conta Mercado Livre nao autorizada para o tenant selecionado")
 	ErrShopeeAccountMissing = errors.New("conta Shopee nao autorizada para o tenant selecionado")
+	ErrAmazonAccountMissing = errors.New("conta Amazon Seller nao autorizada para o tenant selecionado")
 )
 
 type AccountSource interface {
@@ -49,6 +50,10 @@ func NewShopeeDatabaseAccountSource(db *gorm.DB, connector marketplaces.Connecto
 	return newProviderDatabaseAccountSource(db, connector, tenantID, encryptionKey, "shopee", ErrShopeeAccountMissing)
 }
 
+func NewAmazonDatabaseAccountSource(db *gorm.DB, connector marketplaces.Connector, tenantID uint, encryptionKey string) *DatabaseAccountSource {
+	return newProviderDatabaseAccountSource(db, connector, tenantID, encryptionKey, "amazon", ErrAmazonAccountMissing)
+}
+
 func newProviderDatabaseAccountSource(db *gorm.DB, connector marketplaces.Connector, tenantID uint, encryptionKey, provider string, missing error) *DatabaseAccountSource {
 	var store accountStore
 	if db != nil {
@@ -63,6 +68,10 @@ func newDatabaseAccountSource(store accountStore, connector marketplaces.Connect
 
 func newShopeeDatabaseAccountSource(store accountStore, connector marketplaces.Connector, tenantID uint, encryptionKey string) *DatabaseAccountSource {
 	return newDatabaseAccountSourceForProvider(store, connector, tenantID, encryptionKey, "shopee", ErrShopeeAccountMissing)
+}
+
+func newAmazonDatabaseAccountSource(store accountStore, connector marketplaces.Connector, tenantID uint, encryptionKey string) *DatabaseAccountSource {
+	return newDatabaseAccountSourceForProvider(store, connector, tenantID, encryptionKey, "amazon", ErrAmazonAccountMissing)
 }
 
 func newDatabaseAccountSourceForProvider(store accountStore, connector marketplaces.Connector, tenantID uint, encryptionKey, provider string, missing error) *DatabaseAccountSource {
@@ -160,10 +169,14 @@ func (s *DatabaseAccountSource) missingError() error {
 }
 
 func (s *DatabaseAccountSource) hasAccountIdentifier(model models.MarketplaceAccount) bool {
-	if s.provider == "shopee" {
+	switch s.provider {
+	case "shopee":
 		return strings.TrimSpace(model.ShopID) != ""
+	case "amazon":
+		return strings.TrimSpace(model.SellerID) != "" && strings.TrimSpace(model.Marketplace) != ""
+	default:
+		return strings.TrimSpace(model.SellerID) != ""
 	}
-	return strings.TrimSpace(model.SellerID) != ""
 }
 
 func (s *DatabaseAccountSource) refreshLocked(ctx context.Context, model *models.MarketplaceAccount, account marketplaces.Account) (marketplaces.Account, error) {

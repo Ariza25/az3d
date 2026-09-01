@@ -399,6 +399,44 @@ codex mcp add az3d_shopee_seller -- "C:\caminho\para\az3d\backend\bin\az3d-shope
 
 Assim, o MCP `az3d_seller` continua publicando apenas tools `meli_*`, enquanto `az3d_shopee_seller` publica apenas tools `shopee_*`.
 
+### AZ3D Amazon Seller MCP
+
+O Amazon Seller usa um terceiro MCP STDIO, separado dos demais, e reaproveita o mesmo nucleo somente leitura. Ele expoe:
+
+- `amazon_connection_status`;
+- `amazon_list_items`;
+- `amazon_list_orders`;
+- `amazon_sales_summary`.
+
+Antes de iniciar o MCP, conecte a conta Amazon no painel AZ3D e confirme que o registro do tenant possui Seller ID, Marketplace ID, access token e refresh token. A aplicacao da plataforma tambem precisa de `AMAZON_LWA_CLIENT_ID` e `AMAZON_LWA_CLIENT_SECRET`; os tokens do seller continuam criptografados no banco e nunca entram na configuracao do Codex. As variaveis AWS/SigV4 existentes permanecem opcionais para ambientes legados.
+
+Compile e valide:
+
+```powershell
+cd backend
+go build -o .\bin\az3d-amazon-seller-mcp.exe .\cmd\az3d-amazon-seller-mcp
+.\bin\az3d-amazon-seller-mcp.exe doctor --tenant-id 1
+```
+
+Registre o servidor local no Codex:
+
+```powershell
+codex mcp add az3d_amazon_seller -- "C:\caminho\para\az3d\backend\bin\az3d-amazon-seller-mcp.exe" serve --tenant-id 1
+```
+
+A configuracao equivalente e:
+
+```toml
+[mcp_servers.az3d_amazon_seller]
+command = "C:\\caminho\\para\\az3d\\backend\\bin\\az3d-amazon-seller-mcp.exe"
+args = ["serve", "--tenant-id", "1"]
+cwd = "C:\\caminho\\para\\az3d\\backend"
+required = true
+default_tools_approval_mode = "writes"
+```
+
+Reinicie o Codex e use `/mcp` para confirmar que o servidor publicou somente as quatro ferramentas `amazon_*`.
+
 ## Admin Master, Estoque E Observabilidade
 
 O painel admin possui uma visao de plataforma para `master_admin`, com tenants, pedidos abertos, alertas de estoque e status de contas Mercado Pago/marketplaces/Correios.
