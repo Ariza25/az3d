@@ -38,6 +38,15 @@ func withProductRelations(db *gorm.DB) *gorm.DB {
 	})
 }
 
+func publishedProductQuery(query *gorm.DB, tenantID uint) *gorm.DB {
+	return query.Where(
+		"tenant_id = ? AND (status = ? OR status = '' OR source_provider = ?)",
+		tenantID,
+		"active",
+		"mercadolivre",
+	)
+}
+
 func attachReviewSummaries(tenantID uint, products []models.Product) []models.Product {
 	if len(products) == 0 {
 		return products
@@ -440,7 +449,10 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 	categorySlug := c.Query("category")
 	searchQuery := c.Query("q")
 
-	query := withProductRelations(database.DB.Model(&models.Product{}).Where("tenant_id = ? AND in_stock = ? AND (status = ? OR status = '')", tenantID, true, "active"))
+	// Produtos publicados continuam visiveis mesmo sem estoque para que a loja
+	// possa sinalizar indisponibilidade. Anuncios importados do Mercado Livre sao
+	// publicados automaticamente, independentemente do status externo do anuncio.
+	query := withProductRelations(publishedProductQuery(database.DB.Model(&models.Product{}), tenantID))
 
 	if categorySlug != "" && categorySlug != "todas" {
 		var category models.Category
@@ -474,7 +486,7 @@ func (h *ProductHandler) GetProductByID(c *gin.Context) {
 	}
 
 	var product models.Product
-	if err := withProductRelations(database.DB.Where("tenant_id = ? AND in_stock = ? AND (status = ? OR status = '')", tenantID, true, "active")).First(&product, id).Error; err != nil {
+	if err := withProductRelations(publishedProductQuery(database.DB, tenantID)).First(&product, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Produto não encontrado"})
 		return
 	}

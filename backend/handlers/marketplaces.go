@@ -752,6 +752,9 @@ func importMarketplaceCatalogItem(tenantID uint, provider string, defaultCategor
 		}
 	} else {
 		marketplaceOwnsProduct := product.SourceProvider == provider
+		if normalizeProvider(provider) == "mercadolivre" {
+			product.Status = status
+		}
 		contentSyncAllowed := settings.ContentSyncPolicy == "always" ||
 			(settings.ContentSyncPolicy == "imported_only" && marketplaceOwnsProduct)
 		if overwriteLocal && marketplaceOwnsProduct {
@@ -838,9 +841,9 @@ func importMarketplaceCatalogItem(tenantID uint, provider string, defaultCategor
 }
 
 func marketplaceImportedProductStatus(provider string, productFound bool, marketplaceStatus string, newImportedProductStatus string) string {
-	// Anuncios ativos importados do Mercado Livre sao produtos prontos para venda:
-	// eles entram diretamente no catalogo publico do tenant, sem etapa de curadoria.
-	if normalizeProvider(provider) == "mercadolivre" && strings.EqualFold(strings.TrimSpace(marketplaceStatus), "active") {
+	// Todo anuncio importado do Mercado Livre e publicado na loja do tenant. O
+	// status externo nao controla a visibilidade do produto no catalogo interno.
+	if normalizeProvider(provider) == "mercadolivre" {
 		return "active"
 	}
 	if !productFound {

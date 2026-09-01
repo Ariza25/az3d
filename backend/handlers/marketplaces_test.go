@@ -25,17 +25,12 @@ func TestMarketplaceImportedProductStatusUsesConfiguredStatusForNewInactiveProdu
 	}
 }
 
-func TestMarketplaceImportedProductStatusNormalizesExistingExternalStatus(t *testing.T) {
-	if got := marketplaceImportedProductStatus("mercadolivre", true, "closed", "draft"); got != "paused" {
-		t.Fatalf("closed existing product status = %q, want paused", got)
-	}
-	if got := marketplaceImportedProductStatus("mercadolivre", true, "active", "draft"); got != "active" {
-		t.Fatalf("active existing product status = %q, want active", got)
-	}
-}
-
-func TestMarketplaceImportedProductStatusPublishesNewMercadoLivreItem(t *testing.T) {
-	if got := marketplaceImportedProductStatus("mercadolivre", false, "active", "draft"); got != "active" {
-		t.Fatalf("new Mercado Livre product status = %q, want active", got)
+func TestMarketplaceImportedProductStatusPublishesEveryMercadoLivreItem(t *testing.T) {
+	for _, productFound := range []bool{false, true} {
+		for _, externalStatus := range []string{"active", "paused", "draft", "closed", "inactive", ""} {
+			if got := marketplaceImportedProductStatus("mercadolivre", productFound, externalStatus, "draft"); got != "active" {
+				t.Fatalf("Mercado Livre status with productFound=%v and externalStatus=%q = %q, want active", productFound, externalStatus, got)
+			}
+		}
 	}
 }

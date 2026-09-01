@@ -80,7 +80,8 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 
 		for _, itemInput := range input.Items {
 			var product models.Product
-			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("tenant_id = ? AND in_stock = ? AND (status = ? OR status = '')", tenantID, true, "active").First(&product, itemInput.ProductID).Error; err != nil {
+			productQuery := publishedProductQuery(tx.Clauses(clause.Locking{Strength: "UPDATE"}), tenantID)
+			if err := productQuery.Where("in_stock = ?", true).First(&product, itemInput.ProductID).Error; err != nil {
 				return err
 			}
 

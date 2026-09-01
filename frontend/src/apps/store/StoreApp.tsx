@@ -279,15 +279,6 @@ export const StoreApp: React.FC = () => {
           products={visibleProducts}
           isLoading={isLoading}
           onOpenModal={openProduct}
-          categories={categories}
-          onSelectCategory={setActiveCategory}
-          onClearFilters={() => {
-            setSearchQuery('');
-            setActiveCategory('todas');
-            setMaterialFilter('todos');
-            setAvailabilityFilter('all');
-            setMaxPrice(priceCeiling);
-          }}
         />
       </main>
 

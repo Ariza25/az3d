@@ -1,5 +1,5 @@
 import React from 'react';
-import { Category, Product } from '../types';
+import { Product } from '../types';
 import { ProductCard } from './ProductCard';
 import { Box, RefreshCw } from 'lucide-react';
 
@@ -7,12 +7,9 @@ interface ProductGridProps {
   products: Product[];
   isLoading: boolean;
   onOpenModal: (product: Product) => void;
-  categories?: Category[];
-  onSelectCategory?: (slug: string) => void;
-  onClearFilters?: () => void;
 }
 
-export const ProductGrid: React.FC<ProductGridProps> = ({ products, isLoading, onOpenModal, categories = [], onSelectCategory, onClearFilters }) => {
+export const ProductGrid: React.FC<ProductGridProps> = ({ products, isLoading, onOpenModal }) => {
   if (isLoading) {
     return (
       <div className="py-20 text-center flex flex-col items-center justify-center space-y-4">
@@ -32,22 +29,6 @@ export const ProductGrid: React.FC<ProductGridProps> = ({ products, isLoading, o
         <p className="text-sm text-slate-400 max-w-sm">
           Nao encontramos itens para os filtros atuais. Ajuste a busca, categoria, material ou faixa de preco.
         </p>
-        <div className="flex flex-wrap items-center justify-center gap-2">
-          {onClearFilters && (
-            <button onClick={onClearFilters} className="rounded-xl bg-white px-4 py-2 text-xs font-bold text-chumbo-950 hover:bg-slate-200">
-              Limpar filtros
-            </button>
-          )}
-          {categories.slice(0, 4).map((category) => (
-            <button
-              key={category.id}
-              onClick={() => onSelectCategory?.(category.slug)}
-              className="rounded-xl border border-chumbo-700 bg-chumbo-900 px-4 py-2 text-xs font-bold text-slate-200 hover:bg-chumbo-800"
-            >
-              {category.name}
-            </button>
-          ))}
-        </div>
       </div>
     );
   }
