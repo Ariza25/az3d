@@ -20,6 +20,10 @@ const productImage = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
   </svg>
 `)}`;
 
+const whiteVariantImage = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="white"/></svg>')}`;
+const redVariantImage = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#dc2626"/></svg>')}`;
+const redVariantDetailImage = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="35" fill="#dc2626"/></svg>')}`;
+
 const tenant = { id: 1, name: 'AZ3D', slug: 'az3d' };
 const categories = [
   { id: 1, name: 'Organização', slug: 'organizacao', description: '', icon: 'wrench' },
@@ -72,6 +76,57 @@ const products = [
     stock_qty: 2,
     status: 'active',
   },
+  {
+    id: 3,
+    tenant_id: 1,
+    title: 'Vasinho Leitor Branco',
+    slug: 'vasinho-leitor-branco',
+    sku: 'VL01-BRA',
+    description: 'Vasinho leitor na cor branca.',
+    price: 35.9,
+    image_url: whiteVariantImage,
+    color_images: [{ color_name: 'Padrao', image_url: whiteVariantImage, sort_order: 0 }],
+    color_stocks: [{ color_name: 'Padrao', stock_qty: 10 }],
+    category_id: 2,
+    category: categories[1],
+    material: 'PLA',
+    layer_height: '0.16 mm',
+    print_time: 'A confirmar',
+    dimensions: 'A confirmar',
+    weight: '0 g',
+    in_stock: true,
+    stock_qty: 10,
+    status: 'draft',
+    source_provider: 'mercadolivre',
+    source_external_id: 'MLB-WHITE',
+  },
+  {
+    id: 4,
+    tenant_id: 1,
+    title: 'Vasinho Leitor Vermelho',
+    slug: 'vasinho-leitor-vermelho',
+    sku: 'VL01-VER',
+    description: 'Vasinho leitor na cor vermelha.',
+    price: 35.9,
+    image_url: redVariantImage,
+    color_images: [
+      { color_name: 'Padrao', image_url: redVariantImage, sort_order: 0 },
+      { color_name: 'Padrao', image_url: redVariantDetailImage, sort_order: 1 },
+    ],
+    color_stocks: [{ color_name: 'Padrao', stock_qty: 8 }],
+    category_id: 2,
+    category: categories[1],
+    material: 'PLA',
+    layer_height: '0.16 mm',
+    print_time: 'A confirmar',
+    dimensions: 'A confirmar',
+    weight: '0 g',
+    in_stock: true,
+    stock_qty: 8,
+    status: 'draft',
+    source_provider: 'mercadolivre',
+    source_external_id: 'MLB-RED',
+  },
 ];
 
 test.beforeEach(async ({ page }) => {
@@ -94,7 +149,7 @@ test.beforeEach(async ({ page }) => {
 test('registra a home e o modal sem overflow horizontal', async ({ page }, testInfo) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'AZ3D Studio' })).toBeVisible();
-  await expect(page.getByText('2 produtos')).toBeVisible();
+  await expect(page.getByText('3 produtos')).toBeVisible();
 
   const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   expect(hasHorizontalOverflow).toBe(false);
@@ -136,4 +191,25 @@ test('registra a home e o modal sem overflow horizontal', async ({ page }, testI
     path: `test-results/playwright/modal-${testInfo.project.name}.png`,
     fullPage: false,
   });
+});
+
+test('agrupa anuncios de cores e troca produto e galeria no modal', async ({ page }) => {
+  await page.goto('/');
+
+  await expect(page.getByRole('heading', { name: 'Vasinho Leitor', exact: true })).toHaveCount(1);
+  await page.getByRole('heading', { name: 'Vasinho Leitor', exact: true }).click();
+
+  const modal = page.getByRole('dialog');
+  const mainImage = modal.getByAltText('Vasinho Leitor', { exact: true });
+  await expect(modal.getByRole('button', { name: 'Selecionar cor Branco' })).toBeVisible();
+  await expect(modal.getByRole('button', { name: 'Selecionar cor Vermelho' })).toBeVisible();
+  await expect(mainImage).toHaveAttribute('src', whiteVariantImage);
+  await expect(modal.getByText('SKU VL01-BRA')).toBeVisible();
+
+  await modal.getByRole('button', { name: 'Selecionar cor Vermelho' }).click();
+  await expect(mainImage).toHaveAttribute('src', redVariantImage);
+  await expect(modal.getByText('SKU VL01-VER')).toBeVisible();
+  await expect(modal.getByRole('button', { name: 'Ver foto 2 da cor Vermelho' })).toBeVisible();
+  await modal.getByRole('button', { name: 'Ver foto 2 da cor Vermelho' }).click();
+  await expect(mainImage).toHaveAttribute('src', redVariantDetailImage);
 });

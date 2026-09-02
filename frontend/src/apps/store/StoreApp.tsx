@@ -13,7 +13,7 @@ import { Product, TenantSettings } from '../../types';
 import { useTenantCatalog } from '../../shared/hooks/useTenantCatalog';
 import { api } from '../../services/api';
 import { StoreFilters, AvailabilityFilter, StoreSort } from '../../components/StoreFilters';
-import { getStockStatus, getTotalStock } from '../../shared/storePresentation';
+import { getStockStatus, getTotalStock, groupMarketplaceProducts } from '../../shared/storePresentation';
 import { getCurrentStoreRouteStyle, getProductPath, getStorePath } from '../../shared/tenantRoutes';
 import { AlertCircle, CheckCircle2, Clock3, X } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
@@ -67,6 +67,8 @@ export const StoreApp: React.FC = () => {
   const [loginContext, setLoginContext] = useState<'default' | 'cart'>('default');
   const [cartNotice, setCartNotice] = useState<{ title: string; text: string } | null>(null);
 
+  const storeProducts = useMemo(() => groupMarketplaceProducts(products), [products]);
+
   useEffect(() => {
     const handleRequireLogin = () => {
       setLoginContext('cart');
@@ -104,26 +106,26 @@ export const StoreApp: React.FC = () => {
   }, [activeTenant]);
 
   const priceCeiling = useMemo(() => {
-    const highest = products.reduce((max, product) => Math.max(max, product.price), 0);
+    const highest = storeProducts.reduce((max, product) => Math.max(max, product.price), 0);
     return Math.ceil(highest || 0);
-  }, [products]);
+  }, [storeProducts]);
 
   useEffect(() => {
     if (priceCeiling > 0) setMaxPrice(priceCeiling);
   }, [priceCeiling, activeTenant?.id]);
 
   const featuredProduct = useMemo(() => {
-    return [...products]
+    return [...storeProducts]
       .filter((product) => getStockStatus(product).canBuy)
       .sort((a, b) => {
         const bReviews = b.review_summary?.review_count || b.review_count || 0;
         const aReviews = a.review_summary?.review_count || a.review_count || 0;
         return bReviews - aReviews || b.price - a.price;
-      })[0] || products[0];
-  }, [products]);
+      })[0] || storeProducts[0];
+  }, [storeProducts]);
 
   const visibleProducts = useMemo(() => {
-    const filtered = products.filter((product) => {
+    const filtered = storeProducts.filter((product) => {
       const status = getStockStatus(product);
       const stock = getTotalStock(product);
       const matchesMaterial = materialFilter === 'todos' || product.material.toLowerCase().includes(materialFilter.toLowerCase());
@@ -148,11 +150,15 @@ export const StoreApp: React.FC = () => {
       const aScore = (a.review_summary?.review_count || a.review_count || 0) + (getStockStatus(a).canBuy ? 10 : 0);
       return bScore - aScore;
     });
-  }, [products, materialFilter, availabilityFilter, maxPrice, sortBy]);
+  }, [storeProducts, materialFilter, availabilityFilter, maxPrice, sortBy]);
 
   const materialOptions = useMemo(() => {
-    return Array.from(new Set(products.map((product) => product.material).filter(Boolean))).sort((a, b) => a.localeCompare(b));
-  }, [products]);
+    return Array.from(new Set(storeProducts.map((product) => product.material).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  }, [storeProducts]);
+
+  const findStoreProduct = (slug: string) => storeProducts.find((item) =>
+    item.slug === slug || String(item.id) === slug || item.store_variants?.some((variant) => variant.slug === slug || String(variant.id) === slug)
+  );
 
   useEffect(() => {
     const productSlug = getProductSlugFromLocation();
@@ -160,9 +166,9 @@ export const StoreApp: React.FC = () => {
       if (!productSlug) setSelectedProduct(null);
       return;
     }
-    const product = products.find((item) => item.slug === productSlug || String(item.id) === productSlug);
+    const product = findStoreProduct(productSlug);
     if (product) setSelectedProduct(product);
-  }, [products]);
+  }, [storeProducts]);
 
   useEffect(() => {
     const handleRouteChange = () => {
@@ -171,13 +177,13 @@ export const StoreApp: React.FC = () => {
         setSelectedProduct(null);
         return;
       }
-      const product = products.find((item) => item.slug === productSlug || String(item.id) === productSlug);
+      const product = findStoreProduct(productSlug);
       if (product) setSelectedProduct(product);
     };
 
     window.addEventListener('popstate', handleRouteChange);
     return () => window.removeEventListener('popstate', handleRouteChange);
-  }, [products]);
+  }, [storeProducts]);
 
   useEffect(() => {
     const storeName = tenantSettings?.store_name || activeTenant?.name || 'AZ3D Store';

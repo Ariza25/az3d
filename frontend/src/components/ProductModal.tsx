@@ -4,7 +4,7 @@ import { Check, Heart, Layers, Minus, Plus, ShoppingBag, Star, X } from 'lucide-
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
-import { getAvailableColors, getColorVisual, getDefaultColor, getStockStatus, money } from '../shared/storePresentation';
+import { getAvailableColors, getColorVisual, getDefaultColor, getStockStatus, getStoreVariantProduct, getTotalStock, money } from '../shared/storePresentation';
 
 interface ProductModalProps {
   product: Product | null;
@@ -18,42 +18,55 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
   const [quantity, setQuantity] = useState(1);
   const [isFavorite, setIsFavorite] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [selectedImageUrl, setSelectedImageUrl] = useState('');
 
   const availableColors = useMemo(() => {
     if (!product) return [];
     const names = getAvailableColors(product);
     const normalizedNames = names.length > 0 ? names : [getDefaultColor(product)];
     return normalizedNames.map((name) => {
-      const image = product.color_images?.find((item) => item.color_name === name)?.image_url;
+      const variantProduct = getStoreVariantProduct(product, name);
+      const image = variantProduct.color_images?.[0]?.image_url || variantProduct.image_url;
       return { name, imageUrl: image || product.image_url, ...getColorVisual(name) };
     });
   }, [product]);
 
+  const activeProduct = useMemo(() => product ? getStoreVariantProduct(product, selectedColor) : null, [product, selectedColor]);
+
   const imageChoices = useMemo(() => {
     const seen = new Set<string>();
-    return availableColors.filter((color) => {
-      if (!color.imageUrl || seen.has(color.imageUrl)) return false;
-      seen.add(color.imageUrl);
+    if (!activeProduct) return [];
+    const choices = (activeProduct.color_images || [])
+      .filter((image) => product?.store_variants?.length || image.color_name === selectedColor)
+      .map((image) => image.image_url);
+    if (choices.length === 0 && activeProduct.image_url) choices.push(activeProduct.image_url);
+    return choices.filter((imageUrl) => {
+      if (!imageUrl || seen.has(imageUrl)) return false;
+      seen.add(imageUrl);
       return true;
     });
-  }, [availableColors]);
+  }, [activeProduct, product?.store_variants, selectedColor]);
 
   useEffect(() => {
     setSelectedColor(availableColors[0]?.name || 'Padrão');
     setQuantity(1);
     setFeedback(null);
-  }, [availableColors, product?.id]);
+  }, [product?.id]);
 
   useEffect(() => {
-    if (!product) return;
+    setSelectedImageUrl(imageChoices[0] || activeProduct?.image_url || product?.image_url || '');
+  }, [activeProduct?.id, imageChoices.join('|')]);
+
+  useEffect(() => {
+    if (!activeProduct) return;
     if (isAuthenticated) {
-      api.getMyFavorites(product.tenant_id)
-        .then((favorites) => setIsFavorite(favorites.some((favorite) => favorite.product_id === product.id)))
+      api.getMyFavorites(activeProduct.tenant_id)
+        .then((favorites) => setIsFavorite(favorites.some((favorite) => favorite.product_id === activeProduct.id)))
         .catch(() => setIsFavorite(false));
     } else {
       setIsFavorite(false);
     }
-  }, [product, isAuthenticated]);
+  }, [activeProduct?.id, activeProduct?.tenant_id, isAuthenticated]);
 
   useEffect(() => {
     if (!product) return;
@@ -71,16 +84,15 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
 
   if (!product) return null;
 
-  const selectedVariant = product.variants?.find(
+  const selectedVariant = activeProduct?.variants?.find(
     (variant) => variant.color_name === selectedColor && variant.is_active
   );
-  const selectedStock = product.color_stocks?.find((stock) => stock.color_name === selectedColor);
-  const selectedImageUrl = availableColors.find((color) => color.name === selectedColor)?.imageUrl || product.image_url;
-  const selectedPrice = selectedVariant?.price ?? product.price;
+  const selectedStock = activeProduct?.color_stocks?.find((stock) => stock.color_name === selectedColor);
+  const selectedPrice = selectedVariant?.price ?? activeProduct?.price ?? product.price;
   const purchaseTotal = selectedPrice * quantity;
-  const stockLimit = selectedStock?.stock_qty ?? product.stock_qty;
-  const hasRealReviews = Boolean(product.review_summary?.review_count);
-  const stockStatus = getStockStatus({ ...product, color_stocks: undefined, stock_qty: stockLimit, in_stock: stockLimit > 0 && product.in_stock });
+  const stockLimit = product.store_variants?.length ? getTotalStock(activeProduct || product) : (selectedStock?.stock_qty ?? product.stock_qty);
+  const hasRealReviews = Boolean(activeProduct?.review_summary?.review_count || product.review_summary?.review_count);
+  const stockStatus = getStockStatus({ ...(activeProduct || product), color_stocks: undefined, stock_qty: stockLimit, in_stock: stockLimit > 0 && Boolean(activeProduct?.in_stock ?? product.in_stock) });
   const stockTextTone = !stockStatus.canBuy ? 'text-red-300' : stockLimit <= 3 ? 'text-amber-300' : 'text-emerald-300';
   const stockCopy = stockLimit <= 0
     ? 'Sem estoque no momento'
@@ -89,7 +101,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
       : `${stockLimit} unidades disponíveis`;
 
   const handleAddToCart = () => {
-    if (addToCart({ ...product, price: selectedPrice }, quantity, selectedColor)) {
+    if (addToCart({ ...(activeProduct || product), price: selectedPrice }, quantity, selectedColor)) {
       onClose();
     }
   };
@@ -102,10 +114,10 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
 
     try {
       if (isFavorite) {
-        await api.removeProductFavorite(product.id, product.tenant_id);
+        await api.removeProductFavorite((activeProduct || product).id, (activeProduct || product).tenant_id);
         setIsFavorite(false);
       } else {
-        await api.addProductFavorite(product.id, product.tenant_id);
+        await api.addProductFavorite((activeProduct || product).id, (activeProduct || product).tenant_id);
         setIsFavorite(true);
       }
     } catch (error: any) {
@@ -140,26 +152,29 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
         </button>
 
         <div className="grid lg:h-[620px] lg:max-h-[calc(100vh-3rem)] lg:grid-cols-[52fr_48fr]">
-          <div className="relative flex min-h-[200px] items-center justify-center overflow-hidden bg-chumbo-950 sm:min-h-[440px] lg:min-h-0">
+          <div className="relative min-h-[260px] overflow-hidden bg-chumbo-950 sm:min-h-[440px] lg:min-h-0">
             <img src={selectedImageUrl} alt="" className="absolute inset-0 h-full w-full scale-110 object-cover opacity-20 blur-2xl" aria-hidden="true" />
             <div className="absolute inset-0 bg-gradient-to-br from-chumbo-950/35 via-chumbo-950/55 to-chumbo-950" />
-            <img src={selectedImageUrl} alt={product.title} className="relative z-10 h-48 w-full object-contain p-3 sm:h-80 sm:p-6 lg:h-full lg:max-h-[620px] lg:p-10" />
-
-            {imageChoices.length > 1 && (
-              <div className="absolute bottom-5 left-5 z-20 flex gap-2 rounded-2xl border border-white/10 bg-chumbo-950/75 p-2 backdrop-blur-md">
-                {imageChoices.map((choice) => (
-                  <button
-                    type="button"
-                    key={`${choice.name}-${choice.imageUrl}`}
-                    onClick={() => selectColor(choice.name)}
-                    className={`h-14 w-14 overflow-hidden rounded-xl border bg-chumbo-900 transition ${choice.imageUrl === selectedImageUrl ? 'border-white ring-1 ring-white' : 'border-chumbo-700 opacity-70 hover:opacity-100'}`}
-                    aria-label={`Ver imagem da cor ${choice.name}`}
-                  >
-                    <img src={choice.imageUrl} alt="" className="h-full w-full object-cover" />
-                  </button>
-                ))}
+            <div className={`relative z-10 grid h-full w-full ${imageChoices.length > 1 ? 'sm:grid-cols-[76px_minmax(0,1fr)]' : ''}`}>
+              {imageChoices.length > 1 && (
+                <div className="order-2 flex max-w-full gap-2 overflow-x-auto border-t border-white/10 bg-chumbo-950/70 p-3 backdrop-blur-md sm:order-1 sm:flex-col sm:overflow-x-hidden sm:overflow-y-auto sm:border-r sm:border-t-0 sm:p-2.5">
+                  {imageChoices.map((imageUrl, index) => (
+                    <button
+                      type="button"
+                      key={imageUrl}
+                      onClick={() => setSelectedImageUrl(imageUrl)}
+                      className={`h-14 w-14 shrink-0 overflow-hidden rounded-lg border-2 bg-white p-0.5 transition ${imageUrl === selectedImageUrl ? 'border-laser-400 shadow-[0_0_0_1px_rgba(34,211,238,0.25)]' : 'border-chumbo-700 opacity-70 hover:border-chumbo-500 hover:opacity-100'}`}
+                      aria-label={`Ver foto ${index + 1} da cor ${selectedColor}`}
+                    >
+                      <img src={imageUrl} alt="" className="h-full w-full rounded-md object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="order-1 flex min-h-0 items-center justify-center sm:order-2">
+                <img src={selectedImageUrl} alt={product.title} className="h-52 w-full object-contain p-4 sm:h-80 sm:p-7 lg:h-full lg:max-h-[620px] lg:p-10" />
               </div>
-            )}
+            </div>
           </div>
 
           <div className="flex min-h-0 flex-col bg-chumbo-900 p-5 sm:p-8 lg:overflow-y-auto lg:p-10">
@@ -183,42 +198,51 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
 
               <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
                 <span>{product.category?.name || 'Catálogo'}</span>
-                {product.sku && <><span aria-hidden="true">·</span><span>SKU {product.sku}</span></>}
+                {activeProduct?.sku && <><span aria-hidden="true">·</span><span>SKU {activeProduct.sku}</span></>}
                 {hasRealReviews && (
                   <>
                     <span aria-hidden="true">·</span>
                     <span className="inline-flex items-center gap-1 text-amber-300">
                       <Star className="h-3.5 w-3.5 fill-amber-300" />
-                      <strong>{product.review_summary!.average_rating.toFixed(1)}</strong>
-                      <span className="text-slate-500">({product.review_summary!.review_count})</span>
+                      <strong>{(activeProduct?.review_summary || product.review_summary)!.average_rating.toFixed(1)}</strong>
+                      <span className="text-slate-500">({(activeProduct?.review_summary || product.review_summary)!.review_count})</span>
                     </span>
                   </>
                 )}
               </div>
 
-              <p className="mt-6 whitespace-pre-line text-[15px] leading-7 text-slate-300">{product.description}</p>
+              <p className="mt-6 whitespace-pre-line text-[15px] leading-7 text-slate-300">{activeProduct?.description || product.description}</p>
 
               {feedback && <div className="mt-5 rounded-xl border border-chumbo-700 bg-chumbo-950 p-3 text-xs text-slate-300">{feedback}</div>}
 
               <div className="mt-7 border-t border-chumbo-800 pt-6">
                 {availableColors.length > 1 ? (
                   <div>
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Escolha a cor</span>
-                      <span className="text-sm font-bold text-white">{selectedColor}</span>
-                    </div>
-                    <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <p className="text-sm text-slate-300">
+                      Cor: <strong className="font-bold text-white">{selectedColor}</strong>
+                    </p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2.5" role="group" aria-label="Escolha a cor">
                       {availableColors.map((color) => (
                         <button
                           type="button"
                           key={color.name}
                           onClick={() => selectColor(color.name)}
-                          className={`flex h-10 w-10 items-center justify-center rounded-full transition ${selectedColor === color.name ? 'ring-2 ring-white ring-offset-2 ring-offset-chumbo-900' : 'hover:scale-110'}`}
-                          style={{ backgroundColor: color.hex, border: `1px solid ${color.border}` }}
+                          className={`relative h-16 w-16 overflow-hidden rounded-xl border-2 bg-white p-1 transition ${selectedColor === color.name ? 'border-laser-400 shadow-[0_0_0_2px_rgba(34,211,238,0.16)]' : 'border-chumbo-700 hover:border-chumbo-500'}`}
                           title={color.name}
                           aria-label={`Selecionar cor ${color.name}`}
+                          aria-pressed={selectedColor === color.name}
                         >
-                          {selectedColor === color.name && <Check className={`h-4 w-4 ${color.hex === '#f8fafc' ? 'text-black' : 'text-white'}`} />}
+                          <img src={color.imageUrl} alt="" className="h-full w-full rounded-lg object-cover" />
+                          <span
+                            className="absolute bottom-1.5 left-1.5 h-3 w-3 rounded-full border shadow-sm"
+                            style={{ backgroundColor: color.hex, borderColor: color.border }}
+                            aria-hidden="true"
+                          />
+                          {selectedColor === color.name && (
+                            <span className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-laser-400 text-chumbo-950 shadow-md">
+                              <Check className="h-3.5 w-3.5" />
+                            </span>
+                          )}
                         </button>
                       ))}
                     </div>

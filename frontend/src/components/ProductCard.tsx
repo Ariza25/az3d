@@ -2,7 +2,7 @@ import React from 'react';
 import { Product } from '../types';
 import { ShoppingBag, Layers, Maximize2, Star } from 'lucide-react';
 import { useCart } from '../context/CartContext';
-import { getAvailableColors, getColorVisual, getDefaultColor, getStockStatus, money } from '../shared/storePresentation';
+import { getAvailableColors, getColorVisual, getDefaultColor, getStockStatus, getStoreVariantProduct, money } from '../shared/storePresentation';
 
 interface ProductCardProps {
   product: Product;
@@ -16,6 +16,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal }
   const colors = getAvailableColors(product).slice(0, 5);
   const rating = product.review_summary?.average_rating || product.rating;
   const reviewCount = product.review_summary?.review_count || product.review_count || 0;
+  const defaultColor = getDefaultColor(product);
+  const defaultProduct = getStoreVariantProduct(product, defaultColor);
 
   return (
     <article className="glass-card group flex h-full flex-col overflow-hidden rounded-2xl border border-chumbo-800 transition-all duration-300 hover:border-chumbo-600">
@@ -96,13 +98,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal }
         <div className="mt-5 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3 border-t border-chumbo-800 pt-4">
           <div className="min-w-0">
             <span className="text-[10px] uppercase font-mono tracking-wider text-slate-400 block">
-              Preço
+              {product.store_variants?.some((variant) => variant.price !== product.price) ? 'A partir de' : 'Preço'}
             </span>
             <span className="block whitespace-nowrap text-xl font-extrabold text-white">{money(product.price)}</span>
           </div>
 
           <button
-            onClick={() => addToCart(product, 1, getDefaultColor(product))}
+            onClick={() => addToCart(defaultProduct, 1, defaultColor)}
             disabled={!stockStatus.canBuy}
             className="flex h-11 items-center space-x-2 rounded-xl bg-white px-4 text-chumbo-950 shadow-md transition-all hover:bg-slate-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45"
           >

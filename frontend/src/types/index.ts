@@ -58,6 +58,10 @@ export interface Product {
   source_synced_at?: string;
   created_at?: string;
   updated_at?: string;
+  /** Store-only grouping for marketplace listings that represent color siblings. */
+  store_variants?: Product[];
+  /** Store-only label inferred from the marketplace title/SKU. */
+  store_variant_color?: string;
 }
 
 export interface StockAlert {

@@ -250,6 +250,27 @@ func TestNormalizeItemKeepsMercadoLivreVariationsGrouped(t *testing.T) {
 	}
 }
 
+func TestNormalizeItemKeepsAllPicturesAndInfersColorForSeparateListing(t *testing.T) {
+	item := normalizeItem(mercadoItem{
+		ID: "MLB-456", Title: "Vasinho Leitor Branco", SellerCustomField: "VL01-BRA",
+		Price: 35.9, AvailableQuantity: 10, Status: "active",
+		Pictures: []mercadoPicture{
+			{ID: "PIC-1", SecureURL: "https://img.example/branco-1.jpg"},
+			{ID: "PIC-2", SecureURL: "https://img.example/branco-2.jpg"},
+		},
+	})
+
+	if len(item.Variants) != 0 || len(item.ColorStocks) != 1 || len(item.ColorImages) != 2 {
+		t.Fatalf("separate listing media was not preserved: %#v", item)
+	}
+	if item.ColorStocks[0].ColorName != "Branco" || item.ColorStocks[0].StockQty != 10 {
+		t.Fatalf("unexpected inferred stock color: %#v", item.ColorStocks)
+	}
+	if item.ColorImages[0].ColorName != "Branco" || item.ColorImages[1].ImageURL != "https://img.example/branco-2.jpg" {
+		t.Fatalf("unexpected listing gallery: %#v", item.ColorImages)
+	}
+}
+
 func TestFetchCatalogItemsDeduplicatesAndRejectsAnotherSeller(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/items" {

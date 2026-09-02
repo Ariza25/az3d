@@ -728,6 +728,10 @@ func normalizeItem(item mercadoItem) mp.CatalogItem {
 		for _, stock := range colorStocks {
 			stockQty += maxInt(stock.StockQty, 0)
 		}
+	} else {
+		colorName := marketplaceListingColor(item.Title, sku)
+		colorImages = listingPictures(item.Pictures, colorName, imageURL)
+		colorStocks = []mp.CatalogColorStock{{ColorName: colorName, StockQty: stockQty}}
 	}
 	if len(colorImages) == 0 {
 		colorImages = []mp.CatalogColorImage{{ColorName: "Padrao", ImageURL: imageURL, SortOrder: 0}}
@@ -756,6 +760,55 @@ func normalizeItem(item mercadoItem) mp.CatalogItem {
 			"seller_id":          strconv.FormatInt(item.SellerID, 10),
 		},
 	}
+}
+
+func listingPictures(pictures []mercadoPicture, colorName string, fallbackImageURL string) []mp.CatalogColorImage {
+	images := make([]mp.CatalogColorImage, 0, len(pictures))
+	seen := map[string]struct{}{}
+	for _, picture := range pictures {
+		pictureURL := strings.TrimSpace(picture.SecureURL)
+		if pictureURL == "" {
+			pictureURL = strings.TrimSpace(picture.URL)
+		}
+		if pictureURL == "" {
+			continue
+		}
+		if _, exists := seen[pictureURL]; exists {
+			continue
+		}
+		seen[pictureURL] = struct{}{}
+		images = append(images, mp.CatalogColorImage{ColorName: colorName, ImageURL: pictureURL, SortOrder: len(images)})
+	}
+	if len(images) == 0 && strings.TrimSpace(fallbackImageURL) != "" {
+		images = append(images, mp.CatalogColorImage{ColorName: colorName, ImageURL: strings.TrimSpace(fallbackImageURL), SortOrder: 0})
+	}
+	return images
+}
+
+func marketplaceListingColor(title string, sku string) string {
+	colors := []string{"Branco", "Preto", "Cinza", "Bege", "Vermelho", "Azul", "Verde", "Amarelo", "Rosa", "Roxo", "Laranja", "Marrom", "Natural", "Dourado", "Prata"}
+	words := strings.Fields(strings.TrimSpace(title))
+	if len(words) > 0 {
+		last := strings.Trim(words[len(words)-1], " .,-_/()")
+		for _, color := range colors {
+			if strings.EqualFold(last, color) {
+				return color
+			}
+		}
+	}
+
+	parts := strings.FieldsFunc(strings.ToUpper(strings.TrimSpace(sku)), func(r rune) bool { return r == '-' || r == '_' })
+	if len(parts) > 0 {
+		aliases := map[string]string{
+			"BRA": "Branco", "BR": "Branco", "PRE": "Preto", "PT": "Preto", "CIN": "Cinza", "CZ": "Cinza",
+			"BEG": "Bege", "BG": "Bege", "VER": "Vermelho", "VM": "Vermelho", "AZU": "Azul", "AZ": "Azul",
+			"VRD": "Verde", "VD": "Verde", "AMA": "Amarelo", "AM": "Amarelo", "ROS": "Rosa", "RX": "Roxo",
+		}
+		if color := aliases[parts[len(parts)-1]]; color != "" {
+			return color
+		}
+	}
+	return "Padrao"
 }
 
 func normalizeVariations(item mercadoItem, fallbackImageURL string, active bool) ([]mp.CatalogVariant, []mp.CatalogColorStock, []mp.CatalogColorImage) {
@@ -794,15 +847,17 @@ func normalizeVariations(item mercadoItem, fallbackImageURL string, active bool)
 		})
 		stocks = append(stocks, mp.CatalogColorStock{ColorName: name, StockQty: maxInt(variation.AvailableQuantity, 0)})
 
-		variationImageURL := fallbackImageURL
+		variationImageURLs := make([]string, 0, len(variation.PictureIDs))
 		for _, pictureID := range variation.PictureIDs {
 			if pictureURL := pictures[pictureID]; pictureURL != "" {
-				variationImageURL = pictureURL
-				break
+				variationImageURLs = append(variationImageURLs, pictureURL)
 			}
 		}
-		if variationImageURL != "" {
-			images = append(images, mp.CatalogColorImage{ColorName: name, ImageURL: variationImageURL, SortOrder: index})
+		if len(variationImageURLs) == 0 && fallbackImageURL != "" {
+			variationImageURLs = append(variationImageURLs, fallbackImageURL)
+		}
+		for pictureIndex, variationImageURL := range variationImageURLs {
+			images = append(images, mp.CatalogColorImage{ColorName: name, ImageURL: variationImageURL, SortOrder: index*100 + pictureIndex})
 		}
 	}
 	return variants, stocks, images
