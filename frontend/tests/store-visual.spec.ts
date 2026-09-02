@@ -29,7 +29,7 @@ const beigeVariantImage = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent
 const tenant = { id: 1, name: 'AZ3D', slug: 'az3d' };
 const categories = [
   { id: 1, name: 'Organização', slug: 'organizacao', description: '', icon: 'wrench' },
-  { id: 2, name: 'Decoração', slug: 'decoracao', description: '', icon: 'sparkles' },
+  { id: 2, name: 'Importados do Mercado Livre', slug: 'importados-mercadolivre', description: '', icon: 'sparkles' },
   { id: 3, name: 'Colecionáveis', slug: 'colecionaveis', description: '', icon: 'shield' },
 ];
 const products = [
@@ -179,6 +179,8 @@ test('registra a home e o modal sem overflow horizontal', async ({ page }, testI
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'AZ3D Studio' })).toBeVisible();
   await expect(page.getByText('3 produtos')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Produtos 3D' })).toBeVisible();
+  await expect(page.getByText('Importados do Mercado Livre')).toHaveCount(0);
 
   const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   expect(hasHorizontalOverflow).toBe(false);
@@ -236,16 +238,37 @@ test('agrupa anuncios de cores e troca produto e galeria no modal', async ({ pag
   await expect(beigeButton).toBeVisible();
   await expect(beigeButton.locator('span').first()).toHaveCSS('background-color', 'rgb(214, 185, 140)');
   await expect(mainImage).toHaveAttribute('src', whiteVariantImage);
-  await expect(modal.getByText('SKU VL01-BRA')).toBeVisible();
+  await expect(modal.getByText('SKU VL01-BRA')).toHaveCount(0);
   await expect(modal.getByRole('button', { name: 'Ver foto 2 da cor Branco' })).toBeVisible();
   await modal.getByRole('button', { name: 'Ver foto 2 da cor Branco' }).click();
   await expect(mainImage).toHaveAttribute('src', whiteVariantDetailImage);
 
   await modal.getByRole('button', { name: 'Selecionar cor Vermelho' }).click();
   await expect(mainImage).toHaveAttribute('src', redVariantImage);
-  await expect(modal.getByText('SKU VL01-VER')).toBeVisible();
+  await expect(modal.getByText('SKU VL01-VER')).toHaveCount(0);
   await expect(modal.getByRole('button', { name: 'Ver foto 2 da cor Branco' })).toHaveCount(0);
   await expect(modal.getByRole('button', { name: 'Ver foto 2 da cor Vermelho' })).toBeVisible();
   await modal.getByRole('button', { name: 'Ver foto 2 da cor Vermelho' }).click();
   await expect(mainImage).toHaveAttribute('src', redVariantDetailImage);
+});
+
+test('pesquisa no painel de filtros sem perder as variacoes agrupadas', async ({ page }) => {
+  await page.goto('/');
+
+  const search = page.getByRole('searchbox', { name: 'Buscar produtos' });
+  await expect(search).toBeVisible();
+  await expect(page.getByRole('searchbox')).toHaveCount(1);
+
+  await search.fill('organizador');
+  await expect(page.getByRole('heading', { name: 'Organizador modular de mesa' })).toBeVisible();
+  await expect(page.getByText('1 produto')).toBeVisible();
+
+  await search.fill('vermelho');
+  await expect(page.getByRole('heading', { name: 'Vasinho Leitor', exact: true })).toBeVisible();
+  await page.getByRole('heading', { name: 'Vasinho Leitor', exact: true }).click();
+  const modal = page.getByRole('dialog');
+  await expect(modal.getByRole('button', { name: 'Selecionar cor Branco' })).toBeVisible();
+  await expect(modal.getByRole('button', { name: 'Selecionar cor Vermelho' })).toBeVisible();
+  await expect(modal.getByText('Importados do Mercado Livre')).toHaveCount(0);
+  await expect(modal.getByText(/SKU VL01/)).toHaveCount(0);
 });

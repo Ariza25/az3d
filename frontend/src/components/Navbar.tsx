@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShoppingBag, LogOut, Search, Layers, ChevronDown, ShieldAlert, Heart, ReceiptText } from 'lucide-react';
+import { ShoppingBag, LogOut, Layers, ChevronDown, ShieldAlert, Heart, ReceiptText } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { Tenant, TenantSettings } from '../types';
@@ -7,8 +7,6 @@ import { Tenant, TenantSettings } from '../types';
 interface NavbarProps {
   onOpenLogin: () => void;
   onOpenRegister: () => void;
-  searchQuery: string;
-  setSearchQuery: (query: string) => void;
   activeTenant: Tenant | null;
   onOpenAdmin: () => void;
   onOpenFavorites: () => void;
@@ -18,8 +16,6 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({
   onOpenLogin,
   onOpenRegister,
-  searchQuery,
-  setSearchQuery,
   activeTenant,
   onOpenAdmin,
   onOpenFavorites,
@@ -55,20 +51,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {activeTenant?.slug || 'store'}
                 </span>
               </div>
-            </div>
-          </div>
-
-          {/* Search Bar Minimalista */}
-          <div className="hidden md:flex items-center flex-1 max-w-md mx-6">
-            <div className="relative w-full">
-              <input
-                type="text"
-                placeholder="Buscar itens 3D, capacetes, vasilhames..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-chumbo-900 border border-chumbo-700/60 rounded-xl py-2.5 pl-11 pr-4 text-sm text-slate-100 placeholder-slate-400 focus:outline-none focus:border-slate-300 focus:ring-1 focus:ring-slate-300 transition-all"
-              />
-              <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
             </div>
           </div>
 
@@ -195,20 +177,6 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           </div>
 
-        </div>
-
-        {/* Campo de Busca Mobile */}
-        <div className="pb-3 md:hidden">
-          <div className="relative w-full">
-            <input
-              type="text"
-              placeholder="Buscar modelos 3D..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-chumbo-900 border border-chumbo-800 rounded-xl py-2 pl-10 pr-4 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-slate-400"
-            />
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          </div>
         </div>
 
       </div>

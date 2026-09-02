@@ -462,8 +462,8 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 	}
 
 	if searchQuery != "" {
-		searchTerm := "%" + searchQuery + "%"
-		query = query.Where("title LIKE ? OR description LIKE ? OR material LIKE ?", searchTerm, searchTerm, searchTerm)
+		searchTerm := "%" + strings.ToLower(searchQuery) + "%"
+		query = query.Where("LOWER(title) LIKE ? OR LOWER(description) LIKE ? OR LOWER(material) LIKE ?", searchTerm, searchTerm, searchTerm)
 	}
 
 	var products []models.Product
@@ -504,8 +504,8 @@ func (h *ProductHandler) GetAdminProducts(c *gin.Context) {
 
 	query := withProductRelations(database.DB.Model(&models.Product{}).Where("tenant_id = ?", tenantID))
 	if searchQuery != "" {
-		searchTerm := "%" + searchQuery + "%"
-		query = query.Where("title LIKE ? OR description LIKE ? OR material LIKE ?", searchTerm, searchTerm, searchTerm)
+		searchTerm := "%" + strings.ToLower(searchQuery) + "%"
+		query = query.Where("LOWER(title) LIKE ? OR LOWER(description) LIKE ? OR LOWER(material) LIKE ?", searchTerm, searchTerm, searchTerm)
 	}
 
 	var products []models.Product

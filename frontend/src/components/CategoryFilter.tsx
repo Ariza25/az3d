@@ -1,4 +1,5 @@
 import React from 'react';
+import { getStoreCategoryName } from '../shared/storePresentation';
 import { Category } from '../types';
 import { Shield, Cpu, Sparkles, Wrench, Sword, Grid } from 'lucide-react';
 
@@ -71,7 +72,7 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
                 <span className={isActive ? 'text-chumbo-950' : 'text-laser-400'}>
                   {getCategoryIcon(category.icon)}
                 </span>
-                <span>{category.name}</span>
+                <span>{getStoreCategoryName(category)}</span>
               </button>
             );
           })}

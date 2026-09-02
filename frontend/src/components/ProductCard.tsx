@@ -1,6 +1,6 @@
 import React from 'react';
 import { Product } from '../types';
-import { ShoppingBag, Layers, Maximize2, Star } from 'lucide-react';
+import { ShoppingBag, Maximize2, Star } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { getAvailableColors, getColorVisual, getDefaultColor, getStockStatus, getStoreVariantProduct, money } from '../shared/storePresentation';
 
@@ -32,13 +32,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal }
         />
         <div className="absolute inset-0 bg-gradient-to-t from-chumbo-950 via-transparent to-transparent opacity-80" />
 
-        <div className="absolute top-3 left-3 flex flex-col gap-2">
+        <div className="absolute left-3 top-3">
           <div className={`border px-2.5 py-1 rounded-lg text-[11px] font-bold ${stockStatus.tone}`}>
             {stockStatus.label}
-          </div>
-          <div className="bg-chumbo-950/80 backdrop-blur-md border border-chumbo-700/80 px-2.5 py-1 rounded-lg flex items-center space-x-1.5 text-[11px] font-mono text-slate-200">
-            <Layers className="w-3.5 h-3.5 text-laser-400" />
-            <span>{product.material}</span>
           </div>
         </div>
 
@@ -62,22 +58,20 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal }
           >
             {product.title}
           </h3>
-          <div className="mt-1 flex items-center justify-between gap-3">
-            <span className="text-[11px] font-mono uppercase text-slate-500">SKU {product.sku || product.slug}</span>
-            {rating && reviewCount > 0 && (
+          {rating && reviewCount > 0 && (
+            <div className="mt-1 flex justify-end">
               <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-300">
                 <Star className="h-3.5 w-3.5 fill-amber-300" />
                 {rating.toFixed(1)}
               </span>
-            )}
-          </div>
+            </div>
+          )}
           <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-slate-400">
             {product.description}
           </p>
         </div>
 
-        <div className="mt-4 flex items-center justify-between gap-3 text-[11px] font-mono text-slate-500">
-          <span className="truncate">{product.category?.name || 'Catálogo'}</span>
+        <div className="mt-4 flex items-center justify-end gap-3 text-[11px] font-mono text-slate-500">
           <div className="flex items-center -space-x-1.5">
             {colors.map((color) => {
               const visual = getColorVisual(color);

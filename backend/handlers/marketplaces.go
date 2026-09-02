@@ -863,12 +863,22 @@ func marketplaceImportedProductStatus(provider string, productFound bool, market
 func importedMarketplaceCategoryID(tenantID uint, provider string) uint {
 	provider = normalizeProvider(provider)
 	name := "Importados do " + marketplaceLabel(provider)
+	description := "Categoria criada automaticamente para produtos importados."
+	if provider == mercadoLivreProvider {
+		name = "Produtos 3D"
+		description = "Produtos selecionados da loja."
+	}
 	slug := "importados-" + provider
 	var category models.Category
 	if err := database.DB.Where("tenant_id = ? AND slug = ?", tenantID, slug).First(&category).Error; err == nil {
+		if category.Name != name || category.Description != description {
+			category.Name = name
+			category.Description = description
+			_ = database.DB.Save(&category).Error
+		}
 		return category.ID
 	}
-	category = models.Category{TenantID: tenantID, Name: name, Slug: slug, Description: "Categoria criada automaticamente para produtos importados.", Icon: "shopping-bag"}
+	category = models.Category{TenantID: tenantID, Name: name, Slug: slug, Description: description, Icon: "shopping-bag"}
 	if err := database.DB.Create(&category).Error; err != nil {
 		return 0
 	}

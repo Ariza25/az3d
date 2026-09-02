@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, RotateCcw, SlidersHorizontal } from 'lucide-react';
+import { ChevronDown, RotateCcw, Search, SlidersHorizontal, X } from 'lucide-react';
 
 export type StoreSort = 'featured' | 'recent' | 'price_asc' | 'price_desc';
 export type AvailabilityFilter = 'all' | 'available' | 'low_stock' | 'out';
@@ -16,6 +16,8 @@ interface StoreFiltersProps {
   priceCeiling: number;
   onMaxPriceChange: (value: number) => void;
   onClear: () => void;
+  searchQuery: string;
+  onSearchChange: (value: string) => void;
 }
 
 export const StoreFilters: React.FC<StoreFiltersProps> = ({
@@ -30,6 +32,8 @@ export const StoreFilters: React.FC<StoreFiltersProps> = ({
   priceCeiling,
   onMaxPriceChange,
   onClear,
+  searchQuery,
+  onSearchChange,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const activeFilterCount = Number(sortBy !== 'featured') + Number(materialFilter !== 'todos') + Number(availabilityFilter !== 'all') + Number(maxPrice < priceCeiling);
@@ -38,7 +42,7 @@ export const StoreFilters: React.FC<StoreFiltersProps> = ({
     <section className="bg-chumbo-950 pt-3">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="rounded-2xl border border-chumbo-800 bg-chumbo-900/60 p-3 sm:p-4">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <button
               type="button"
               onClick={() => setIsOpen((value) => !value)}
@@ -50,12 +54,30 @@ export const StoreFilters: React.FC<StoreFiltersProps> = ({
               {activeFilterCount > 0 && <span className="rounded-full bg-laser-400 px-2 py-0.5 text-[10px] text-chumbo-950">{activeFilterCount}</span>}
               <ChevronDown className={`h-4 w-4 text-slate-500 transition lg:hidden ${isOpen ? 'rotate-180' : ''}`} />
             </button>
-            {activeFilterCount > 0 && (
-              <button type="button" onClick={onClear} className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-slate-400 hover:bg-chumbo-800 hover:text-white">
-                <RotateCcw className="h-3.5 w-3.5" />
-                Limpar
-              </button>
-            )}
+            <div className="flex w-full items-center gap-2 sm:ml-auto sm:max-w-xl">
+              <div className="relative min-w-0 flex-1">
+                <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" aria-hidden="true" />
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(event) => onSearchChange(event.target.value)}
+                  placeholder="Buscar produtos..."
+                  className="h-11 w-full rounded-xl border border-chumbo-700 bg-chumbo-950 py-2 pl-10 pr-10 text-sm text-white placeholder:text-slate-500 focus:border-laser-400 focus:outline-none focus:ring-1 focus:ring-laser-400/30"
+                  aria-label="Buscar produtos"
+                />
+                {searchQuery && (
+                  <button type="button" onClick={() => onSearchChange('')} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-slate-500 hover:bg-chumbo-800 hover:text-white" aria-label="Limpar busca">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+              {activeFilterCount > 0 && (
+                <button type="button" onClick={onClear} className="inline-flex h-11 shrink-0 items-center gap-2 rounded-lg px-3 text-xs font-bold text-slate-400 hover:bg-chumbo-800 hover:text-white">
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  Limpar
+                </button>
+              )}
+            </div>
           </div>
 
           <div className={`${isOpen ? 'grid' : 'hidden'} mt-3 gap-3 border-t border-chumbo-800 pt-4 sm:grid-cols-2 lg:grid lg:grid-cols-[1fr_1fr_1fr_1.35fr]`}>

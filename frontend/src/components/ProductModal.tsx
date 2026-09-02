@@ -139,7 +139,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
       aria-labelledby="product-modal-title"
     >
       <div
-        className="glass-panel relative max-h-[calc(100vh-1.5rem)] w-full max-w-6xl overflow-y-auto rounded-3xl border border-chumbo-700 shadow-2xl animate-in fade-in zoom-in-95 duration-200 sm:max-h-[calc(100vh-3rem)] lg:overflow-hidden"
+        className="glass-panel relative max-h-[calc(100vh-1rem)] w-full max-w-[1400px] overflow-y-auto rounded-3xl border border-chumbo-700 shadow-2xl animate-in fade-in zoom-in-95 duration-200 sm:max-h-[calc(100vh-2rem)] lg:overflow-hidden"
         onClick={(event) => event.stopPropagation()}
       >
         <button
@@ -151,7 +151,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
           <X className="h-5 w-5" />
         </button>
 
-        <div className="grid lg:h-[620px] lg:max-h-[calc(100vh-3rem)] lg:grid-cols-[52fr_48fr]">
+        <div className="grid lg:h-[700px] lg:max-h-[calc(100vh-2rem)] lg:grid-cols-[54fr_46fr]">
           <div className="relative min-h-[260px] overflow-hidden bg-chumbo-950 sm:min-h-[440px] lg:min-h-0">
             <img src={selectedImageUrl} alt="" className="absolute inset-0 h-full w-full scale-110 object-cover opacity-20 blur-2xl" aria-hidden="true" />
             <div className="absolute inset-0 bg-gradient-to-br from-chumbo-950/35 via-chumbo-950/55 to-chumbo-950" />
@@ -172,7 +172,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
                 </div>
               )}
               <div className="order-1 flex min-h-0 items-center justify-center sm:order-2">
-                <img src={selectedImageUrl} alt={product.title} className="h-52 w-full object-contain p-4 sm:h-80 sm:p-7 lg:h-full lg:max-h-[620px] lg:p-10" />
+                <img src={selectedImageUrl} alt={product.title} className="h-52 w-full object-contain p-4 sm:h-80 sm:p-7 lg:h-full lg:max-h-[700px] lg:p-10" />
               </div>
             </div>
           </div>
@@ -196,20 +196,15 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
 
               <h2 id="product-modal-title" className="mt-5 text-2xl font-extrabold leading-tight text-white sm:text-3xl lg:text-[2rem]">{product.title}</h2>
 
-              <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
-                <span>{product.category?.name || 'Catálogo'}</span>
-                {activeProduct?.sku && <><span aria-hidden="true">·</span><span>SKU {activeProduct.sku}</span></>}
-                {hasRealReviews && (
-                  <>
-                    <span aria-hidden="true">·</span>
+              {hasRealReviews && (
+                <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
                     <span className="inline-flex items-center gap-1 text-amber-300">
                       <Star className="h-3.5 w-3.5 fill-amber-300" />
                       <strong>{(activeProduct?.review_summary || product.review_summary)!.average_rating.toFixed(1)}</strong>
                       <span className="text-slate-500">({(activeProduct?.review_summary || product.review_summary)!.review_count})</span>
                     </span>
-                  </>
-                )}
-              </div>
+                </div>
+              )}
 
               <p className="mt-6 whitespace-pre-line text-[15px] leading-7 text-slate-300">{activeProduct?.description || product.description}</p>
 
@@ -265,7 +260,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
             </div>
 
             <div className="mt-7 border-t border-chumbo-800 pt-6">
-              <div className="grid grid-cols-[1fr_auto] items-end gap-4 lg:grid-cols-[auto_auto_minmax(180px,1fr)]">
+              <div className="grid grid-cols-[1fr_auto] items-end gap-4 lg:grid-cols-[minmax(150px,1fr)_auto_minmax(220px,1.2fr)]">
                 <div aria-live="polite" aria-label="Total da compra">
                   <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500">Total</span>
                   <span className="mt-1 block whitespace-nowrap text-3xl font-extrabold text-white">{money(purchaseTotal)}</span>

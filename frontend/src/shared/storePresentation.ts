@@ -102,6 +102,11 @@ export const getStoreVariantProduct = (product: Product, color?: string) => {
     || product.store_variants[0];
 };
 
+export const getStoreCategoryName = (category?: { name?: string; slug?: string }) => {
+  if (category?.slug === 'importados-mercadolivre') return 'Produtos 3D';
+  return category?.name || 'Catálogo';
+};
+
 export const money = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`;
 
 export const getTotalStock = (product: Product) => {

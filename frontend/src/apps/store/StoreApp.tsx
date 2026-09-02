@@ -36,6 +36,23 @@ const upsertMetaDescription = (content: string) => {
   meta.content = content;
 };
 
+const normalizeSearchText = (value: string) => value
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, ' ')
+  .trim();
+
+const matchesStoreSearch = (product: Product, query: string) => {
+  const tokens = normalizeSearchText(query).split(' ').filter(Boolean);
+  if (tokens.length === 0) return true;
+  const family = product.store_variants?.length ? product.store_variants : [product];
+  const searchable = normalizeSearchText(family.flatMap((item) => [
+    item.title, item.description, item.material, item.sku || '', item.category?.name || '',
+  ]).join(' '));
+  return tokens.every((token) => searchable.includes(token));
+};
+
 export const StoreApp: React.FC = () => {
   const {
     activeTenant,
@@ -135,7 +152,8 @@ export const StoreApp: React.FC = () => {
         (availabilityFilter === 'low_stock' && status.canBuy && stock <= 3) ||
         (availabilityFilter === 'out' && !status.canBuy);
       const matchesPrice = maxPrice <= 0 || product.price <= maxPrice;
-      return matchesMaterial && matchesAvailability && matchesPrice;
+      const matchesSearch = matchesStoreSearch(product, searchQuery);
+      return matchesMaterial && matchesAvailability && matchesPrice && matchesSearch;
     });
 
     return filtered.sort((a, b) => {
@@ -150,7 +168,7 @@ export const StoreApp: React.FC = () => {
       const aScore = (a.review_summary?.review_count || a.review_count || 0) + (getStockStatus(a).canBuy ? 10 : 0);
       return bScore - aScore;
     });
-  }, [storeProducts, materialFilter, availabilityFilter, maxPrice, sortBy]);
+  }, [storeProducts, materialFilter, availabilityFilter, maxPrice, searchQuery, sortBy]);
 
   const materialOptions = useMemo(() => {
     return Array.from(new Set(storeProducts.map((product) => product.material).filter(Boolean))).sort((a, b) => a.localeCompare(b));
@@ -223,8 +241,6 @@ export const StoreApp: React.FC = () => {
       <Navbar
         onOpenLogin={() => setIsLoginOpen(true)}
         onOpenRegister={() => setIsRegisterOpen(true)}
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
         activeTenant={activeTenant}
         onOpenAdmin={openAdmin}
         onOpenFavorites={() => setIsFavoritesOpen(true)}
@@ -278,7 +294,10 @@ export const StoreApp: React.FC = () => {
             setAvailabilityFilter('all');
             setMaxPrice(priceCeiling);
             setSortBy('featured');
+            setSearchQuery('');
           }}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
         />
 
         <ProductGrid

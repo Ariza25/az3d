@@ -92,14 +92,16 @@ export const useTenantCatalog = (options: UseTenantCatalogOptions = {}) => {
 
     setIsLoading(true);
     try {
-      const data = await api.getProducts(activeCategory, searchQuery, activeTenant.id);
+      // Search is applied after marketplace sibling grouping in StoreApp so a
+      // match never drops the other colors from the same product family.
+      const data = await api.getProducts(activeCategory, undefined, activeTenant.id);
       setProducts(data);
     } catch (err) {
       console.error('Erro ao carregar produtos:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [activeTenant, activeCategory, searchQuery]);
+  }, [activeTenant, activeCategory]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
