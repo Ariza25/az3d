@@ -32,7 +32,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
     setIsCartOpen,
   } = useCart();
 
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, token } = useAuth();
   const [deliveryMethod, setDeliveryMethod] = useState<'shipping' | 'pickup'>('shipping');
   const [recipientName, setRecipientName] = useState('');
   const [recipientPhone, setRecipientPhone] = useState('');
@@ -63,11 +63,11 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
   }, [canPickup, canShip, deliveryMethod]);
 
   const loadMyOrders = async () => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !token) return;
     setIsLoadingOrders(true);
     setErrorMessage(null);
     try {
-      const orders = await api.getMyOrders(tenantSettings?.tenant_id);
+      const orders = await api.getMyOrders(tenantSettings?.tenant_id, token);
       setMyOrders(orders);
     } catch (err: any) {
       setErrorMessage(err.message || 'Nao foi possivel carregar seus pedidos.');
@@ -92,7 +92,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
       window.removeEventListener('az3d:open-cart', handleOpenCart);
       window.removeEventListener('az3d:open-orders', handleOpenOrders);
     };
-  }, [isAuthenticated, tenantSettings?.tenant_id]);
+  }, [isAuthenticated, tenantSettings?.tenant_id, token]);
 
   useEffect(() => {
     if (cart.length === 0) setCheckoutStep('items');
@@ -120,7 +120,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
 
   const continueToDelivery = () => {
     setErrorMessage(null);
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !token) {
       closeDrawer();
       onOpenLogin();
       return;
@@ -131,7 +131,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
   if (!isCartOpen) return null;
 
   const handleCheckout = async () => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !token) {
       setIsCartOpen(false);
       onOpenLogin();
       return;
@@ -169,7 +169,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
         city,
         state,
         notes,
-      });
+      }, tenantSettings?.tenant_id, token);
 
       const checkoutUrl = result.payment?.checkout_url || result.payment?.sandbox_checkout_url;
       clearCart();

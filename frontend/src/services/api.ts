@@ -60,8 +60,12 @@ export const resolveApiAssetUrl = (path: string) => {
 export const CUSTOMER_TOKEN_KEY = 'az3d_customer_token';
 export const ADMIN_TOKEN_KEY = 'az3d_admin_token';
 
-const getHeaders = (tenantId?: number, tokenKey: string = CUSTOMER_TOKEN_KEY) => {
-  const token = localStorage.getItem(tokenKey);
+const getHeaders = (
+  tenantId?: number,
+  tokenKey: string = CUSTOMER_TOKEN_KEY,
+  accessToken?: string | null,
+) => {
+  const token = accessToken === undefined ? localStorage.getItem(tokenKey) : accessToken;
   const storedTenant = tenantId || localStorage.getItem('az3d_tenant_id') || '1';
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -361,10 +365,10 @@ export const api = {
   },
 
   // Pedidos Cliente
-  createOrder: async (payload: CreateOrderPayload, tenantId?: number): Promise<CreateOrderResponse> => {
+  createOrder: async (payload: CreateOrderPayload, tenantId?: number, accessToken?: string): Promise<CreateOrderResponse> => {
     const res = await fetch(`${API_BASE_URL}/orders`, {
       method: 'POST',
-      headers: getHeaders(tenantId),
+      headers: getHeaders(tenantId, CUSTOMER_TOKEN_KEY, accessToken),
       body: JSON.stringify(payload),
     });
 
@@ -373,9 +377,9 @@ export const api = {
     return data;
   },
 
-  getMyOrders: async (tenantId?: number): Promise<Order[]> => {
+  getMyOrders: async (tenantId?: number, accessToken?: string): Promise<Order[]> => {
     const res = await fetch(`${API_BASE_URL}/orders/my-orders`, {
-      headers: getHeaders(tenantId),
+      headers: getHeaders(tenantId, CUSTOMER_TOKEN_KEY, accessToken),
     });
     if (!res.ok) throw new Error('Erro ao carregar histórico de pedidos');
     return res.json();

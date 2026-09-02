@@ -160,4 +160,21 @@ test('permite revisar itens e avança para entrega sem sobrecarregar o drawer', 
 
   const hasHorizontalOverflow = await dialog.evaluate((element) => element.scrollWidth > element.clientWidth);
   expect(hasHorizontalOverflow).toBe(false);
+
+  await dialog.getByLabel('Nome de quem recebe').fill('Matheus');
+  await dialog.getByLabel('Telefone').fill('11999999999');
+  await dialog.getByLabel('CEP').fill('01001000');
+  await dialog.getByLabel('Cidade').fill('Sao Paulo');
+  await dialog.getByLabel('UF').fill('SP');
+  await dialog.getByLabel('Endereço completo').fill('Praca da Se, 1');
+
+  // Simula a limpeza do storage depois que a sessao ja foi carregada. O checkout
+  // deve usar o token mantido pelo AuthContext e nunca enviar um pedido anonimo.
+  await page.evaluate(() => localStorage.removeItem('az3d_customer_token'));
+  const orderRequestPromise = page.waitForRequest((request) => new URL(request.url()).pathname === '/api/orders');
+  await dialog.getByRole('button', { name: 'Ir para o pagamento' }).click();
+  const orderRequest = await orderRequestPromise;
+
+  expect(orderRequest.headers()['authorization']).toBe('Bearer visual-test-token');
+  expect(orderRequest.headers()['x-tenant-id']).toBe('1');
 });

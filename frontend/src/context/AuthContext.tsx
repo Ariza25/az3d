@@ -104,7 +104,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode; scope?: AuthSco
         scope,
         user,
         token,
-        isAuthenticated: !!user,
+        isAuthenticated: Boolean(user && token),
         isLoading,
         login,
         register,
