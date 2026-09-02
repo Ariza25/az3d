@@ -157,6 +157,7 @@ export const getColorVisual = (name: string) => {
   const normalized = name.toLowerCase();
   if (normalized.includes('preto') || normalized.includes('black')) return { hex: '#18181b', border: '#3f3f46' };
   if (normalized.includes('branco') || normalized.includes('white')) return { hex: '#f8fafc', border: '#e2e8f0' };
+  if (normalized.includes('bege') || normalized.includes('beige')) return { hex: '#d6b98c', border: '#ead7b7' };
   if (normalized.includes('cinza') || normalized.includes('gray') || normalized.includes('chumbo')) return { hex: '#475569', border: '#94a3b8' };
   if (normalized.includes('azul') || normalized.includes('blue')) return { hex: '#2563eb', border: '#60a5fa' };
   if (normalized.includes('verde') || normalized.includes('green')) return { hex: '#16a34a', border: '#4ade80' };

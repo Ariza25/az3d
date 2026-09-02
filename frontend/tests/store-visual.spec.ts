@@ -21,8 +21,10 @@ const productImage = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
 `)}`;
 
 const whiteVariantImage = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="white"/></svg>')}`;
+const whiteVariantDetailImage = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="35" fill="white" stroke="#cbd5e1"/></svg>')}`;
 const redVariantImage = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#dc2626"/></svg>')}`;
 const redVariantDetailImage = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="35" fill="#dc2626"/></svg>')}`;
+const beigeVariantImage = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#d6b98c"/></svg>')}`;
 
 const tenant = { id: 1, name: 'AZ3D', slug: 'az3d' };
 const categories = [
@@ -85,7 +87,10 @@ const products = [
     description: 'Vasinho leitor na cor branca.',
     price: 35.9,
     image_url: whiteVariantImage,
-    color_images: [{ color_name: 'Padrao', image_url: whiteVariantImage, sort_order: 0 }],
+    color_images: [
+      { color_name: 'Padrao', image_url: whiteVariantImage, sort_order: 0 },
+      { color_name: 'Padrao', image_url: whiteVariantDetailImage, sort_order: 1 },
+    ],
     color_stocks: [{ color_name: 'Padrao', stock_qty: 10 }],
     category_id: 2,
     category: categories[1],
@@ -126,6 +131,30 @@ const products = [
     status: 'draft',
     source_provider: 'mercadolivre',
     source_external_id: 'MLB-RED',
+  },
+  {
+    id: 5,
+    tenant_id: 1,
+    title: 'Vasinho Leitor Bege',
+    slug: 'vasinho-leitor-bege',
+    sku: 'VL01-BEG',
+    description: 'Vasinho leitor na cor bege.',
+    price: 35.9,
+    image_url: beigeVariantImage,
+    color_images: [{ color_name: 'Padrao', image_url: beigeVariantImage, sort_order: 0 }],
+    color_stocks: [{ color_name: 'Padrao', stock_qty: 6 }],
+    category_id: 2,
+    category: categories[1],
+    material: 'PLA',
+    layer_height: '0.16 mm',
+    print_time: 'A confirmar',
+    dimensions: 'A confirmar',
+    weight: '0 g',
+    in_stock: true,
+    stock_qty: 6,
+    status: 'draft',
+    source_provider: 'mercadolivre',
+    source_external_id: 'MLB-BEIGE',
   },
 ];
 
@@ -203,12 +232,19 @@ test('agrupa anuncios de cores e troca produto e galeria no modal', async ({ pag
   const mainImage = modal.getByAltText('Vasinho Leitor', { exact: true });
   await expect(modal.getByRole('button', { name: 'Selecionar cor Branco' })).toBeVisible();
   await expect(modal.getByRole('button', { name: 'Selecionar cor Vermelho' })).toBeVisible();
+  const beigeButton = modal.getByRole('button', { name: 'Selecionar cor Bege' });
+  await expect(beigeButton).toBeVisible();
+  await expect(beigeButton.locator('span').first()).toHaveCSS('background-color', 'rgb(214, 185, 140)');
   await expect(mainImage).toHaveAttribute('src', whiteVariantImage);
   await expect(modal.getByText('SKU VL01-BRA')).toBeVisible();
+  await expect(modal.getByRole('button', { name: 'Ver foto 2 da cor Branco' })).toBeVisible();
+  await modal.getByRole('button', { name: 'Ver foto 2 da cor Branco' }).click();
+  await expect(mainImage).toHaveAttribute('src', whiteVariantDetailImage);
 
   await modal.getByRole('button', { name: 'Selecionar cor Vermelho' }).click();
   await expect(mainImage).toHaveAttribute('src', redVariantImage);
   await expect(modal.getByText('SKU VL01-VER')).toBeVisible();
+  await expect(modal.getByRole('button', { name: 'Ver foto 2 da cor Branco' })).toHaveCount(0);
   await expect(modal.getByRole('button', { name: 'Ver foto 2 da cor Vermelho' })).toBeVisible();
   await modal.getByRole('button', { name: 'Ver foto 2 da cor Vermelho' }).click();
   await expect(mainImage).toHaveAttribute('src', redVariantDetailImage);
