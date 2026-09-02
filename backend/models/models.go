@@ -974,7 +974,7 @@ type TenantPaymentAccount struct {
 	EncryptedAccessToken  string     `gorm:"type:text" json:"-"`
 	EncryptedRefreshToken string     `gorm:"type:text" json:"-"`
 	TokenExpiresAt        *time.Time `json:"token_expires_at,omitempty"`
-	Scope                 string     `gorm:"size:255" json:"scope,omitempty"`
+	Scope                 string     `gorm:"type:text" json:"scope,omitempty"`
 	LiveMode              bool       `json:"live_mode"`
 	Status                string     `gorm:"size:30;not null;default:'disconnected';index" json:"status"`
 	LastError             string     `gorm:"type:text" json:"last_error,omitempty"`

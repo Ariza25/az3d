@@ -2,12 +2,24 @@ package database
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"az3d-backend/models"
 
 	"gorm.io/gorm/schema"
 )
+
+func TestTenantPaymentAccountScopeUsesUnboundedText(t *testing.T) {
+	modelType := reflect.TypeOf(models.TenantPaymentAccount{})
+	scopeField, found := modelType.FieldByName("Scope")
+	if !found {
+		t.Fatal("TenantPaymentAccount.Scope field not found")
+	}
+	if tag := scopeField.Tag.Get("gorm"); !strings.Contains(tag, "type:text") {
+		t.Fatalf("TenantPaymentAccount.Scope must use text to store long OAuth grants, got %q", tag)
+	}
+}
 
 func TestTenantScopedTablesCoversPersistedTenantModels(t *testing.T) {
 	persistedModels := []any{
