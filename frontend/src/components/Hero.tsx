@@ -16,8 +16,6 @@ export const Hero: React.FC<HeroProps> = ({
   tenant,
   settings,
   featuredProduct,
-  categories,
-  onSelectCategory,
   onOpenProduct,
 }) => {
   const storeName = settings?.store_name || tenant?.name || 'AZ3D Store';
@@ -29,7 +27,6 @@ export const Hero: React.FC<HeroProps> = ({
     'https://images.unsplash.com/photo-1563089145-599997674d42?q=80&w=1400&auto=format&fit=crop';
   const featuredTitle = featuredProduct?.title || 'Produtos prontos para comprar';
   const featuredPrice = featuredProduct ? money(featuredProduct.price) : 'Catálogo da loja';
-  const visibleCategories = categories.slice(0, 3);
   const stockStatus = featuredProduct ? getStockStatus(featuredProduct) : null;
   const scrollToCatalog = () => document.getElementById('catalog')?.scrollIntoView({ behavior: 'smooth' });
 
@@ -67,25 +64,6 @@ export const Hero: React.FC<HeroProps> = ({
             Explorar catálogo
             <ArrowRight className="h-4 w-4" />
           </button>
-
-          {visibleCategories.length > 0 && (
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-slate-400">
-              <span className="text-xs font-mono uppercase tracking-widest text-slate-600">Explore</span>
-              {visibleCategories.map((category) => (
-                <button
-                  key={category.id}
-                  type="button"
-                  onClick={() => {
-                    onSelectCategory(category.slug);
-                    scrollToCatalog();
-                  }}
-                  className="transition-colors hover:text-white"
-                >
-                  {category.name}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
 
         {featuredProduct && (

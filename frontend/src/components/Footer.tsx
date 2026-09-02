@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, ShieldCheck } from 'lucide-react';
+import { Layers } from 'lucide-react';
 
 export const Footer: React.FC = () => {
   return (
@@ -23,19 +23,6 @@ export const Footer: React.FC = () => {
             </p>
           </div>
 
-          {/* Coluna 2 - Materiais */}
-          <div>
-            <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-slate-200 mb-4">
-              Materiais Suportados
-            </h4>
-            <ul className="space-y-2 text-xs">
-              <li className="hover:text-white transition-colors cursor-pointer">• PLA Silk & Matte</li>
-              <li className="hover:text-white transition-colors cursor-pointer">• PETG Carbon Fiber</li>
-              <li className="hover:text-white transition-colors cursor-pointer">• Resina UV 8K High Detail</li>
-              <li className="hover:text-white transition-colors cursor-pointer">• ABS Industrial</li>
-            </ul>
-          </div>
-
           {/* Coluna 3 - Categorias */}
           <div>
             <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-slate-200 mb-4">
@@ -48,22 +35,10 @@ export const Footer: React.FC = () => {
               <li className="hover:text-white transition-colors cursor-pointer">Cosplay & Réplicas 1:1</li>
             </ul>
           </div>
-
-          {/* Coluna 4 - Garantia & Contato */}
-          <div className="space-y-3">
-            <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-slate-200 mb-4">
-              Garantia de Qualidade
-            </h4>
-            <div className="flex items-center space-x-2 text-xs text-emerald-400 bg-emerald-950/40 border border-emerald-800/60 p-3 rounded-xl">
-              <ShieldCheck className="w-5 h-5 shrink-0" />
-              <span>Inspeção individual de fatiamento e aderência de camada.</span>
-            </div>
-          </div>
-
         </div>
 
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 space-y-4 sm:space-y-0">
-          <p>© 2026 AZ3D Printing Studio. Todos os direitos reservados.</p>
+          <p>© 2026 AZ3D Studio. Todos os direitos reservados.</p>
         </div>
 
       </div>
