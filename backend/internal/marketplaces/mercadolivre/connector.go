@@ -515,6 +515,25 @@ func (c *Connector) fetchItems(ctx context.Context, baseURL string, token string
 			return nil, fmt.Errorf("items/bulk nao retornou corpos utilizaveis: respostas=%d status=%v sem_body_id=%d", len(response), statusCounts, missingBodyID)
 		}
 	}
+	if len(items) == 0 && len(itemIDs) > 0 {
+		// Mercado Livre may return an empty bulk response for draft/inactive
+		// listings. The authenticated item resource still exposes the owner's
+		// listing and its complete picture gallery.
+		for _, itemID := range itemIDs {
+			var item mercadoItem
+			endpoint := baseURL + "/items/" + url.PathEscape(itemID)
+			if err := c.getJSON(ctx, endpoint, token, &item); err != nil {
+				var apiErr *APIError
+				if errors.As(err, &apiErr) && (apiErr.StatusCode == http.StatusForbidden || apiErr.StatusCode == http.StatusNotFound) {
+					continue
+				}
+				return nil, err
+			}
+			if item.ID != "" {
+				items = append(items, normalizeItem(item))
+			}
+		}
+	}
 	return items, nil
 }
 
