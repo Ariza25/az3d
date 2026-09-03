@@ -280,8 +280,8 @@ func TestFetchCatalogItemsDeduplicatesAndRejectsAnotherSeller(t *testing.T) {
 		if got := r.URL.Query().Get("ids"); got != "MLB-OWNED,MLB-FOREIGN" {
 			t.Fatalf("ids = %q", got)
 		}
-		if !strings.Contains(r.URL.Query().Get("attributes"), "body.seller_id") {
-			t.Fatal("seller_id was not requested")
+		if got := r.URL.Query().Get("attributes"); got != "" {
+			t.Fatalf("attributes = %q, want full item payload", got)
 		}
 		_ = json.NewEncoder(w).Encode([]map[string]any{
 			{"status_code": http.StatusOK, "body": map[string]any{

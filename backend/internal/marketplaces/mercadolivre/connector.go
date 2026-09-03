@@ -482,7 +482,6 @@ func (c *Connector) fetchItems(ctx context.Context, baseURL string, token string
 		endpoint, _ := url.Parse(baseURL + "/items/bulk")
 		query := endpoint.Query()
 		query.Set("ids", strings.Join(itemIDs[start:end], ","))
-		query.Set("attributes", "body.id,body.seller_id,body.title,body.price,body.available_quantity,body.thumbnail,body.pictures,body.permalink,body.seller_custom_field,body.attributes,body.variations,body.status")
 		endpoint.RawQuery = query.Encode()
 
 		var response []struct {
