@@ -74,13 +74,10 @@ func (h *MarketplaceHandler) ReconcileMarketplaceCatalogs(ctx context.Context) (
 			continue
 		}
 		outcome := h.syncMarketplaceCatalogAccount(ctx, accounts[i].TenantID, &accounts[i], connector)
+		log.Printf("[marketplace-sync] catalog reconciliation provider=%s account_id=%d status=%s created=%d updated=%d message=%s", accounts[i].Provider, accounts[i].ID, outcome.Status, outcome.Created, outcome.Updated, outcome.Message)
 		if strings.HasSuffix(outcome.Status, "error") {
-			log.Printf("[marketplace-sync] catalog reconciliation provider=%s account_id=%d status=%s message=%s", accounts[i].Provider, accounts[i].ID, outcome.Status, outcome.Message)
 			failed++
 			continue
-		}
-		if outcome.Status != "catalog_synced" {
-			log.Printf("[marketplace-sync] catalog reconciliation provider=%s account_id=%d status=%s message=%s", accounts[i].Provider, accounts[i].ID, outcome.Status, outcome.Message)
 		}
 		syncedAccounts++
 		syncedProducts += outcome.Created + outcome.Updated

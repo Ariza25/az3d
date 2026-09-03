@@ -1057,11 +1057,13 @@ func (h *MarketplaceHandler) syncMarketplaceCatalogAccount(ctx context.Context, 
 	}
 
 	var eventFetchErr error
+	directItemsFound := 0
 	if len(missingIDs) > 0 {
 		if fetcher, ok := connector.(marketplaces.CatalogItemFetcher); ok {
 			var eventCatalog marketplaces.CatalogSyncResult
 			eventCatalog, eventFetchErr = fetcher.FetchCatalogItems(ctx, marketplaceAccountFromModel(*account), missingIDs)
 			if eventFetchErr == nil {
+				directItemsFound = len(eventCatalog.Items)
 				items = uniqueMarketplaceCatalogItems(append(items, eventCatalog.Items...))
 				knownItemIDs = marketplaceCatalogItemIDs(items)
 			}
@@ -1115,6 +1117,9 @@ func (h *MarketplaceHandler) syncMarketplaceCatalogAccount(ctx context.Context, 
 	}
 	if len(pendingIDs) > 0 {
 		messageParts = append(messageParts, fmt.Sprintf("%d anuncio(s) unico(s) identificado(s) no Outbox", len(pendingIDs)))
+	}
+	if len(mappedIDs) > 0 {
+		messageParts = append(messageParts, fmt.Sprintf("%d ID(s) conhecido(s) consultado(s); %d anuncio(s) retornado(s) pela busca direta", len(mappedIDs), directItemsFound))
 	}
 	if outcome.EventsProcessed > 0 {
 		messageParts = append(messageParts, fmt.Sprintf("%d evento(s) do Outbox processado(s)", outcome.EventsProcessed))
