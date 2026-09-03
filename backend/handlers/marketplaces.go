@@ -1157,12 +1157,41 @@ func pendingMarketplaceItemEvents(tenantID uint, provider string) ([]models.Mark
 }
 
 func mappedMarketplaceItemIDs(tenantID uint, provider string) ([]string, error) {
-	var externalIDs []string
+	provider = normalizeProvider(provider)
+	var mappedIDs []string
 	err := database.DB.Model(&models.MarketplaceProductMapping{}).
-		Where("tenant_id = ? AND provider = ? AND external_item_id <> ''", tenantID, normalizeProvider(provider)).
+		Where("tenant_id = ? AND provider = ? AND external_item_id <> ''", tenantID, provider).
 		Order("id asc").
-		Pluck("external_item_id", &externalIDs).Error
-	return externalIDs, err
+		Pluck("external_item_id", &mappedIDs).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// Older imports may predate MarketplaceProductMapping while still keeping
+	// the source identity on Product. Include both sources for a safe backfill.
+	var productIDs []string
+	err = database.DB.Model(&models.Product{}).
+		Where("tenant_id = ? AND source_provider = ? AND source_external_id <> ''", tenantID, provider).
+		Order("id asc").
+		Pluck("source_external_id", &productIDs).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]string, 0, len(mappedIDs)+len(productIDs))
+	seen := make(map[string]struct{}, len(mappedIDs)+len(productIDs))
+	for _, externalID := range append(mappedIDs, productIDs...) {
+		externalID = strings.TrimSpace(externalID)
+		if externalID == "" {
+			continue
+		}
+		if _, exists := seen[externalID]; exists {
+			continue
+		}
+		seen[externalID] = struct{}{}
+		result = append(result, externalID)
+	}
+	return result, nil
 }
 
 func pendingMarketplaceItemIDs(events []models.MarketplaceWebhookEvent) []string {
