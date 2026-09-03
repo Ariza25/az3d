@@ -277,7 +277,7 @@ func TestFetchCatalogItemsDeduplicatesAndRejectsAnotherSeller(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		if got := r.URL.Query().Get("ids"); got != "MLB-OWNED,MLB-FOREIGN" {
+		if got := r.URL.Query().Get("ids"); got != "MLB-OWNED,MLB-UNKNOWN,MLB-FOREIGN" {
 			t.Fatalf("ids = %q", got)
 		}
 		if got := r.URL.Query().Get("attributes"); got != "" {
@@ -286,6 +286,9 @@ func TestFetchCatalogItemsDeduplicatesAndRejectsAnotherSeller(t *testing.T) {
 		_ = json.NewEncoder(w).Encode([]map[string]any{
 			{"status_code": http.StatusOK, "body": map[string]any{
 				"id": "MLB-OWNED", "seller_id": 12345, "title": "Owned", "price": 15, "status": "paused",
+			}},
+			{"status_code": http.StatusOK, "body": map[string]any{
+				"id": "MLB-UNKNOWN", "title": "Unknown owner draft", "price": 20, "status": "paused",
 			}},
 			{"status_code": http.StatusOK, "body": map[string]any{
 				"id": "MLB-FOREIGN", "seller_id": 99999, "title": "Foreign", "price": 25, "status": "active",
@@ -297,11 +300,11 @@ func TestFetchCatalogItemsDeduplicatesAndRejectsAnotherSeller(t *testing.T) {
 
 	result, err := New().FetchCatalogItems(context.Background(), mp.Account{
 		SellerID: "12345", AccessToken: "access-token",
-	}, []string{"MLB-OWNED", "MLB-OWNED", "", "MLB-FOREIGN"})
+	}, []string{"MLB-OWNED", "MLB-OWNED", "", "MLB-UNKNOWN", "MLB-FOREIGN"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(result.Items) != 1 || result.Items[0].ExternalItemID != "MLB-OWNED" {
+	if len(result.Items) != 2 || result.Items[0].ExternalItemID != "MLB-OWNED" || result.Items[1].ExternalItemID != "MLB-UNKNOWN" {
 		t.Fatalf("unexpected owned items: %#v", result.Items)
 	}
 	if result.Items[0].Status != "paused" {

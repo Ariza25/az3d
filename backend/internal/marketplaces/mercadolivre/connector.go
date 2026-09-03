@@ -216,9 +216,14 @@ func (c *Connector) FetchCatalogItems(ctx context.Context, account mp.Account, e
 	owned := make([]mp.CatalogItem, 0, len(items))
 	for _, item := range items {
 		sellerID, _ := item.Raw["seller_id"].(string)
-		if strings.TrimSpace(sellerID) == strings.TrimSpace(account.SellerID) {
-			owned = append(owned, item)
+		sellerID = strings.TrimSpace(sellerID)
+		// Some draft/inactive item payloads omit seller_id even when fetched
+		// with the owner's token. The requested IDs already come from this
+		// tenant's mappings/products; reject only an explicit different owner.
+		if sellerID != "" && sellerID != "0" && sellerID != strings.TrimSpace(account.SellerID) {
+			continue
 		}
+		owned = append(owned, item)
 	}
 
 	return mp.CatalogSyncResult{
