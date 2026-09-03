@@ -1028,14 +1028,31 @@ func (h *MarketplaceHandler) syncMarketplaceCatalogAccount(ctx context.Context, 
 		_ = database.DB.Save(account).Error
 		return outcome
 	}
+	mappedIDs, mappingsErr := mappedMarketplaceItemIDs(tenantID, account.Provider)
+	if mappingsErr != nil {
+		outcome.Status = "catalog_sync_error"
+		outcome.Message = "Erro ao carregar anuncios mapeados do marketplace: " + mappingsErr.Error()
+		account.SyncStatus = outcome.Status
+		account.LastSyncAt = &now
+		account.LastError = outcome.Message
+		_ = database.DB.Save(account).Error
+		return outcome
+	}
 
 	items := uniqueMarketplaceCatalogItems(catalog.Items)
 	knownItemIDs := marketplaceCatalogItemIDs(items)
 	pendingIDs := pendingMarketplaceItemIDs(events)
-	missingIDs := make([]string, 0, len(pendingIDs))
-	for _, externalID := range pendingIDs {
+	lookupIDs := make([]string, 0, len(pendingIDs)+len(mappedIDs))
+	lookupIDs = append(lookupIDs, pendingIDs...)
+	lookupIDs = append(lookupIDs, mappedIDs...)
+	missingIDs := make([]string, 0, len(lookupIDs))
+	missingSeen := make(map[string]struct{}, len(lookupIDs))
+	for _, externalID := range lookupIDs {
 		if _, found := knownItemIDs[externalID]; !found {
-			missingIDs = append(missingIDs, externalID)
+			if _, alreadyAdded := missingSeen[externalID]; !alreadyAdded {
+				missingSeen[externalID] = struct{}{}
+				missingIDs = append(missingIDs, externalID)
+			}
 		}
 	}
 
@@ -1137,6 +1154,15 @@ func pendingMarketplaceItemEvents(tenantID uint, provider string) ([]models.Mark
 		Limit(500).
 		Find(&events).Error
 	return events, err
+}
+
+func mappedMarketplaceItemIDs(tenantID uint, provider string) ([]string, error) {
+	var externalIDs []string
+	err := database.DB.Model(&models.MarketplaceProductMapping{}).
+		Where("tenant_id = ? AND provider = ? AND external_item_id <> ''", tenantID, normalizeProvider(provider)).
+		Order("id asc").
+		Pluck("external_item_id", &externalIDs).Error
+	return externalIDs, err
 }
 
 func pendingMarketplaceItemIDs(events []models.MarketplaceWebhookEvent) []string {
