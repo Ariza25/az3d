@@ -519,12 +519,14 @@ func (c *Connector) fetchItems(ctx context.Context, baseURL string, token string
 		// Mercado Livre may return an empty bulk response for draft/inactive
 		// listings. The authenticated item resource still exposes the owner's
 		// listing and its complete picture gallery.
+		individualStatusCounts := make(map[int]int)
 		for _, itemID := range itemIDs {
 			var item mercadoItem
 			endpoint := baseURL + "/items/" + url.PathEscape(itemID)
 			if err := c.getJSON(ctx, endpoint, token, &item); err != nil {
 				var apiErr *APIError
 				if errors.As(err, &apiErr) && (apiErr.StatusCode == http.StatusForbidden || apiErr.StatusCode == http.StatusNotFound) {
+					individualStatusCounts[apiErr.StatusCode]++
 					continue
 				}
 				return nil, err
@@ -532,6 +534,9 @@ func (c *Connector) fetchItems(ctx context.Context, baseURL string, token string
 			if item.ID != "" {
 				items = append(items, normalizeItem(item))
 			}
+		}
+		if len(items) == 0 && len(individualStatusCounts) > 0 {
+			return nil, fmt.Errorf("itens conhecidos indisponiveis na consulta autenticada: status=%v", individualStatusCounts)
 		}
 	}
 	return items, nil
