@@ -174,7 +174,7 @@ func TestFetchCatalogIncludesInactiveItemsAndPaginates(t *testing.T) {
 				"paging":  map[string]any{"total": total, "offset": offset, "limit": catalogPageSize},
 				"results": results,
 			})
-		case "/items":
+		case "/items/bulk":
 			ids := strings.Split(r.URL.Query().Get("ids"), ",")
 			statuses := map[string]string{
 				"MLB-PAUSED": "paused",
@@ -184,7 +184,7 @@ func TestFetchCatalogIncludesInactiveItemsAndPaginates(t *testing.T) {
 			response := make([]map[string]any, 0, len(ids))
 			for _, id := range ids {
 				response = append(response, map[string]any{
-					"code": http.StatusOK,
+					"status_code": http.StatusOK,
 					"body": map[string]any{
 						"id": id, "title": id, "price": 10,
 						"available_quantity": 0, "status": statuses[id],
@@ -273,21 +273,21 @@ func TestNormalizeItemKeepsAllPicturesAndInfersColorForSeparateListing(t *testin
 
 func TestFetchCatalogItemsDeduplicatesAndRejectsAnotherSeller(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/items" {
+		if r.URL.Path != "/items/bulk" {
 			http.NotFound(w, r)
 			return
 		}
 		if got := r.URL.Query().Get("ids"); got != "MLB-OWNED,MLB-FOREIGN" {
 			t.Fatalf("ids = %q", got)
 		}
-		if !strings.Contains(r.URL.Query().Get("attributes"), "seller_id") {
+		if !strings.Contains(r.URL.Query().Get("attributes"), "body.seller_id") {
 			t.Fatal("seller_id was not requested")
 		}
 		_ = json.NewEncoder(w).Encode([]map[string]any{
-			{"code": http.StatusOK, "body": map[string]any{
+			{"status_code": http.StatusOK, "body": map[string]any{
 				"id": "MLB-OWNED", "seller_id": 12345, "title": "Owned", "price": 15, "status": "paused",
 			}},
-			{"code": http.StatusOK, "body": map[string]any{
+			{"status_code": http.StatusOK, "body": map[string]any{
 				"id": "MLB-FOREIGN", "seller_id": 99999, "title": "Foreign", "price": 25, "status": "active",
 			}},
 		})

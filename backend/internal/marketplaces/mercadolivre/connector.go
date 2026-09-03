@@ -479,21 +479,21 @@ func (c *Connector) fetchItems(ctx context.Context, baseURL string, token string
 			end = len(itemIDs)
 		}
 
-		endpoint, _ := url.Parse(baseURL + "/items")
+		endpoint, _ := url.Parse(baseURL + "/items/bulk")
 		query := endpoint.Query()
 		query.Set("ids", strings.Join(itemIDs[start:end], ","))
-		query.Set("attributes", "id,seller_id,title,price,available_quantity,thumbnail,pictures,permalink,seller_custom_field,attributes,variations,status")
+		query.Set("attributes", "body.id,body.seller_id,body.title,body.price,body.available_quantity,body.thumbnail,body.pictures,body.permalink,body.seller_custom_field,body.attributes,body.variations,body.status")
 		endpoint.RawQuery = query.Encode()
 
 		var response []struct {
-			Code int         `json:"code"`
-			Body mercadoItem `json:"body"`
+			StatusCode int         `json:"status_code"`
+			Body       mercadoItem `json:"body"`
 		}
 		if err := c.getJSON(ctx, endpoint.String(), token, &response); err != nil {
 			return nil, err
 		}
 		for _, entry := range response {
-			if entry.Code >= 300 || entry.Body.ID == "" {
+			if entry.StatusCode >= 300 || entry.Body.ID == "" {
 				continue
 			}
 			items = append(items, normalizeItem(entry.Body))
