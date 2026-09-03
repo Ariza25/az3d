@@ -36,8 +36,13 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
   const imageChoices = useMemo(() => {
     const seen = new Set<string>();
     if (!activeProduct) return [];
-    const choices = (activeProduct.color_images || [])
-      .filter((image) => product?.store_variants?.length || image.color_name === selectedColor)
+    const selectedColorKey = selectedColor.trim().toLocaleLowerCase('pt-BR');
+    const variantImages = activeProduct.color_images || [];
+    const groupedImages = (product?.color_images || []).filter(
+      (image) => image.color_name.trim().toLocaleLowerCase('pt-BR') === selectedColorKey
+    );
+    const choices = [...variantImages, ...groupedImages]
+      .filter((image) => product?.store_variants?.length || image.color_name.trim().toLocaleLowerCase('pt-BR') === selectedColorKey)
       .map((image) => image.image_url);
     if (choices.length === 0 && activeProduct.image_url) choices.push(activeProduct.image_url);
     return choices.filter((imageUrl) => {
@@ -45,7 +50,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
       seen.add(imageUrl);
       return true;
     });
-  }, [activeProduct, product?.store_variants, selectedColor]);
+  }, [activeProduct, product?.color_images, product?.store_variants, selectedColor]);
 
   useEffect(() => {
     setSelectedColor(availableColors[0]?.name || 'Padrão');

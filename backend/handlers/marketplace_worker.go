@@ -22,6 +22,14 @@ func StartMarketplaceSyncJob(cfg *config.Config, handler *MarketplaceHandler) {
 	}
 	interval := time.Duration(cfg.MarketplaceSyncIntervalMin) * time.Minute
 	go func() {
+		// Do not wait for the first periodic reconciliation after a deploy/cold
+		// start. This also backfills catalog details added by newer importer
+		// versions, such as the complete image gallery for each variation.
+		startupCtx, startupCancel := context.WithTimeout(context.Background(), 4*time.Minute)
+		accounts, products, failed := handler.ReconcileMarketplaceCatalogs(startupCtx)
+		startupCancel()
+		log.Printf("[marketplace-sync] startup catalog reconciliation accounts=%d products=%d failed=%d", accounts, products, failed)
+
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		cycles := 0
@@ -38,6 +46,42 @@ func StartMarketplaceSyncJob(cfg *config.Config, handler *MarketplaceHandler) {
 			}
 		}
 	}()
+}
+
+// ReconcileMarketplaceCatalogs refreshes every connected account configured to
+// publish its marketplace catalog. It is intentionally independent from order
+// reconciliation so it can safely run at startup to repair storefront data.
+func (h *MarketplaceHandler) ReconcileMarketplaceCatalogs(ctx context.Context) (int, int, int) {
+	var accounts []models.MarketplaceAccount
+	if err := database.DB.Where("is_active = true AND is_connected = true AND sync_catalog = true").Find(&accounts).Error; err != nil {
+		return 0, 0, 1
+	}
+
+	registry := marketplaceConnectorRegistry()
+	syncedAccounts, syncedProducts, failed := 0, 0, 0
+	for i := range accounts {
+		if err := ctx.Err(); err != nil {
+			failed += len(accounts) - i
+			break
+		}
+		connector, ok := registry.Get(accounts[i].Provider)
+		if !ok {
+			failed++
+			continue
+		}
+		if err := h.ensureFreshMarketplaceToken(ctx, &accounts[i]); err != nil {
+			failed++
+			continue
+		}
+		outcome := h.syncMarketplaceCatalogAccount(ctx, accounts[i].TenantID, &accounts[i], connector)
+		if strings.HasSuffix(outcome.Status, "error") {
+			failed++
+			continue
+		}
+		syncedAccounts++
+		syncedProducts += outcome.Created + outcome.Updated
+	}
+	return syncedAccounts, syncedProducts, failed
 }
 
 func (h *MarketplaceHandler) ProcessMarketplaceQueue(ctx context.Context, limit int) (int, int) {
