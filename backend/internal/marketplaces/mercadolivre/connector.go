@@ -496,11 +496,23 @@ func (c *Connector) fetchItems(ctx context.Context, baseURL string, token string
 		if err := c.getJSON(ctx, endpoint.String(), token, &response); err != nil {
 			return nil, err
 		}
+		added := 0
+		statusCounts := make(map[int]int)
+		missingBodyID := 0
 		for _, entry := range response {
-			if entry.StatusCode >= 300 || entry.Body.ID == "" {
+			statusCounts[entry.StatusCode]++
+			if entry.StatusCode >= 300 {
+				continue
+			}
+			if entry.Body.ID == "" {
+				missingBodyID++
 				continue
 			}
 			items = append(items, normalizeItem(entry.Body))
+			added++
+		}
+		if len(response) > 0 && added == 0 {
+			return nil, fmt.Errorf("items/bulk nao retornou corpos utilizaveis: respostas=%d status=%v sem_body_id=%d", len(response), statusCounts, missingBodyID)
 		}
 	}
 	return items, nil
