@@ -516,6 +516,42 @@ func (c *Connector) fetchItems(ctx context.Context, baseURL string, token string
 		}
 	}
 	if len(items) == 0 && len(itemIDs) > 0 {
+		// Keep the legacy multiget as a compatibility fallback during Mercado
+		// Livre's official /items -> /items/bulk migration window.
+		for start := 0; start < len(itemIDs); start += 20 {
+			end := start + 20
+			if end > len(itemIDs) {
+				end = len(itemIDs)
+			}
+			endpoint, _ := url.Parse(baseURL + "/items")
+			query := endpoint.Query()
+			query.Set("ids", strings.Join(itemIDs[start:end], ","))
+			endpoint.RawQuery = query.Encode()
+			var response []struct {
+				Code       int         `json:"code"`
+				StatusCode int         `json:"status_code"`
+				Body       mercadoItem `json:"body"`
+			}
+			if err := c.getJSON(ctx, endpoint.String(), token, &response); err != nil {
+				var apiErr *APIError
+				if errors.As(err, &apiErr) && (apiErr.StatusCode == http.StatusForbidden || apiErr.StatusCode == http.StatusNotFound) {
+					break
+				}
+				return nil, err
+			}
+			for _, entry := range response {
+				statusCode := entry.StatusCode
+				if statusCode == 0 {
+					statusCode = entry.Code
+				}
+				if statusCode >= 300 || entry.Body.ID == "" {
+					continue
+				}
+				items = append(items, normalizeItem(entry.Body))
+			}
+		}
+	}
+	if len(items) == 0 && len(itemIDs) > 0 {
 		// Mercado Livre may return an empty bulk response for draft/inactive
 		// listings. The authenticated item resource still exposes the owner's
 		// listing and its complete picture gallery.

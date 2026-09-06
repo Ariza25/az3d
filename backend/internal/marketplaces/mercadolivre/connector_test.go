@@ -343,6 +343,40 @@ func TestFetchCatalogItemsFallsBackToIndividualLookupWhenBulkIsEmpty(t *testing.
 	}
 }
 
+func TestFetchCatalogItemsFallsBackToLegacyMultigetWhenBulkIsEmpty(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/items/bulk":
+			_ = json.NewEncoder(w).Encode([]map[string]any{})
+		case "/items":
+			_ = json.NewEncoder(w).Encode([]map[string]any{{
+				"code": http.StatusOK,
+				"body": map[string]any{
+					"id": "MLB-LEGACY", "seller_id": 12345, "title": "Vaso Bege", "price": 35.9, "status": "paused",
+					"pictures": []map[string]any{
+						{"id": "PIC-1", "secure_url": "https://img.example/bege-1.jpg"},
+						{"id": "PIC-2", "secure_url": "https://img.example/bege-2.jpg"},
+					},
+				},
+			}})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	t.Setenv("MELI_API_BASE_URL", server.URL)
+
+	result, err := New().FetchCatalogItems(context.Background(), mp.Account{
+		SellerID: "12345", AccessToken: "access-token",
+	}, []string{"MLB-LEGACY"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Items) != 1 || len(result.Items[0].ColorImages) != 2 {
+		t.Fatalf("legacy multiget did not preserve the gallery: %#v", result.Items)
+	}
+}
+
 func TestFetchOrdersPaginatesAndUsesAuthoritativeFinancialFields(t *testing.T) {
 	var mu sync.Mutex
 	offsets := []int{}
