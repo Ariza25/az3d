@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Product } from '../types';
-import { Check, Heart, Layers, Minus, Plus, ShoppingBag, Star, X } from 'lucide-react';
+import { Box, Check, Cpu, Heart, Layers, Minus, Plus, ShoppingBag, Star, X } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { getAvailableColors, getColorVisual, getDefaultColor, getStockStatus, getStoreVariantProduct, getTotalStock, money } from '../shared/storePresentation';
+import { Product3DViewer } from './Product3DViewer';
+import { FreightCalculatorWidget } from './FreightCalculatorWidget';
 
 interface ProductModalProps {
   product: Product | null;
@@ -19,6 +21,10 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
   const [isFavorite, setIsFavorite] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [selectedImageUrl, setSelectedImageUrl] = useState('');
+  const [activeMediaTab, setActiveMediaTab] = useState<'2d' | '3d'>('3d');
+  const [selectedMaterial, setSelectedMaterial] = useState('PLA');
+  const [selectedInfill, setSelectedInfill] = useState(20);
+  const [selectedLayerHeight, setSelectedLayerHeight] = useState('0.20mm');
 
   const availableColors = useMemo(() => {
     if (!product) return [];
@@ -157,29 +163,71 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
         </button>
 
         <div className="grid lg:h-[700px] lg:max-h-[calc(100vh-2rem)] lg:grid-cols-[54fr_46fr]">
-          <div className="relative min-h-[260px] overflow-hidden bg-chumbo-950 sm:min-h-[440px] lg:min-h-0">
-            <img src={selectedImageUrl} alt="" className="absolute inset-0 h-full w-full scale-110 object-cover opacity-20 blur-2xl" aria-hidden="true" />
-            <div className="absolute inset-0 bg-gradient-to-br from-chumbo-950/35 via-chumbo-950/55 to-chumbo-950" />
-            <div className={`relative z-10 grid h-full w-full ${imageChoices.length > 1 ? 'sm:grid-cols-[76px_minmax(0,1fr)]' : ''}`}>
-              {imageChoices.length > 1 && (
-                <div className="order-2 flex max-w-full gap-2 overflow-x-auto border-t border-white/10 bg-chumbo-950/70 p-3 backdrop-blur-md sm:order-1 sm:flex-col sm:overflow-x-hidden sm:overflow-y-auto sm:border-r sm:border-t-0 sm:p-2.5">
-                  {imageChoices.map((imageUrl, index) => (
-                    <button
-                      type="button"
-                      key={imageUrl}
-                      onClick={() => setSelectedImageUrl(imageUrl)}
-                      className={`h-14 w-14 shrink-0 overflow-hidden rounded-lg border-2 bg-white p-0.5 transition ${imageUrl === selectedImageUrl ? 'border-laser-400 shadow-[0_0_0_1px_rgba(34,211,238,0.25)]' : 'border-chumbo-700 opacity-70 hover:border-chumbo-500 hover:opacity-100'}`}
-                      aria-label={`Ver foto ${index + 1} da cor ${selectedColor}`}
-                    >
-                      <img src={imageUrl} alt="" className="h-full w-full rounded-md object-cover" />
-                    </button>
-                  ))}
-                </div>
-              )}
-              <div className="order-1 flex min-h-0 items-center justify-center sm:order-2">
-                <img src={selectedImageUrl} alt={product.title} className="h-52 w-full object-contain p-4 sm:h-80 sm:p-7 lg:h-full lg:max-h-[700px] lg:p-10" />
-              </div>
+          <div className="relative min-h-[340px] overflow-hidden bg-chumbo-950 p-3 sm:min-h-[440px] lg:min-h-0">
+            {/* Media Mode Selector Tabs */}
+            <div className="absolute left-4 top-4 z-20 flex items-center rounded-xl border border-chumbo-700 bg-chumbo-900/90 p-1 backdrop-blur-md">
+              <button
+                type="button"
+                onClick={() => setActiveMediaTab('3d')}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
+                  activeMediaTab === '3d'
+                    ? 'bg-laser-400 text-chumbo-950 shadow-md'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                <Box className="h-4 w-4" />
+                <span>Modelo 3D</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveMediaTab('2d')}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
+                  activeMediaTab === '2d'
+                    ? 'bg-laser-400 text-chumbo-950 shadow-md'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                <Layers className="h-4 w-4" />
+                <span>Fotos 2D</span>
+              </button>
             </div>
+
+            {activeMediaTab === '3d' ? (
+              <div className="flex h-full w-full items-center justify-center pt-12">
+                <Product3DViewer
+                  colorHex={getColorVisual(selectedColor).hex}
+                  colorName={selectedColor}
+                  materialType={selectedMaterial}
+                  className="h-full w-full min-h-[380px]"
+                  heightPx={580}
+                />
+              </div>
+            ) : (
+              <>
+                <img src={selectedImageUrl} alt="" className="absolute inset-0 h-full w-full scale-110 object-cover opacity-20 blur-2xl" aria-hidden="true" />
+                <div className="absolute inset-0 bg-gradient-to-br from-chumbo-950/35 via-chumbo-950/55 to-chumbo-950" />
+                <div className={`relative z-10 grid h-full w-full pt-12 ${imageChoices.length > 1 ? 'sm:grid-cols-[76px_minmax(0,1fr)]' : ''}`}>
+                  {imageChoices.length > 1 && (
+                    <div className="order-2 flex max-w-full gap-2 overflow-x-auto border-t border-white/10 bg-chumbo-950/70 p-3 backdrop-blur-md sm:order-1 sm:flex-col sm:overflow-x-hidden sm:overflow-y-auto sm:border-r sm:border-t-0 sm:p-2.5">
+                      {imageChoices.map((imageUrl, index) => (
+                        <button
+                          type="button"
+                          key={imageUrl}
+                          onClick={() => setSelectedImageUrl(imageUrl)}
+                          className={`h-14 w-14 shrink-0 overflow-hidden rounded-lg border-2 bg-white p-0.5 transition ${imageUrl === selectedImageUrl ? 'border-laser-400 shadow-[0_0_0_1px_rgba(34,211,238,0.25)]' : 'border-chumbo-700 opacity-70 hover:border-chumbo-500 hover:opacity-100'}`}
+                          aria-label={`Ver foto ${index + 1} da cor ${selectedColor}`}
+                        >
+                          <img src={imageUrl} alt="" className="h-full w-full rounded-md object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div className="order-1 flex min-h-0 items-center justify-center sm:order-2">
+                    <img src={selectedImageUrl} alt={product.title} className="h-52 w-full object-contain p-4 sm:h-80 sm:p-7 lg:h-full lg:max-h-[700px] lg:p-10" />
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="flex min-h-0 flex-col bg-chumbo-900 p-5 sm:p-8 lg:overflow-y-auto lg:p-10">
@@ -260,6 +308,62 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
                 <div className={`mt-4 inline-flex items-center gap-2 text-xs font-semibold ${stockTextTone}`}>
                   <span className="h-1.5 w-1.5 rounded-full bg-current" />
                   {stockCopy}
+                </div>
+
+                {/* Especificações de Impressão 3D */}
+                <div className="mt-6 space-y-4 border-t border-chumbo-800 pt-5">
+                  <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-laser-400">
+                    <Cpu className="h-4 w-4" />
+                    <span>Especificações de Impressão 3D</span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-400 mb-1">Material Polímero</label>
+                      <select
+                        value={selectedMaterial}
+                        onChange={(e) => setSelectedMaterial(e.target.value)}
+                        className="w-full rounded-lg border border-chumbo-700 bg-chumbo-950 p-2 font-semibold text-white focus:border-laser-500 focus:outline-none"
+                      >
+                        <option value="PLA">PLA (Standard)</option>
+                        <option value="ABS">ABS (Térmico)</option>
+                        <option value="PETG">PETG (Resistente)</option>
+                        <option value="TPU">TPU (Flexível)</option>
+                        <option value="Resin">Resina UV</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-400 mb-1">Preenchimento</label>
+                      <select
+                        value={selectedInfill}
+                        onChange={(e) => setSelectedInfill(parseInt(e.target.value, 10))}
+                        className="w-full rounded-lg border border-chumbo-700 bg-chumbo-950 p-2 font-semibold text-white focus:border-laser-500 focus:outline-none"
+                      >
+                        <option value={15}>15% Decorativo</option>
+                        <option value={50}>50% Reforçado</option>
+                        <option value={100}>100% Sólido</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-400 mb-1">Altura de Camada</label>
+                      <select
+                        value={selectedLayerHeight}
+                        onChange={(e) => setSelectedLayerHeight(e.target.value)}
+                        className="w-full rounded-lg border border-chumbo-700 bg-chumbo-950 p-2 font-semibold text-white focus:border-laser-500 focus:outline-none"
+                      >
+                        <option value="0.12mm">0.12mm (Ultra Fine)</option>
+                        <option value="0.20mm">0.20mm (Padrão)</option>
+                        <option value="0.28mm">0.28mm (Rápido)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Simulador de Frete no Modal */}
+                <div className="mt-5">
+                  <FreightCalculatorWidget compact />
                 </div>
               </div>
             </div>

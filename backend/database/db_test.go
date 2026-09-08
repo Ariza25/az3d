@@ -56,6 +56,8 @@ func TestTenantScopedTablesCoversPersistedTenantModels(t *testing.T) {
 		models.TenantPaymentAccount{},
 		models.PaymentOAuthSession{},
 		models.MarketplaceOAuthSession{},
+		models.FilamentSpool{},
+		models.Custom3DQuote{},
 	}
 
 	configured := make(map[string]struct{}, len(tenantScopedTables))

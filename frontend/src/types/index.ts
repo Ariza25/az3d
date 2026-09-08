@@ -39,6 +39,10 @@ export interface Product {
   rating?: number;
   review_count?: number;
   image_url: string;
+  model_3d_url?: string;
+  supported_materials?: string[];
+  infill_options?: number[];
+  layer_heights?: string[];
   color_images?: ProductColorImage[];
   review_summary?: ProductReviewSummary;
   variants?: ProductVariant[];
@@ -882,3 +886,19 @@ export interface ExternalMarketplaceOrder {
   synced_at: string;
   raw_payload?: string;
 }
+
+export interface FilamentSpool {
+  id: number;
+  tenant_id: number;
+  name: string;
+  material_type: 'PLA' | 'ABS' | 'PETG' | 'TPU' | 'Resin' | string;
+  color_name: string;
+  color_hex: string;
+  spool_weight_g: number;
+  remaining_weight_g: number;
+  price_per_kg: number;
+  vendor?: string;
+  is_active: boolean;
+  created_at?: string;
+}
+

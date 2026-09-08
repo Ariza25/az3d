@@ -49,6 +49,7 @@ import {
   MercadoLivrePlatformConfig,
   MasterOAuthStartResponse,
   TenantPaymentAccountStatus,
+  FilamentSpool,
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
@@ -919,6 +920,78 @@ export const api = {
     });
     if (!res.ok) throw new Error('Erro ao carregar pedidos externos');
     return res.json();
+  },
+
+  // Filamentos e Insumos 3D
+  getFilamentSpools: async (tenantId?: number): Promise<FilamentSpool[]> => {
+    const res = await fetch(`${API_BASE_URL}/admin/filaments`, {
+      headers: getAdminHeaders(tenantId),
+    });
+    if (!res.ok) throw new Error('Erro ao buscar carretéis de filamento');
+    return res.json();
+  },
+
+  createFilamentSpool: async (payload: Partial<FilamentSpool>, tenantId?: number): Promise<FilamentSpool> => {
+    const res = await fetch(`${API_BASE_URL}/admin/filaments`, {
+      method: 'POST',
+      headers: getAdminHeaders(tenantId),
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro ao cadastrar filamento');
+    return data;
+  },
+
+  updateFilamentSpool: async (id: number, payload: Partial<FilamentSpool>, tenantId?: number): Promise<FilamentSpool> => {
+    const res = await fetch(`${API_BASE_URL}/admin/filaments/${id}`, {
+      method: 'PUT',
+      headers: getAdminHeaders(tenantId),
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro ao atualizar filamento');
+    return data;
+  },
+
+  deleteFilamentSpool: async (id: number, tenantId?: number): Promise<void> => {
+    const res = await fetch(`${API_BASE_URL}/admin/filaments/${id}`, {
+      method: 'DELETE',
+      headers: getAdminHeaders(tenantId),
+    });
+    if (!res.ok) throw new Error('Erro ao excluir filamento');
+  },
+
+  // Orçamentos 3D Customizados
+  createCustom3DQuote: async (payload: {
+    file_name: string;
+    file_size_mb: number;
+    material_type: string;
+    infill_percent: number;
+    estimated_weight_g: number;
+    estimated_hours: number;
+    estimated_price: number;
+    customer_email?: string;
+  }, tenantId?: number): Promise<any> => {
+    const res = await fetch(`${API_BASE_URL}/quotes/custom-3d`, {
+      method: 'POST',
+      headers: getHeaders(tenantId),
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro ao enviar orçamento 3D');
+    return data;
+  },
+
+  // Cotação de Frete Correios / Transportadoras em Tempo Real
+  calculateFreightQuote: async (zipCode: string, tenantId?: number): Promise<{ options: { code: string; name: string; price: number; delivery_days: number }[] }> => {
+    const res = await fetch(`${API_BASE_URL}/shipping/calculate-quote`, {
+      method: 'POST',
+      headers: getHeaders(tenantId),
+      body: JSON.stringify({ zip_code: zipCode }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro ao calcular frete');
+    return data;
   },
 
 };

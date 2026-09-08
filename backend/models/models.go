@@ -1082,3 +1082,72 @@ type MarketplaceProductImportResult struct {
 	Product Product                   `json:"product"`
 	Mapping MarketplaceProductMapping `json:"mapping"`
 }
+
+type FilamentSpool struct {
+	ID               uint      `gorm:"primaryKey" json:"id"`
+	TenantID         uint      `gorm:"not null;index" json:"tenant_id"`
+	Tenant           *Tenant   `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+	Name             string    `gorm:"size:120;not null" json:"name"`
+	MaterialType     string    `gorm:"size:30;not null" json:"material_type"`
+	ColorName        string    `gorm:"size:60;not null" json:"color_name"`
+	ColorHex         string    `gorm:"size:20;default:'#3b82f6'" json:"color_hex"`
+	SpoolWeightG     float64   `gorm:"default:1000" json:"spool_weight_g"`
+	RemainingWeightG float64   `gorm:"default:1000" json:"remaining_weight_g"`
+	PricePerKG       float64   `gorm:"default:120" json:"price_per_kg"`
+	Vendor           string    `gorm:"size:100" json:"vendor"`
+	IsActive         bool      `gorm:"default:true" json:"is_active"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+}
+
+type FilamentSpoolInput struct {
+	Name             string  `json:"name" binding:"required"`
+	MaterialType     string  `json:"material_type" binding:"required"`
+	ColorName        string  `json:"color_name" binding:"required"`
+	ColorHex         string  `json:"color_hex"`
+	SpoolWeightG     float64 `json:"spool_weight_g"`
+	RemainingWeightG float64 `json:"remaining_weight_g"`
+	PricePerKG       float64 `json:"price_per_kg"`
+	Vendor           string  `json:"vendor"`
+	IsActive         *bool   `json:"is_active"`
+}
+
+type Custom3DQuote struct {
+	ID               uint      `gorm:"primaryKey" json:"id"`
+	TenantID         uint      `gorm:"not null;index" json:"tenant_id"`
+	Tenant           *Tenant   `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+	FileName         string    `gorm:"size:255;not null" json:"file_name"`
+	FileSizeMB       float64   `json:"file_size_mb"`
+	MaterialType     string    `gorm:"size:30;not null" json:"material_type"`
+	InfillPercent    int       `gorm:"default:20" json:"infill_percent"`
+	EstimatedWeightG float64   `json:"estimated_weight_g"`
+	EstimatedHours   float64   `json:"estimated_hours"`
+	EstimatedPrice   float64   `json:"estimated_price"`
+	CustomerEmail    string    `gorm:"size:150" json:"customer_email"`
+	Status           string    `gorm:"size:30;default:'pending'" json:"status"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+}
+
+type Custom3DQuoteInput struct {
+	FileName         string  `json:"file_name" binding:"required"`
+	FileSizeMB       float64 `json:"file_size_mb"`
+	MaterialType     string  `json:"material_type"`
+	InfillPercent    int     `json:"infill_percent"`
+	EstimatedWeightG float64 `json:"estimated_weight_g"`
+	EstimatedHours   float64 `json:"estimated_hours"`
+	EstimatedPrice   float64 `json:"estimated_price"`
+	CustomerEmail    string  `json:"customer_email"`
+}
+
+type ShippingQuoteInput struct {
+	ZipCode string `json:"zip_code" binding:"required"`
+}
+
+type ShippingQuoteOption struct {
+	Code         string  `json:"code"`
+	Name         string  `json:"name"`
+	Price        float64 `json:"price"`
+	DeliveryDays int     `json:"delivery_days"`
+}
+

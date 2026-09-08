@@ -24,6 +24,8 @@ import { CarrierSettingsPanel } from './CarrierSettingsPanel';
 import { AdminDashboard } from '../features/admin/components/AdminDashboard';
 import { AdminInventory } from '../features/admin/components/AdminInventory';
 import { MercadoPagoSettings } from '../features/admin/components/MercadoPagoSettings';
+import { TenantOrdersPipelinePanel } from '../features/admin/components/TenantOrdersPipelinePanel';
+import { TenantFilamentInventoryPanel } from '../features/admin/components/TenantFilamentInventoryPanel';
 import { Button, SearchInput } from './ui';
 import {
   X,
@@ -40,6 +42,7 @@ import {
   BarChart3,
   TrendingUp,
   Clock,
+  Layers,
 } from 'lucide-react';
 
 const ORDER_STATUS_LABELS: Record<string, string> = {
@@ -62,12 +65,12 @@ interface AdminModalProps {
   onRefreshProducts: () => void;
 }
 
-type AdminSection = 'dashboard' | 'products' | 'orders' | 'inventory' | 'finance' | 'pricing' | 'settings' | 'marketplaces';
+type AdminSection = 'dashboard' | 'products' | 'orders' | 'pipeline' | 'inventory' | 'filaments' | 'finance' | 'pricing' | 'settings' | 'marketplaces';
 
 const initialAdminSection = (): AdminSection => {
   if (window.location.pathname.includes('/marketplaces/callback')) return 'marketplaces';
   const value = new URLSearchParams(window.location.search).get('section') as AdminSection | null;
-  return value && ['dashboard', 'products', 'orders', 'inventory', 'finance', 'pricing', 'settings', 'marketplaces'].includes(value) ? value : 'dashboard';
+  return value && ['dashboard', 'products', 'orders', 'pipeline', 'inventory', 'filaments', 'finance', 'pricing', 'settings', 'marketplaces'].includes(value) ? value : 'dashboard';
 };
 
 export const AdminModal: React.FC<AdminModalProps> = ({
@@ -307,8 +310,10 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const tenantNavigation = [
     { id: 'dashboard' as const, label: 'Visão geral', hint: 'Resumo da operação', icon: BarChart3 },
     { id: 'products' as const, label: 'Catálogo', hint: `${products.length} produtos · ${categories.length} categorias`, icon: Package },
+    { id: 'pipeline' as const, label: 'Pipeline 3D', hint: 'Etapas de fabricação 3D', icon: Clock },
     { id: 'orders' as const, label: 'Pedidos e envios', hint: `${orders.length} vendas`, icon: ShoppingBag },
-    { id: 'inventory' as const, label: 'Estoque', hint: `${lowStockItems.length} alertas`, icon: Package },
+    { id: 'inventory' as const, label: 'Estoque Produtos', hint: `${lowStockItems.length} alertas`, icon: Package },
+    { id: 'filaments' as const, label: 'Insumos 3D', hint: 'Filamentos & Resinas', icon: Layers },
     { id: 'pricing' as const, label: 'Precificação', hint: 'Custos e margens', icon: Calculator },
     { id: 'finance' as const, label: 'Financeiro', hint: 'Receita e resultado', icon: TrendingUp },
     { id: 'marketplaces' as const, label: 'Mercado Livre', hint: 'Canal conectado', icon: ShoppingCart },
@@ -415,6 +420,19 @@ export const AdminModal: React.FC<AdminModalProps> = ({
               lowStockProducts={lowStockProducts}
               orderStatusLabels={ORDER_STATUS_LABELS}
             />
+          )}
+
+          {/* TAB 3D PIPELINE */}
+          {activeTab === 'pipeline' && (
+            <TenantOrdersPipelinePanel
+              orders={orders}
+              onRefreshOrders={() => activeTenant && void loadTenantData('pipeline')}
+            />
+          )}
+
+          {/* TAB INSUMOS 3D / FILAMENTOS */}
+          {activeTab === 'filaments' && (
+            <TenantFilamentInventoryPanel tenantId={activeTenant?.id} />
           )}
 
           {/* TAB 1: PRODUTOS */}

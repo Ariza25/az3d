@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { Order, TenantSettings } from '../types';
 import { money } from '../shared/storePresentation';
+import { FreightCalculatorWidget } from './FreightCalculatorWidget';
 
 interface CartDrawerProps {
   onOpenLogin: () => void;
@@ -378,6 +379,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
                         </div>
                       </article>
                     ))}
+                    <div className="mt-4 pt-2">
+                      <FreightCalculatorWidget compact />
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-7">

@@ -53,6 +53,8 @@ var tenantScopedTables = []string{
 	"tenant_payment_accounts",
 	"payment_o_auth_sessions",
 	"marketplace_o_auth_sessions",
+	"filament_spools",
+	"custom3_d_quotes",
 }
 
 // OpenExistingDB opens the platform database without migrations or bootstrap.
@@ -173,6 +175,8 @@ func InitDB(cfg *config.Config) *gorm.DB {
 		&models.PaymentOAuthSession{},
 		&models.MercadoLivrePlatformConfig{},
 		&models.MarketplaceOAuthSession{},
+		&models.FilamentSpool{},
+		&models.Custom3DQuote{},
 	)
 
 	if err != nil {
@@ -287,6 +291,7 @@ func bootstrapData(db *gorm.DB, cfg *config.Config) {
 	} else {
 		ensureMasterAdmin(db, tenant.ID)
 		ensureTenantSeedAccount(db, tenant.ID)
+		ensureFilamentSpools(db, tenant.ID)
 	}
 	if strings.TrimSpace(cfg.AdminLogin) != "" {
 		if err := ensureConfiguredMasterAdmin(db, tenant.ID, cfg.AdminLogin, cfg.AdminPassword); err != nil {
@@ -621,3 +626,23 @@ func ensureTenantSeedAccount(db *gorm.DB, tenantID uint) {
 
 	db.Create(&user)
 }
+
+func ensureFilamentSpools(db *gorm.DB, tenantID uint) {
+	var count int64
+	db.Model(&models.FilamentSpool{}).Where("tenant_id = ?", tenantID).Count(&count)
+	if count > 0 {
+		return
+	}
+
+	spools := []models.FilamentSpool{
+		{TenantID: tenantID, Name: "PLA Silk Gold ESUN", MaterialType: "PLA", ColorName: "Dourado Seda", ColorHex: "#eab308", SpoolWeightG: 1000, RemainingWeightG: 780, PricePerKG: 120.0, IsActive: true},
+		{TenantID: tenantID, Name: "PLA Matte Black Bambu", MaterialType: "PLA", ColorName: "Preto Fosco", ColorHex: "#1e293b", SpoolWeightG: 1000, RemainingWeightG: 140, PricePerKG: 110.0, IsActive: true},
+		{TenantID: tenantID, Name: "PETG Clear Red Sunlu", MaterialType: "PETG", ColorName: "Vermelho Translúcido", ColorHex: "#ef4444", SpoolWeightG: 1000, RemainingWeightG: 920, PricePerKG: 135.0, IsActive: true},
+		{TenantID: tenantID, Name: "TPU Flex Cyan Overture", MaterialType: "TPU", ColorName: "Ciano Flex", ColorHex: "#06b6d4", SpoolWeightG: 800, RemainingWeightG: 450, PricePerKG: 180.0, IsActive: true},
+	}
+
+	for _, spool := range spools {
+		db.Create(&spool)
+	}
+}
+

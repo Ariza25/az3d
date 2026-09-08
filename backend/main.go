@@ -86,6 +86,8 @@ func main() {
 		api.GET("/products/:id", productHandler.GetProductByID)
 		api.GET("/products/:id/reviews", productHandler.GetProductReviews)
 		api.GET("/tenant/settings", tenantSettingsHandler.GetTenantSettings)
+		api.POST("/shipping/calculate-quote", handlers.CalculateShippingQuote)
+		api.POST("/quotes/custom-3d", handlers.CreateCustom3DQuote)
 		api.GET("/payments/mercadopago/oauth/callback", mercadoPagoHandler.OAuthCallback)
 		api.GET("/marketplaces/mercadolivre/oauth/callback", marketplaceHandler.MercadoLivreOAuthCallback)
 
@@ -166,6 +168,12 @@ func main() {
 			admin.POST("/shipments", shipmentHandler.SaveShipment)
 			admin.POST("/shipments/:id/sync", shipmentHandler.SyncShipment)
 			admin.POST("/shipments/sync", shipmentHandler.SyncTracking)
+
+			admin.GET("/filaments", handlers.GetFilamentSpools)
+			admin.POST("/filaments", handlers.CreateFilamentSpool)
+			admin.PUT("/filaments/:id", handlers.UpdateFilamentSpool)
+			admin.DELETE("/filaments/:id", handlers.DeleteFilamentSpool)
+			admin.GET("/quotes/custom-3d", handlers.GetCustom3DQuotes)
 		}
 
 		platform := api.Group("/admin/platform")
