@@ -9,4 +9,7 @@ export { SectionHeader } from './SectionHeader';
 export { Select } from './Select';
 export { StatCard } from './StatCard';
 export { Textarea } from './Textarea';
+export { Modal } from './Modal';
+export { Tabs } from './Tabs';
+export type { TabItem, TabsProps } from './Tabs';
 export { cn } from './cn';
