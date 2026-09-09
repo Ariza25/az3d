@@ -21,6 +21,7 @@ import { FinancePanel } from './FinancePanel';
 import { MarketplaceConnectionsPanel } from './MarketplaceConnectionsPanel';
 import { CatalogCategoriesPanel } from './CatalogCategoriesPanel';
 import { CarrierSettingsPanel } from './CarrierSettingsPanel';
+import { MarketplaceIntelligencePanel } from './MarketplaceIntelligencePanel';
 import { AdminDashboard } from '../features/admin/components/AdminDashboard';
 import { AdminInventory } from '../features/admin/components/AdminInventory';
 import { MercadoPagoSettings } from '../features/admin/components/MercadoPagoSettings';
@@ -65,12 +66,12 @@ interface AdminModalProps {
   onRefreshProducts: () => void;
 }
 
-type AdminSection = 'dashboard' | 'products' | 'orders' | 'pipeline' | 'inventory' | 'filaments' | 'finance' | 'pricing' | 'settings' | 'marketplaces';
+type AdminSection = 'dashboard' | 'products' | 'orders' | 'pipeline' | 'inventory' | 'filaments' | 'finance' | 'pricing' | 'settings' | 'marketplaces' | 'intelligence';
 
 const initialAdminSection = (): AdminSection => {
   if (window.location.pathname.includes('/marketplaces/callback')) return 'marketplaces';
   const value = new URLSearchParams(window.location.search).get('section') as AdminSection | null;
-  return value && ['dashboard', 'products', 'orders', 'pipeline', 'inventory', 'filaments', 'finance', 'pricing', 'settings', 'marketplaces'].includes(value) ? value : 'dashboard';
+  return value && ['dashboard', 'products', 'orders', 'pipeline', 'inventory', 'filaments', 'finance', 'pricing', 'settings', 'marketplaces', 'intelligence'].includes(value) ? value : 'dashboard';
 };
 
 export const AdminModal: React.FC<AdminModalProps> = ({
@@ -317,6 +318,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     { id: 'pricing' as const, label: 'Precificação', hint: 'Custos e margens', icon: Calculator },
     { id: 'finance' as const, label: 'Financeiro', hint: 'Receita e resultado', icon: TrendingUp },
     { id: 'marketplaces' as const, label: 'Mercado Livre', hint: 'Canal conectado', icon: ShoppingCart },
+    { id: 'intelligence' as const, label: 'ML Trends & Audit', hint: 'Tendências e otimização', icon: TrendingUp },
     { id: 'settings' as const, label: 'Configurações', hint: 'Loja, pagamentos e frete', icon: Settings },
   ];
 
@@ -825,6 +827,10 @@ export const AdminModal: React.FC<AdminModalProps> = ({
               />
 
             </div>
+          )}
+
+          {activeTab === 'intelligence' && (
+            <MarketplaceIntelligencePanel tenantId={activeTenant?.id} products={products} />
           )}
 
         </div>

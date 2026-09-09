@@ -902,3 +902,76 @@ export interface FilamentSpool {
   created_at?: string;
 }
 
+export interface MLTrendKeyword {
+  keyword: string;
+  url?: string;
+  category?: string;
+  rank: number;
+  status: 'hot' | 'rising' | 'stable' | string;
+  search_vol: number;
+  volume_trend: number[];
+}
+
+export interface MLCompetitorItem {
+  id: string;
+  title: string;
+  price: number;
+  sold_quantity: number;
+  permalink: string;
+  thumbnail: string;
+  condition: string;
+  free_shipping: boolean;
+  mercado_lider: boolean;
+  full_shipping: boolean;
+}
+
+export interface MLSearchInsight {
+  query: string;
+  total_results: number;
+  min_price: number;
+  max_price: number;
+  avg_price: number;
+  median_sold: number;
+  free_shipping_ratio: number;
+  mercado_lider_ratio: number;
+  full_ratio: number;
+  recommended_price: number;
+  estimated_print_cost: number;
+  estimated_profit: number;
+  profit_margin_percent: number;
+  top_sellers: MLCompetitorItem[];
+}
+
+export interface MLListingAudit {
+  item_id?: string;
+  title: string;
+  health_score: number;
+  title_score: number;
+  image_score: number;
+  price_score: number;
+  shipping_score: number;
+  title_length: number;
+  has_keywords: boolean;
+  image_count: number;
+  price: number;
+  free_shipping: boolean;
+  recommendations: string[];
+  missing_keywords: string[];
+}
+
+export interface MLProductOpportunity {
+  id: string;
+  category: string;
+  title: string;
+  demand_level: string;
+  competition_level: string;
+  suggested_price: number;
+  estimated_print_grams: number;
+  estimated_print_hours: number;
+  estimated_cost: number;
+  estimated_profit: number;
+  profit_margin_percent: number;
+  opportunity_score: number;
+  target_keywords: string[];
+}
+

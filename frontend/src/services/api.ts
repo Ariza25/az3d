@@ -50,6 +50,10 @@ import {
   MasterOAuthStartResponse,
   TenantPaymentAccountStatus,
   FilamentSpool,
+  MLTrendKeyword,
+  MLSearchInsight,
+  MLListingAudit,
+  MLProductOpportunity,
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
@@ -992,6 +996,52 @@ export const api = {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Erro ao calcular frete');
     return data;
+  },
+
+  // Mercado Livre Trends & Market Intelligence
+  getMLTrends: async (category?: string, tenantId?: number): Promise<{ category?: string; trends: MLTrendKeyword[] }> => {
+    const params = new URLSearchParams();
+    if (category) params.append('category', category);
+    const res = await fetch(`${API_BASE_URL}/admin/marketplaces/trends?${params.toString()}`, {
+      headers: getAdminHeaders(tenantId),
+    });
+    if (!res.ok) throw new Error('Erro ao carregar tendências do Mercado Livre');
+    return res.json();
+  },
+
+  getMLSearchInsights: async (query?: string, tenantId?: number): Promise<MLSearchInsight> => {
+    const params = new URLSearchParams();
+    if (query) params.append('q', query);
+    const res = await fetch(`${API_BASE_URL}/admin/marketplaces/search-insights?${params.toString()}`, {
+      headers: getAdminHeaders(tenantId),
+    });
+    if (!res.ok) throw new Error('Erro ao analisar concorrência no Mercado Livre');
+    return res.json();
+  },
+
+  auditMLListing: async (params: { title?: string; price?: number; images?: number; free_shipping?: boolean; full_shipping?: boolean; material?: string }, tenantId?: number): Promise<MLListingAudit> => {
+    const urlParams = new URLSearchParams();
+    if (params.title) urlParams.append('title', params.title);
+    if (params.price) urlParams.append('price', String(params.price));
+    if (params.images) urlParams.append('images', String(params.images));
+    if (params.free_shipping) urlParams.append('free_shipping', 'true');
+    if (params.full_shipping) urlParams.append('full_shipping', 'true');
+    if (params.material) urlParams.append('material', params.material);
+    const res = await fetch(`${API_BASE_URL}/admin/marketplaces/listing-audit?${urlParams.toString()}`, {
+      headers: getAdminHeaders(tenantId),
+    });
+    if (!res.ok) throw new Error('Erro ao realizar auditoria do anúncio');
+    return res.json();
+  },
+
+  getMLProductOpportunities: async (category?: string, tenantId?: number): Promise<{ category?: string; opportunities: MLProductOpportunity[] }> => {
+    const params = new URLSearchParams();
+    if (category) params.append('category', category);
+    const res = await fetch(`${API_BASE_URL}/admin/marketplaces/product-opportunities?${params.toString()}`, {
+      headers: getAdminHeaders(tenantId),
+    });
+    if (!res.ok) throw new Error('Erro ao buscar oportunidades de produtos 3D');
+    return res.json();
   },
 
 };

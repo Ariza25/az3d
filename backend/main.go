@@ -159,6 +159,10 @@ func main() {
 			admin.POST("/marketplaces/sync-orders", marketplaceHandler.SyncMarketplaceOrders)
 			admin.GET("/marketplaces/external-orders", marketplaceHandler.GetExternalOrders)
 			admin.GET("/marketplaces/webhook-events", marketplaceHandler.GetMarketplaceWebhookEvents)
+			admin.GET("/marketplaces/trends", marketplaceHandler.GetMLTrends)
+			admin.GET("/marketplaces/search-insights", marketplaceHandler.GetMLSearchInsights)
+			admin.GET("/marketplaces/listing-audit", marketplaceHandler.AuditMLListing)
+			admin.GET("/marketplaces/product-opportunities", marketplaceHandler.GetMLProductOpportunities)
 
 			admin.GET("/carrier-accounts", carrierHandler.GetCarrierAccounts)
 			admin.POST("/carrier-accounts", carrierHandler.SaveCarrierAccount)
