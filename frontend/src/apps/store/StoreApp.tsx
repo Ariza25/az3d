@@ -9,7 +9,6 @@ import { LoginModal } from '../../components/LoginModal';
 import { RegisterModal } from '../../components/RegisterModal';
 import { Footer } from '../../components/Footer';
 import { FavoritesModal } from '../../components/FavoritesModal';
-import { CustomPrintQuoteModal } from '../../components/CustomPrintQuoteModal';
 import { Product, TenantSettings } from '../../types';
 import { useTenantCatalog } from '../../shared/hooks/useTenantCatalog';
 import { api } from '../../services/api';
@@ -83,7 +82,6 @@ export const StoreApp: React.FC = () => {
   const [isLoginOpen, setIsLoginOpen] = useState<boolean>(false);
   const [isRegisterOpen, setIsRegisterOpen] = useState<boolean>(false);
   const [isFavoritesOpen, setIsFavoritesOpen] = useState<boolean>(false);
-  const [isCustomQuoteOpen, setIsCustomQuoteOpen] = useState<boolean>(false);
   const [loginContext, setLoginContext] = useState<'default' | 'cart'>('default');
   const [cartNotice, setCartNotice] = useState<{ title: string; text: string } | null>(null);
 
@@ -247,7 +245,6 @@ export const StoreApp: React.FC = () => {
         activeTenant={activeTenant}
         onOpenAdmin={openAdmin}
         onOpenFavorites={() => setIsFavoritesOpen(true)}
-        onOpenCustomQuote={() => setIsCustomQuoteOpen(true)}
         tenantSettings={tenantSettings}
       />
 
@@ -330,11 +327,6 @@ export const StoreApp: React.FC = () => {
           setIsFavoritesOpen(false);
           setIsLoginOpen(true);
         }}
-      />
-
-      <CustomPrintQuoteModal
-        isOpen={isCustomQuoteOpen}
-        onClose={() => setIsCustomQuoteOpen(false)}
       />
 
       <LoginModal

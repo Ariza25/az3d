@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShoppingBag, LogOut, Layers, ChevronDown, ShieldAlert, Heart, ReceiptText, Box } from 'lucide-react';
+import { ShoppingBag, LogOut, Layers, ChevronDown, ShieldAlert, Heart, ReceiptText } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { Tenant, TenantSettings } from '../types';
@@ -10,7 +10,6 @@ interface NavbarProps {
   activeTenant: Tenant | null;
   onOpenAdmin: () => void;
   onOpenFavorites: () => void;
-  onOpenCustomQuote?: () => void;
   tenantSettings?: TenantSettings | null;
 }
 
@@ -20,7 +19,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   activeTenant,
   onOpenAdmin,
   onOpenFavorites,
-  onOpenCustomQuote,
   tenantSettings,
 }) => {
   const { user, isAuthenticated, logout } = useAuth();
@@ -89,19 +87,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <Heart className="w-5 h-5" />
                 </button>
               </>
-            )}
-
-            {/* Botão Cotação 3D Customizada */}
-            {onOpenCustomQuote && (
-              <button
-                type="button"
-                onClick={onOpenCustomQuote}
-                className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-laser-500/10 hover:bg-laser-500/20 text-laser-400 border border-laser-500/30 text-xs font-bold transition-all"
-                title="Enviar arquivo .STL para orçamento"
-              >
-                <Box className="w-4 h-4" />
-                <span>Orçamento STL</span>
-              </button>
             )}
 
             {/* Botão Carrinho */}

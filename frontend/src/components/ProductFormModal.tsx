@@ -380,56 +380,112 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
             </div>
 
             <div className="md:col-span-2 space-y-3 rounded-xl border border-chumbo-800 bg-chumbo-950/40 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <label className="text-xs font-mono text-slate-300 block uppercase">
-                  Imagens por cor / acabamento
-                </label>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-chumbo-800/80 pb-3">
+                <div>
+                  <label className="text-xs font-mono text-slate-300 block uppercase font-bold">
+                    Galeria de Fotos por Cor (Múltiplas Fotos — Padrão Mercado Livre)
+                  </label>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Você pode adicionar várias fotos com o mesmo nome de cor. Elas serão exibidas nas miniaturas à esquerda no modal do produto.
+                  </p>
+                </div>
                 <button
                   type="button"
                   onClick={addColorImage}
-                  className="flex items-center gap-1.5 rounded-lg border border-chumbo-700 px-3 py-1.5 text-xs font-bold text-slate-200 hover:bg-chumbo-800"
+                  className="flex items-center gap-1.5 shrink-0 rounded-lg border border-chumbo-700 bg-chumbo-900 px-3 py-1.5 text-xs font-bold text-slate-200 hover:bg-chumbo-800 hover:text-white transition"
                 >
                   <Plus className="h-3.5 w-3.5" />
-                  <span>Adicionar cor</span>
+                  <span>+ Adicionar foto / cor</span>
                 </button>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-3 pt-2">
                 {(formData.color_images || []).map((image, index) => (
-                  <div key={index} className="grid grid-cols-1 gap-3 md:grid-cols-[180px_1fr_auto]">
-                    <input
-                      type="text"
-                      value={image.color_name}
-                      onChange={(e) => updateColorImage(index, 'color_name', e.target.value)}
-                      placeholder="Ex: Preto Slate"
-                      className="w-full bg-chumbo-950 border border-chumbo-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-laser-400"
-                    />
-                    <input
-                      type="url"
-                      value={image.image_url}
-                      onChange={(e) => updateColorImage(index, 'image_url', e.target.value)}
-                      placeholder="URL da foto para essa cor"
-                      className="w-full bg-chumbo-950 border border-chumbo-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-laser-400"
-                    />
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          handleUploadImage(file, (url) => updateColorImage(index, 'image_url', url));
-                        }
-                      }}
-                      className="md:col-span-2 block w-full text-xs text-slate-500 file:mr-3 file:rounded-lg file:border-0 file:bg-chumbo-800 file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-white hover:file:bg-chumbo-700"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeColorImage(index)}
-                      className="flex h-10 items-center justify-center rounded-xl border border-chumbo-700 px-3 text-slate-400 hover:bg-rose-500/10 hover:text-rose-300"
-                      title="Remover cor"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                  <div key={index} className="grid grid-cols-1 gap-2.5 rounded-xl border border-chumbo-850 bg-chumbo-950 p-3 md:grid-cols-[160px_1fr_auto]">
+                    <div>
+                      <span className="block text-[10px] font-mono text-slate-400 mb-1">Nome da Cor</span>
+                      <input
+                        type="text"
+                        value={image.color_name}
+                        onChange={(e) => updateColorImage(index, 'color_name', e.target.value)}
+                        placeholder="Ex: Preto Slate"
+                        className="w-full bg-chumbo-900 border border-chumbo-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-laser-400 font-medium"
+                      />
+                    </div>
+                    <div>
+                      <span className="block text-[10px] font-mono text-slate-400 mb-1">URL da Imagem ou Arquivo</span>
+                      <input
+                        type="url"
+                        value={image.image_url}
+                        onChange={(e) => updateColorImage(index, 'image_url', e.target.value)}
+                        placeholder="https://... ou faça upload abaixo"
+                        className="w-full bg-chumbo-900 border border-chumbo-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-laser-400 font-mono"
+                      />
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/png,image/jpeg,image/webp"
+                        onChange={async (e) => {
+                          const files = Array.from(e.target.files || []);
+                          if (files.length === 0) return;
+                          for (let i = 0; i < files.length; i++) {
+                            const file = files[i];
+                            if (i === 0) {
+                              handleUploadImage(file, (url) => updateColorImage(index, 'image_url', url));
+                            } else {
+                              try {
+                                const result = await api.uploadProductImage(file);
+                                const uploadedUrl = resolveApiAssetUrl(result.url);
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  color_images: [
+                                    ...(prev.color_images || []),
+                                    {
+                                      color_name: image.color_name || 'Padrão',
+                                      image_url: uploadedUrl,
+                                      sort_order: prev.color_images?.length || 0,
+                                    },
+                                  ],
+                                }));
+                              } catch (err: any) {
+                                setError(err.message || 'Erro ao enviar imagem');
+                              }
+                            }
+                          }
+                        }}
+                        className="mt-2 block w-full text-[11px] text-slate-400 file:mr-2 file:rounded-md file:border-0 file:bg-chumbo-800 file:px-2.5 file:py-1 file:text-[11px] file:font-bold file:text-white hover:file:bg-chumbo-700"
+                      />
+                    </div>
+                    <div className="flex items-center justify-end md:items-start pt-1 gap-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFormData((prev) => ({
+                            ...prev,
+                            color_images: [
+                              ...(prev.color_images || []),
+                              {
+                                color_name: image.color_name || 'Padrão',
+                                image_url: image.image_url,
+                                sort_order: prev.color_images?.length || 0,
+                              },
+                            ],
+                          }));
+                        }}
+                        className="rounded-lg border border-chumbo-700 p-2 text-xs text-slate-300 hover:bg-chumbo-800 hover:text-laser-400 transition"
+                        title="Duplicar esta cor para adicionar mais 1 foto"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeColorImage(index)}
+                        className="rounded-lg border border-chumbo-700 p-2 text-slate-400 hover:bg-rose-500/10 hover:text-rose-300 transition"
+                        title="Remover imagem"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
