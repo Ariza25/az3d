@@ -22,25 +22,25 @@ export type OutputFormat = 'image/jpeg' | 'image/png' | 'image/webp';
 
 export const ImageConverterTab: React.FC = () => {
   const [items, setItems] = useState<ConvertedItem[]>([]);
-  const [targetWidth, setTargetWidth] = useState<number>(1200);
+  const [targetWidth, setTargetWidth] = useState<number>(900);
   const [targetHeight, setTargetHeight] = useState<number>(1200);
   const [fitMode, setFitMode] = useState<FitMode>('cover');
   const [outputFormat, setOutputFormat] = useState<OutputFormat>('image/jpeg');
-  const [preset, setPreset] = useState<string>('ml-square');
+  const [preset, setPreset] = useState<string>('ml-34');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handlePresetChange = (presetKey: string) => {
     setPreset(presetKey);
-    if (presetKey === 'ml-square') {
+    if (presetKey === 'ml-34') {
+      setTargetWidth(900);
+      setTargetHeight(1200);
+    } else if (presetKey === 'ml-square') {
       setTargetWidth(1200);
       setTargetHeight(1200);
-    } else if (presetKey === 'ml-vertical') {
-      setTargetWidth(1200);
-      setTargetHeight(1540);
-    } else if (presetKey === 'shopee-square') {
-      setTargetWidth(1080);
-      setTargetHeight(1080);
+    } else if (presetKey === 'ml-video') {
+      setTargetWidth(675);
+      setTargetHeight(1200);
     }
   };
 
@@ -229,7 +229,7 @@ export const ImageConverterTab: React.FC = () => {
           <div>
             <h3 className="text-base font-extrabold text-white">Formatador de Imagens sem Bordas para Mercado Livre</h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              Converte e preenche 100% da área sem bordas para o padrão oficial <strong className="text-white">1200 x 1540 px</strong>. 100% no seu navegador (sem salvar no servidor).
+              Converte e preenche 100% da área sem bordas para o padrão oficial <strong className="text-white">900 x 1200 px (3:4)</strong>. 100% no seu navegador (sem salvar no servidor).
             </p>
           </div>
         </div>
@@ -266,9 +266,9 @@ export const ImageConverterTab: React.FC = () => {
             onChange={(e) => handlePresetChange(e.target.value)}
             className="w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3 py-2 text-xs font-bold text-white focus:border-laser-500 focus:outline-none"
           >
-            <option value="ml-square">Fotos 1:1 Quadrado HD (1200 x 1200 px — Padrão Ouro ML / Shopee / Amazon)</option>
-            <option value="shopee-square">Vídeos / Mídias ML & Instagram (1080 x 1080 px)</option>
-            <option value="ml-vertical">Mercado Livre Moda (1200 x 1540 px)</option>
+            <option value="ml-34">Mercado Livre Fotos 3:4 Vertical (900 x 1200 px — Padrão Exato ML)</option>
+            <option value="ml-square">Fotos 1:1 Quadrado HD (1200 x 1200 px)</option>
+            <option value="ml-video">Mercado Livre Vídeos / Clips 9:16 (675 x 1200 px — Exato Clips ML)</option>
             <option value="custom">Personalizado</option>
           </select>
 
@@ -279,7 +279,7 @@ export const ImageConverterTab: React.FC = () => {
                 <input
                   type="number"
                   value={targetWidth}
-                  onChange={(e) => setTargetWidth(Number(e.target.value) || 1200)}
+                  onChange={(e) => setTargetWidth(Number(e.target.value) || 900)}
                   className="w-full rounded-lg border border-chumbo-700 bg-chumbo-950 px-2 py-1.5 text-xs text-white"
                 />
               </div>
@@ -288,7 +288,7 @@ export const ImageConverterTab: React.FC = () => {
                 <input
                   type="number"
                   value={targetHeight}
-                  onChange={(e) => setTargetHeight(Number(e.target.value) || 1540)}
+                  onChange={(e) => setTargetHeight(Number(e.target.value) || 1200)}
                   className="w-full rounded-lg border border-chumbo-700 bg-chumbo-950 px-2 py-1.5 text-xs text-white"
                 />
               </div>
@@ -307,9 +307,6 @@ export const ImageConverterTab: React.FC = () => {
           >
             <option value="cover">Preencher Sem Bordas (Zoom/Corte - Recomendado)</option>
             <option value="stretch">Esticar Total Sem Bordas (Preenchimento 100%)</option>
-            <option value="contain-white">Ajustar com Bordas Brancas (Margem)</option>
-            <option value="contain-dark">Ajustar com Bordas Escuras (AZ3D)</option>
-            <option value="contain-transparent">Ajustar com Fundo Transparente (PNG)</option>
           </select>
         </div>
 
