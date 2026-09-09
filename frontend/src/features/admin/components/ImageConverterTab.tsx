@@ -1,9 +1,10 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { UploadCloud, Download, Trash2, Sparkles, Loader2 } from 'lucide-react';
 import { Button } from '../../../components/ui';
 
 export interface ConvertedItem {
   id: string;
+  file: File;
   originalName: string;
   originalWidth: number;
   originalHeight: number;
@@ -16,34 +17,40 @@ export interface ConvertedItem {
   status: 'pending' | 'processing' | 'done';
 }
 
-export type FitMode = 'contain-white' | 'contain-transparent' | 'cover' | 'contain-dark';
+export type FitMode = 'cover' | 'stretch' | 'contain-white' | 'contain-dark' | 'contain-transparent';
 export type OutputFormat = 'image/jpeg' | 'image/png' | 'image/webp';
 
 export const ImageConverterTab: React.FC = () => {
   const [items, setItems] = useState<ConvertedItem[]>([]);
   const [targetWidth, setTargetWidth] = useState<number>(1200);
-  const [targetHeight, setTargetHeight] = useState<number>(1540);
-  const [fitMode, setFitMode] = useState<FitMode>('contain-white');
+  const [targetHeight, setTargetHeight] = useState<number>(1200);
+  const [fitMode, setFitMode] = useState<FitMode>('cover');
   const [outputFormat, setOutputFormat] = useState<OutputFormat>('image/jpeg');
-  const [preset, setPreset] = useState<string>('ml-standard');
+  const [preset, setPreset] = useState<string>('ml-square');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handlePresetChange = (presetKey: string) => {
     setPreset(presetKey);
-    if (presetKey === 'ml-standard') {
-      setTargetWidth(1200);
-      setTargetHeight(1540);
-    } else if (presetKey === 'ml-square') {
+    if (presetKey === 'ml-square') {
       setTargetWidth(1200);
       setTargetHeight(1200);
+    } else if (presetKey === 'ml-vertical') {
+      setTargetWidth(1200);
+      setTargetHeight(1540);
     } else if (presetKey === 'shopee-square') {
       setTargetWidth(1080);
       setTargetHeight(1080);
     }
   };
 
-  const processFile = (file: File): Promise<ConvertedItem> => {
+  const processFile = (
+    file: File,
+    w: number = targetWidth,
+    h: number = targetHeight,
+    mode: FitMode = fitMode,
+    fmt: OutputFormat = outputFormat
+  ): Promise<ConvertedItem> => {
     return new Promise((resolve) => {
       const id = Math.random().toString(36).substring(2, 9);
       const originalSizeMb = parseFloat((file.size / (1024 * 1024)).toFixed(2));
@@ -53,77 +60,85 @@ export const ImageConverterTab: React.FC = () => {
         const img = new Image();
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          canvas.width = targetWidth;
-          canvas.height = targetHeight;
+          canvas.width = w;
+          canvas.height = h;
           const ctx = canvas.getContext('2d');
 
           if (ctx) {
-            // Preenchimento de fundo
-            if (fitMode === 'contain-white') {
+            // Fundo
+            if (mode === 'contain-white') {
               ctx.fillStyle = '#FFFFFF';
-              ctx.fillRect(0, 0, targetWidth, targetHeight);
-            } else if (fitMode === 'contain-dark') {
+              ctx.fillRect(0, 0, w, h);
+            } else if (mode === 'contain-dark') {
               ctx.fillStyle = '#0f172a';
-              ctx.fillRect(0, 0, targetWidth, targetHeight);
-            } else if (fitMode === 'contain-transparent') {
-              ctx.clearRect(0, 0, targetWidth, targetHeight);
+              ctx.fillRect(0, 0, w, h);
+            } else if (mode === 'contain-transparent') {
+              ctx.clearRect(0, 0, w, h);
             }
 
             const imgRatio = img.width / img.height;
-            const targetRatio = targetWidth / targetHeight;
+            const targetRatio = w / h;
 
-            let drawWidth = targetWidth;
-            let drawHeight = targetHeight;
+            let drawWidth = w;
+            let drawHeight = h;
             let drawX = 0;
             let drawY = 0;
 
-            if (fitMode === 'cover') {
+            if (mode === 'cover') {
+              // Preencher 100% da área sem NENHUMA borda branca
               if (imgRatio > targetRatio) {
-                drawHeight = targetHeight;
-                drawWidth = targetHeight * imgRatio;
-                drawX = (targetWidth - drawWidth) / 2;
+                drawHeight = h;
+                drawWidth = h * imgRatio;
+                drawX = (w - drawWidth) / 2;
               } else {
-                drawWidth = targetWidth;
-                drawHeight = targetWidth / imgRatio;
-                drawY = (targetHeight - drawHeight) / 2;
+                drawWidth = w;
+                drawHeight = w / imgRatio;
+                drawY = (h - drawHeight) / 2;
               }
+            } else if (mode === 'stretch') {
+              // Esticar preenchendo exatamente 100% da área
+              drawWidth = w;
+              drawHeight = h;
+              drawX = 0;
+              drawY = 0;
             } else {
-              // Contain mode
+              // Contain mode (com margens)
               if (imgRatio > targetRatio) {
-                drawWidth = targetWidth;
-                drawHeight = targetWidth / imgRatio;
-                drawY = (targetHeight - drawHeight) / 2;
+                drawWidth = w;
+                drawHeight = w / imgRatio;
+                drawY = (h - drawHeight) / 2;
               } else {
-                drawHeight = targetHeight;
-                drawWidth = targetHeight * imgRatio;
-                drawX = (targetWidth - drawWidth) / 2;
+                drawHeight = h;
+                drawWidth = h * imgRatio;
+                drawX = (w - drawWidth) / 2;
               }
             }
 
             ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
 
-            const quality = outputFormat === 'image/jpeg' ? 0.92 : 0.95;
+            const quality = fmt === 'image/jpeg' ? 0.92 : 0.95;
             canvas.toBlob(
               (blob) => {
                 if (blob) {
-                  const dataUrl = canvas.toDataURL(outputFormat, quality);
+                  const dataUrl = canvas.toDataURL(fmt, quality);
                   const outputSizeMb = parseFloat((blob.size / (1024 * 1024)).toFixed(2));
                   resolve({
                     id,
+                    file,
                     originalName: file.name,
                     originalWidth: img.width,
                     originalHeight: img.height,
                     originalSizeMb,
                     dataUrl,
                     blob,
-                    outputWidth: targetWidth,
-                    outputHeight: targetHeight,
+                    outputWidth: w,
+                    outputHeight: h,
                     outputSizeMb,
                     status: 'done',
                   });
                 }
               },
-              outputFormat,
+              fmt,
               quality
             );
           }
@@ -133,6 +148,25 @@ export const ImageConverterTab: React.FC = () => {
       reader.readAsDataURL(file);
     });
   };
+
+  const reprocessAllItems = async () => {
+    if (items.length === 0) return;
+    setIsProcessing(true);
+    const updated: ConvertedItem[] = [];
+    for (const item of items) {
+      const newItem = await processFile(item.file, targetWidth, targetHeight, fitMode, outputFormat);
+      newItem.id = item.id;
+      updated.push(newItem);
+    }
+    setItems(updated);
+    setIsProcessing(false);
+  };
+
+  useEffect(() => {
+    if (items.length > 0) {
+      void reprocessAllItems();
+    }
+  }, [targetWidth, targetHeight, fitMode, outputFormat]);
 
   const handleFilesAdded = async (filesList: FileList | File[]) => {
     const validFiles = Array.from(filesList).filter((file) => file.type.startsWith('image/'));
@@ -193,9 +227,9 @@ export const ImageConverterTab: React.FC = () => {
             <Sparkles className="h-6 w-6" />
           </div>
           <div>
-            <h3 className="text-base font-extrabold text-white">Formatador de Imagens Mercado Livre em Lote</h3>
+            <h3 className="text-base font-extrabold text-white">Formatador de Imagens sem Bordas para Mercado Livre</h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              Converte e redimensiona instantaneamente para o padrão oficial <strong className="text-white">1200 x 1540 px</strong>. 100% no seu navegador (sem salvar no servidor).
+              Converte e preenche 100% da área sem bordas para o padrão oficial <strong className="text-white">1200 x 1540 px</strong>. 100% no seu navegador (sem salvar no servidor).
             </p>
           </div>
         </div>
@@ -232,9 +266,9 @@ export const ImageConverterTab: React.FC = () => {
             onChange={(e) => handlePresetChange(e.target.value)}
             className="w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3 py-2 text-xs font-bold text-white focus:border-laser-500 focus:outline-none"
           >
-            <option value="ml-standard">Mercado Livre Padrão (1200 x 1540 px)</option>
-            <option value="ml-square">Mercado Livre Quadrado (1200 x 1200 px)</option>
-            <option value="shopee-square">Shopee / Instagram (1080 x 1080 px)</option>
+            <option value="ml-square">Fotos 1:1 Quadrado HD (1200 x 1200 px — Padrão Ouro ML / Shopee / Amazon)</option>
+            <option value="shopee-square">Vídeos / Mídias ML & Instagram (1080 x 1080 px)</option>
+            <option value="ml-vertical">Mercado Livre Moda (1200 x 1540 px)</option>
             <option value="custom">Personalizado</option>
           </select>
 
@@ -264,17 +298,18 @@ export const ImageConverterTab: React.FC = () => {
 
         <div className="rounded-2xl border border-chumbo-800 bg-chumbo-900/60 p-4 space-y-2">
           <label className="block text-xs font-mono uppercase tracking-wider text-slate-400 font-bold">
-            Modo de Enquadramento
+            Modo de Enquadramento (Bordas)
           </label>
           <select
             value={fitMode}
             onChange={(e) => setFitMode(e.target.value as FitMode)}
             className="w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3 py-2 text-xs font-bold text-white focus:border-laser-500 focus:outline-none"
           >
-            <option value="contain-white">Ajustar com Fundo Branco (Recomendado ML)</option>
-            <option value="cover">Preencher e Recortar (Sem bordas)</option>
-            <option value="contain-transparent">Ajustar Fundo Transparente (PNG)</option>
-            <option value="contain-dark">Ajustar Fundo Escuro (AZ3D)</option>
+            <option value="cover">Preencher Sem Bordas (Zoom/Corte - Recomendado)</option>
+            <option value="stretch">Esticar Total Sem Bordas (Preenchimento 100%)</option>
+            <option value="contain-white">Ajustar com Bordas Brancas (Margem)</option>
+            <option value="contain-dark">Ajustar com Bordas Escuras (AZ3D)</option>
+            <option value="contain-transparent">Ajustar com Fundo Transparente (PNG)</option>
           </select>
         </div>
 
@@ -320,8 +355,8 @@ export const ImageConverterTab: React.FC = () => {
           {isProcessing ? 'Formatando lote de imagens...' : 'Arraste e solte fotos de produtos aqui em lote'}
         </h4>
         <p className="mt-1 text-xs text-slate-400">
-          Suporta arquivos .JPG, .PNG, .WEBP. Formatação instantânea para{' '}
-          <strong className="text-laser-400">{targetWidth} x {targetHeight} px</strong>.
+          Sem bordas · Formatação automática para{' '}
+          <strong className="text-laser-400">{targetWidth} x {targetHeight} px</strong> ({fitMode === 'cover' ? 'Preenchimento sem bordas' : fitMode === 'stretch' ? 'Esticado sem bordas' : 'Ajustado'}).
         </p>
       </div>
 
@@ -329,7 +364,7 @@ export const ImageConverterTab: React.FC = () => {
       {items.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
-            <span>Imagens Formatadas ({items.length})</span>
+            <span>Imagens Formatadas Sem Bordas ({items.length})</span>
             <span>Pronto para Download</span>
           </div>
 
@@ -344,7 +379,7 @@ export const ImageConverterTab: React.FC = () => {
                     <img
                       src={item.dataUrl}
                       alt={item.originalName}
-                      className="h-full w-full object-contain"
+                      className="h-full w-full object-cover"
                     />
                   </div>
                   <div className="min-w-0 flex-1 space-y-1">
