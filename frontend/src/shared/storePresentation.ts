@@ -44,10 +44,11 @@ export const getMarketplaceFamilyTitle = (product: Product) => {
 };
 
 const marketplaceFamilyKey = (product: Product) => {
-  if (normalizeText(product.source_provider || '') !== 'mercadolivre') return `product:${product.id}`;
   const color = getMarketplaceVariantColor(product);
   if (!color) return `product:${product.id}`;
-  return `mercadolivre:${normalizeText(getMarketplaceFamilyTitle(product))}`;
+  const familyTitle = getMarketplaceFamilyTitle(product);
+  if (!familyTitle) return `product:${product.id}`;
+  return `family:${normalizeText(familyTitle)}`;
 };
 
 const colorOrder = (color: string) => {
@@ -66,16 +67,21 @@ export const groupMarketplaceProducts = (products: Product[]) => {
     if (siblings.length === 1) return siblings[0];
 
     const variants = siblings
-      .map((sibling) => ({ ...sibling, store_variant_color: getMarketplaceVariantColor(sibling) || 'Padrao' }))
+      .map((sibling) => {
+        const color = getMarketplaceVariantColor(sibling) || 'Padrao';
+        const images = sibling.color_images?.length
+          ? sibling.color_images.map((img, idx) => ({ ...img, color_name: color, sort_order: idx }))
+          : [{ image_url: sibling.image_url, color_name: color, sort_order: 0 }];
+        return {
+          ...sibling,
+          store_variant_color: color,
+          color_images: images,
+        };
+      })
       .sort((a, b) => colorOrder(a.store_variant_color || '') - colorOrder(b.store_variant_color || '') || a.id - b.id);
+
     const defaultProduct = variants.find((variant) => normalizeText(variant.store_variant_color || '') === 'branco') || variants[0];
-    const colorImages = variants.flatMap((variant) => {
-      const color = variant.store_variant_color || 'Padrao';
-      const images = variant.color_images?.length
-        ? variant.color_images
-        : [{ image_url: variant.image_url, color_name: color, sort_order: 0 }];
-      return images.map((image, index) => ({ ...image, color_name: color, sort_order: index }));
-    });
+    const colorImages = variants.flatMap((variant) => variant.color_images || []);
     const colorStocks = variants.map((variant) => ({
       color_name: variant.store_variant_color || 'Padrao',
       stock_qty: getTotalStock(variant),
