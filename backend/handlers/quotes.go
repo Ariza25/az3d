@@ -82,7 +82,7 @@ func CalculateShippingQuote(c *gin.Context) {
 	database.DB.Where("tenant_id = ? AND is_active = true", tenantID).Find(&carrierAccounts)
 
 	zipPrefix, _ := strconv.Atoi(zipDigits[:3])
-	distFactor := float64((zipPrefix%15) + 5)
+	distFactor := float64((zipPrefix % 15) + 5)
 
 	pacPrice := math.Max(14.90, distFactor*1.45)
 	sedexPrice := math.Max(26.50, distFactor*2.65)

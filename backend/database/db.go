@@ -645,4 +645,3 @@ func ensureFilamentSpools(db *gorm.DB, tenantID uint) {
 		db.Create(&spool)
 	}
 }
-

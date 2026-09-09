@@ -13,312 +13,292 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"az3d-backend/config"
 	"az3d-backend/database"
 	"az3d-backend/models"
+	"az3d-backend/utils"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
-type OrderHandler struct {
-	payments *MercadoPagoHandler
+const (
+	mercadoPagoProvider       = "mercadopago"
+	paymentOAuthSessionTTL    = 10 * time.Minute
+	paymentTokenRefreshAhead  = 24 * time.Hour
+	mercadoPagoAuthorizeURL   = "https://auth.mercadopago.com/authorization"
+	mercadoPagoConnectedState = "connected"
+)
+
+type MercadoPagoHandler struct {
+	cfg        *config.Config
+	httpClient *http.Client
+	refreshMu  sync.Mutex
 }
 
-func NewOrderHandler(payments ...*MercadoPagoHandler) *OrderHandler {
-	handler := &OrderHandler{}
-	if len(payments) > 0 {
-		handler.payments = payments[0]
-	}
-	return handler
+type paymentAccountStatus struct {
+	Provider       string     `json:"provider"`
+	OAuthAvailable bool       `json:"oauth_available"`
+	Connected      bool       `json:"connected"`
+	Status         string     `json:"status"`
+	SellerID       string     `json:"seller_id,omitempty"`
+	PublicKey      string     `json:"public_key,omitempty"`
+	LiveMode       bool       `json:"live_mode"`
+	TokenExpiresAt *time.Time `json:"token_expires_at,omitempty"`
+	ConnectedAt    *time.Time `json:"connected_at,omitempty"`
+	LastError      string     `json:"last_error,omitempty"`
 }
 
-func (h *OrderHandler) CreateOrder(c *gin.Context) {
-	userIDVal, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuario nao autenticado"})
-		return
-	}
-	userID := userIDVal.(uint)
-	tenantID := getTenantID(c)
+type decryptedMercadoPagoPlatformConfig struct {
+	ClientID      string
+	ClientSecret  string
+	RedirectURI   string
+	WebhookSecret string
+}
 
-	var input models.CreateOrderInput
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Dados do pedido invalidos: " + err.Error()})
-		return
-	}
+type mercadoPagoPlatformConfigStatus struct {
+	Source                  string   `json:"source"`
+	Configured              bool     `json:"configured"`
+	ClientIDConfigured      bool     `json:"client_id_configured"`
+	ClientSecretConfigured  bool     `json:"client_secret_configured"`
+	RedirectURIConfigured   bool     `json:"redirect_uri_configured"`
+	WebhookSecretConfigured bool     `json:"webhook_secret_configured"`
+	Missing                 []string `json:"missing"`
+}
 
-	if len(input.Items) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "O carrinho nao contem itens para finalizar o pedido"})
-		return
-	}
+func NewMercadoPagoHandler(cfg *config.Config) *MercadoPagoHandler {
+	return &MercadoPagoHandler{cfg: cfg, httpClient: &http.Client{Timeout: 20 * time.Second}}
+}
 
-	if h.payments == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Mercado Pago indisponivel"})
+func (h *MercadoPagoHandler) GetPlatformConfig(c *gin.Context) {
+	if !isMasterAdmin(c) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Apenas master_admin pode consultar a aplicacao Mercado Pago"})
 		return
 	}
-	paymentAccessToken, err := h.payments.AccessTokenForTenant(c.Request.Context(), tenantID)
+	c.JSON(http.StatusOK, h.platformConfigStatus())
+}
+
+func (h *MercadoPagoHandler) GetTenantStatus(c *gin.Context) {
+	c.JSON(http.StatusOK, h.statusForTenant(getTenantID(c)))
+}
+
+func (h *MercadoPagoHandler) StartOAuth(c *gin.Context) {
+	h.startOAuthForTenant(c, getTenantID(c))
+}
+
+func (h *MercadoPagoHandler) StartOAuthForTenant(c *gin.Context) {
+	tenantID64, err := strconv.ParseUint(strings.TrimSpace(c.Param("tenant_id")), 10, 64)
+	if err != nil || tenantID64 == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tenant invalido"})
+		return
+	}
+	h.startOAuthForTenant(c, uint(tenantID64))
+}
+
+func (h *MercadoPagoHandler) startOAuthForTenant(c *gin.Context, tenantID uint) {
+	if tenantID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tenant invalido"})
+		return
+	}
+	if !tenantExists(tenantID) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Tenant nao encontrado"})
+		return
+	}
+	platform, err := h.loadPlatformConfig()
 	if err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "A loja ainda nao conectou a conta Mercado Pago"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "A aplicacao OAuth do Mercado Pago nao esta configurada no ambiente da plataforma"})
 		return
 	}
-
-	deliveryMethod := strings.TrimSpace(input.DeliveryMethod)
-	if deliveryMethod == "" {
-		deliveryMethod = "shipping"
-	}
-
-	var order models.Order
-	if err := database.DB.Transaction(func(tx *gorm.DB) error {
-		var totalAmount float64
-		var orderItems []models.OrderItem
-
-		for _, itemInput := range input.Items {
-			var product models.Product
-			productQuery := publishedProductQuery(tx.Clauses(clause.Locking{Strength: "UPDATE"}), tenantID)
-			if err := productQuery.Where("in_stock = ?", true).First(&product, itemInput.ProductID).Error; err != nil {
-				return err
-			}
-
-			color := strings.TrimSpace(itemInput.Color)
-			if color == "" {
-				color = "Preto Slate"
-			}
-
-			unitPrice := product.Price
-			var variant models.ProductVariant
-			if err := tx.Where("tenant_id = ? AND product_id = ? AND color_name = ? AND is_active = ?", tenantID, product.ID, color, true).First(&variant).Error; err == nil && variant.Price > 0 {
-				unitPrice = variant.Price
-			}
-
-			var colorStock models.ProductColorStock
-			colorStockErr := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("tenant_id = ? AND product_id = ? AND color_name = ?", tenantID, product.ID, color).First(&colorStock).Error
-			if colorStockErr == nil {
-				if colorStock.StockQty < itemInput.Quantity {
-					return errInsufficientStock("Estoque insuficiente para a cor " + color)
-				}
-				colorStock.StockQty -= itemInput.Quantity
-				if err := tx.Save(&colorStock).Error; err != nil {
-					return err
-				}
-				var totalColorStock int64
-				if err := tx.Model(&models.ProductColorStock{}).Where("tenant_id = ? AND product_id = ?", tenantID, product.ID).Select("COALESCE(SUM(stock_qty), 0)").Scan(&totalColorStock).Error; err != nil {
-					return err
-				}
-				product.StockQty = int(totalColorStock)
-				product.InStock = product.StockQty > 0
-				if err := tx.Save(&product).Error; err != nil {
-					return err
-				}
-			} else if errors.Is(colorStockErr, gorm.ErrRecordNotFound) {
-				if product.StockQty < itemInput.Quantity {
-					return errInsufficientStock("Estoque insuficiente para o produto " + product.Title)
-				}
-				product.StockQty -= itemInput.Quantity
-				product.InStock = product.StockQty > 0
-				if err := tx.Save(&product).Error; err != nil {
-					return err
-				}
-				colorStock.StockQty = product.StockQty
-			} else {
-				return colorStockErr
-			}
-
-			totalAmount += unitPrice * float64(itemInput.Quantity)
-			orderItems = append(orderItems, models.OrderItem{
-				ProductID: product.ID,
-				Quantity:  itemInput.Quantity,
-				UnitPrice: unitPrice,
-				Color:     color,
-			})
-		}
-
-		order = models.Order{
-			TenantID:        tenantID,
-			UserID:          userID,
-			TotalAmount:     totalAmount,
-			Status:          "pending_payment",
-			Items:           orderItems,
-			ShippingAddress: input.ShippingAddress,
-			DeliveryMethod:  deliveryMethod,
-			RecipientName:   input.RecipientName,
-			RecipientPhone:  input.RecipientPhone,
-			ZipCode:         input.ZipCode,
-			City:            input.City,
-			State:           input.State,
-			Notes:           input.Notes,
-			PaymentProvider: "mercadopago",
-			PaymentStatus:   "pending",
-		}
-
-		if err := tx.Create(&order).Error; err != nil {
-			return err
-		}
-
-		for _, item := range orderItems {
-			reason := "Baixa automatica no pedido"
-			var quantityAfter int
-			var stock models.ProductColorStock
-			if err := tx.Where("tenant_id = ? AND product_id = ? AND color_name = ?", tenantID, item.ProductID, item.Color).First(&stock).Error; err == nil {
-				quantityAfter = stock.StockQty
-			} else {
-				var product models.Product
-				_ = tx.Select("stock_qty").Where("tenant_id = ?", tenantID).First(&product, item.ProductID).Error
-				quantityAfter = product.StockQty
-			}
-			movement := models.StockMovement{
-				TenantID:      tenantID,
-				ProductID:     item.ProductID,
-				OrderID:       &order.ID,
-				ColorName:     item.Color,
-				MovementType:  "order_reservation",
-				QuantityDelta: -item.Quantity,
-				QuantityAfter: quantityAfter,
-				Reason:        reason,
-			}
-			if err := tx.Create(&movement).Error; err != nil {
-				return err
-			}
-		}
-
-		return nil
-	}); err != nil {
-		if stockErr, ok := err.(stockError); ok {
-			c.JSON(http.StatusBadRequest, gin.H{"error": stockErr.message})
-			return
-		}
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Produto nao encontrado ou indisponivel"})
-		return
-	}
-
-	if order.ID == 0 {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao registrar o pedido de impressao 3D"})
-		return
-	}
-
-	database.DB.Preload("Items.Product").First(&order, order.ID)
-
-	paymentPreference, err := createMercadoPagoPreference(c.Request.Context(), order, paymentAccessToken)
+	state, err := randomPaymentOAuthValue(32)
 	if err != nil {
-		_ = cancelOrderAndReleaseStock(order.ID, "Falha ao criar preferencia Mercado Pago")
-		c.JSON(http.StatusBadGateway, gin.H{"error": "Nao foi possivel iniciar pagamento no Mercado Pago: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Nao foi possivel iniciar a autorizacao"})
+		return
+	}
+	verifier, err := randomPaymentOAuthValue(64)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Nao foi possivel iniciar a autorizacao"})
+		return
+	}
+	encryptedVerifier, err := utils.EncryptString(verifier, h.cfg.CredentialEncryptionKey)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Nao foi possivel proteger a sessao OAuth"})
+		return
+	}
+	_ = database.DB.Where("expires_at < ? OR used_at IS NOT NULL", time.Now()).Delete(&models.PaymentOAuthSession{}).Error
+	session := models.PaymentOAuthSession{
+		StateHash:             hashPaymentOAuthState(state),
+		TenantID:              tenantID,
+		EncryptedCodeVerifier: encryptedVerifier,
+		ExpiresAt:             time.Now().UTC().Add(paymentOAuthSessionTTL),
+	}
+	if err := database.DB.Create(&session).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Nao foi possivel salvar a sessao OAuth"})
+		return
+	}
+	params := url.Values{
+		"client_id":             {platform.ClientID},
+		"response_type":         {"code"},
+		"platform_id":           {"mp"},
+		"state":                 {state},
+		"redirect_uri":          {platform.RedirectURI},
+		"code_challenge":        {paymentPKCEChallenge(verifier)},
+		"code_challenge_method": {"S256"},
+	}
+	c.JSON(http.StatusOK, gin.H{"authorization_url": mercadoPagoAuthorizeURL + "?" + params.Encode()})
+}
+
+func (h *MercadoPagoHandler) OAuthCallback(c *gin.Context) {
+	state := strings.TrimSpace(c.Query("state"))
+	code := strings.TrimSpace(c.Query("code"))
+	if oauthErr := strings.TrimSpace(c.Query("error")); oauthErr != "" {
+		session, _ := consumePaymentOAuthSession(state)
+		h.redirectOAuthResult(c, "denied", session.TenantID)
+		return
+	}
+	if state == "" || code == "" {
+		h.redirectOAuthResult(c, "error", 0)
 		return
 	}
 
-	order.MPPreferenceID = paymentPreference.ID
-	order.MPInitPoint = paymentPreference.InitPoint
-	order.MPSandboxPoint = paymentPreference.SandboxInitPoint
-	if err := database.DB.Save(&order).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Pagamento criado, mas nao foi possivel salvar dados do checkout"})
+	session, err := consumePaymentOAuthSession(state)
+	if err != nil {
+		h.redirectOAuthResult(c, "error", 0)
 		return
 	}
-
-	c.JSON(http.StatusCreated, gin.H{
-		"message": "Pedido criado. Redirecione o comprador para o Mercado Pago para concluir o pagamento.",
-		"order":   order,
-		"payment": gin.H{
-			"provider":             "mercadopago",
-			"preference_id":        paymentPreference.ID,
-			"checkout_url":         paymentPreference.InitPoint,
-			"sandbox_checkout_url": paymentPreference.SandboxInitPoint,
-			"status":               order.PaymentStatus,
-		},
-	})
-}
-
-type stockError struct {
-	message string
-}
-
-func (e stockError) Error() string {
-	return e.message
-}
-
-func errInsufficientStock(message string) error {
-	return stockError{message: message}
-}
-
-func (h *OrderHandler) GetMyOrders(c *gin.Context) {
-	userIDVal, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuario nao autenticado"})
+	verifier, err := utils.DecryptString(session.EncryptedCodeVerifier, h.cfg.CredentialEncryptionKey)
+	if err != nil {
+		h.redirectOAuthResult(c, "error", session.TenantID)
 		return
 	}
-	userID := userIDVal.(uint)
+	platform, err := h.loadPlatformConfig()
+	if err != nil {
+		h.redirectOAuthResult(c, "error", session.TenantID)
+		return
+	}
+	token, err := h.exchangeAuthorizationCode(c.Request.Context(), platform, code, verifier)
+	if err != nil {
+		h.recordTenantPaymentError(session.TenantID, err)
+		h.redirectOAuthResult(c, "error", session.TenantID)
+		return
+	}
+	if err := h.saveTenantOAuthToken(session.TenantID, token, ""); err != nil {
+		h.recordTenantPaymentError(session.TenantID, err)
+		h.redirectOAuthResult(c, "error", session.TenantID)
+		return
+	}
+	h.redirectOAuthResult(c, mercadoPagoConnectedState, session.TenantID)
+}
+
+func (h *MercadoPagoHandler) RefreshOAuth(c *gin.Context) {
 	tenantID := getTenantID(c)
-
-	var orders []models.Order
-	if err := database.DB.
-		Preload("Items.Product").
-		Preload("Shipments.Events", func(db *gorm.DB) *gorm.DB { return db.Order("occurred_at desc") }).
-		Where("user_id = ? AND tenant_id = ?", userID, tenantID).
-		Order("created_at desc").
-		Find(&orders).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar historico de pedidos"})
+	if _, err := h.refreshTenantToken(c.Request.Context(), tenantID, true); err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "Nao foi possivel renovar a conexao Mercado Pago"})
 		return
 	}
-
-	c.JSON(http.StatusOK, orders)
+	c.JSON(http.StatusOK, h.statusForTenant(tenantID))
 }
 
-func (h *OrderHandler) GetAllOrders(c *gin.Context) {
+func (h *MercadoPagoHandler) DisconnectOAuth(c *gin.Context) {
 	tenantID := getTenantID(c)
-
-	var orders []models.Order
-	if err := database.DB.
-		Preload("User").
-		Preload("Items.Product").
-		Preload("Shipments.Events", func(db *gorm.DB) *gorm.DB { return db.Order("occurred_at desc") }).
-		Where("tenant_id = ?", tenantID).
-		Order("created_at desc").
-		Find(&orders).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao carregar lista de pedidos do tenant"})
+	updates := map[string]any{
+		"encrypted_access_token": "", "encrypted_refresh_token": "", "token_expires_at": nil,
+		"status": "disconnected", "last_error": "", "connected_at": nil,
+	}
+	result := database.DB.Model(&models.TenantPaymentAccount{}).Where("tenant_id = ? AND provider = ?", tenantID, mercadoPagoProvider).Updates(updates)
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Nao foi possivel desconectar o Mercado Pago"})
 		return
 	}
-
-	c.JSON(http.StatusOK, orders)
+	c.JSON(http.StatusOK, h.statusForTenant(tenantID))
 }
 
-func (h *OrderHandler) UpdateOrderStatus(c *gin.Context) {
-	tenantID := getTenantID(c)
-	idStr := c.Param("id")
+func (h *MercadoPagoHandler) AccessTokenForTenant(ctx context.Context, tenantID uint) (string, error) {
+	account, err := h.refreshTenantToken(ctx, tenantID, false)
+	if err != nil {
+		return "", err
+	}
+	accessToken, err := utils.DecryptString(account.EncryptedAccessToken, h.cfg.CredentialEncryptionKey)
+	if err != nil || strings.TrimSpace(accessToken) == "" {
+		return "", fmt.Errorf("credencial Mercado Pago do tenant indisponivel")
+	}
+	return accessToken, nil
+}
 
-	var order models.Order
-	if err := database.DB.Where("tenant_id = ?", tenantID).First(&order, idStr).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Pedido nao encontrado"})
-		return
+func (h *MercadoPagoHandler) WebhookSecret() (string, error) {
+	platform, err := h.loadPlatformConfig()
+	if err != nil {
+		return "", err
 	}
+	return platform.WebhookSecret, nil
+}
 
-	var input models.UpdateOrderStatusInput
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Status invalido"})
-		return
+func (h *MercadoPagoHandler) statusForTenant(tenantID uint) paymentAccountStatus {
+	status := paymentAccountStatus{Provider: mercadoPagoProvider, Status: "disconnected"}
+	if _, err := h.loadPlatformConfig(); err == nil {
+		status.OAuthAvailable = true
 	}
-	validStatuses := map[string]bool{
-		"pending_confirmation": true,
-		"pending_payment":      true,
-		"paid":                 true,
-		"preparing":            true,
-		"delivered":            true,
-		"cancelled":            true,
+	var account models.TenantPaymentAccount
+	if err := database.DB.Where("tenant_id = ? AND provider = ?", tenantID, mercadoPagoProvider).First(&account).Error; err != nil {
+		return status
 	}
-	if !validStatuses[input.Status] {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Status de pedido nao suportado"})
-		return
-	}
+	status.Connected = account.Status == mercadoPagoConnectedState && account.EncryptedAccessToken != ""
+	status.Status = account.Status
+	status.SellerID = account.SellerID
+	status.PublicKey = account.PublicKey
+	status.LiveMode = account.LiveMode
+	status.TokenExpiresAt = account.TokenExpiresAt
+	status.ConnectedAt = account.ConnectedAt
+	status.LastError = account.LastError
+	return status
+}
 
-	order.Status = input.Status
-	if err := database.DB.Save(&order).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao atualizar status do pedido"})
-		return
+func (h *MercadoPagoHandler) loadPlatformConfig() (decryptedMercadoPagoPlatformConfig, error) {
+	if h == nil || h.cfg == nil {
+		return decryptedMercadoPagoPlatformConfig{}, fmt.Errorf("platform config is unavailable")
 	}
+	platform := decryptedMercadoPagoPlatformConfig{
+		ClientID: strings.TrimSpace(h.cfg.MercadoPagoClientID), ClientSecret: strings.TrimSpace(h.cfg.MercadoPagoClientSecret),
+		RedirectURI: strings.TrimSpace(h.cfg.MercadoPagoRedirectURI), WebhookSecret: strings.TrimSpace(h.cfg.MercadoPagoWebhookSecret),
+	}
+	if platform.ClientID == "" || platform.ClientSecret == "" || platform.RedirectURI == "" || platform.WebhookSecret == "" {
+		return decryptedMercadoPagoPlatformConfig{}, fmt.Errorf("mercado pago platform config is incomplete")
+	}
+	if err := validateOAuthRedirectURI(platform.RedirectURI, h.cfg.Env); err != nil {
+		return decryptedMercadoPagoPlatformConfig{}, err
+	}
+	return platform, nil
+}
 
-	c.JSON(http.StatusOK, order)
+func (h *MercadoPagoHandler) platformConfigStatus() mercadoPagoPlatformConfigStatus {
+	status := mercadoPagoPlatformConfigStatus{Source: "environment", Missing: []string{}}
+	if h == nil || h.cfg == nil {
+		status.Missing = []string{"MERCADO_PAGO_CLIENT_ID", "MERCADO_PAGO_CLIENT_SECRET", "MERCADO_PAGO_REDIRECT_URI", "MERCADO_PAGO_WEBHOOK_SECRET"}
+		return status
+	}
+	status.ClientIDConfigured = strings.TrimSpace(h.cfg.MercadoPagoClientID) != ""
+	status.ClientSecretConfigured = strings.TrimSpace(h.cfg.MercadoPagoClientSecret) != ""
+	status.RedirectURIConfigured = strings.TrimSpace(h.cfg.MercadoPagoRedirectURI) != ""
+	status.WebhookSecretConfigured = strings.TrimSpace(h.cfg.MercadoPagoWebhookSecret) != ""
+	if !status.ClientIDConfigured {
+		status.Missing = append(status.Missing, "MERCADO_PAGO_CLIENT_ID")
+	}
+	if !status.ClientSecretConfigured {
+		status.Missing = append(status.Missing, "MERCADO_PAGO_CLIENT_SECRET")
+	}
+	if !status.RedirectURIConfigured {
+		status.Missing = append(status.Missing, "MERCADO_PAGO_REDIRECT_URI")
+	}
+	if !status.WebhookSecretConfigured {
+		status.Missing = append(status.Missing, "MERCADO_PAGO_WEBHOOK_SECRET")
+	}
+	status.Configured = len(status.Missing) == 0
+	return status
 }
 
 type mercadoPagoPreferenceResponse struct {
@@ -786,21 +766,4 @@ func orderIDFromMercadoPagoReference(reference string) (uint, error) {
 		return 0, err
 	}
 	return uint(parsed), nil
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
-}
-
-func getEnv(key, fallback string) string {
-	value := strings.TrimSpace(os.Getenv(key))
-	if value == "" {
-		return fallback
-	}
-	return value
 }
