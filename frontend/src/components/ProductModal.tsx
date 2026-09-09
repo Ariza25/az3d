@@ -1,11 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Product } from '../types';
-import { Box, Check, Heart, Layers, Minus, Plus, ShoppingBag, Star, X } from 'lucide-react';
+import { Check, Heart, Layers, Minus, Plus, ShoppingBag, Star, X } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { getAvailableColors, getColorVisual, getDefaultColor, getStockStatus, getStoreVariantProduct, getTotalStock, money } from '../shared/storePresentation';
-import { Product3DViewer } from './Product3DViewer';
 import { FreightCalculatorWidget } from './FreightCalculatorWidget';
 
 interface ProductModalProps {
@@ -21,7 +20,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
   const [isFavorite, setIsFavorite] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [selectedImageUrl, setSelectedImageUrl] = useState('');
-  const [activeMediaTab, setActiveMediaTab] = useState<'2d' | '3d'>('3d');
+  const [selectedFreight, setSelectedFreight] = useState<{ code: string; name: string; price: number; deliveryDays: number } | null>(null);
 
   const availableColors = useMemo(() => {
     if (!product) return [];
@@ -98,6 +97,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
   const selectedStock = activeProduct?.color_stocks?.find((stock) => stock.color_name === selectedColor);
   const selectedPrice = selectedVariant?.price ?? activeProduct?.price ?? product.price;
   const purchaseTotal = selectedPrice * quantity;
+  const finalTotal = purchaseTotal + (selectedFreight?.price || 0);
   const stockLimit = product.store_variants?.length ? getTotalStock(activeProduct || product) : (selectedStock?.stock_qty ?? product.stock_qty);
   const hasRealReviews = Boolean(activeProduct?.review_summary?.review_count || product.review_summary?.review_count);
   const stockStatus = getStockStatus({ ...(activeProduct || product), color_stocks: undefined, stock_qty: stockLimit, in_stock: stockLimit > 0 && Boolean(activeProduct?.in_stock ?? product.in_stock) });
@@ -161,72 +161,31 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
 
         <div className="grid lg:h-[700px] lg:max-h-[calc(100vh-2rem)] lg:grid-cols-[54fr_46fr]">
           <div className="relative min-h-[340px] overflow-hidden bg-chumbo-950 p-3 sm:min-h-[440px] lg:min-h-0">
-            {/* Media Mode Selector Tabs */}
-            <div className="absolute left-4 top-4 z-20 flex items-center rounded-xl border border-chumbo-700 bg-chumbo-900/90 p-1 backdrop-blur-md">
-              <button
-                type="button"
-                onClick={() => setActiveMediaTab('3d')}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
-                  activeMediaTab === '3d'
-                    ? 'bg-laser-400 text-chumbo-950 shadow-md'
-                    : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                <Box className="h-4 w-4" />
-                <span>Modelo 3D</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveMediaTab('2d')}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
-                  activeMediaTab === '2d'
-                    ? 'bg-laser-400 text-chumbo-950 shadow-md'
-                    : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                <Layers className="h-4 w-4" />
-                <span>Fotos 2D</span>
-              </button>
-            </div>
-
-            {activeMediaTab === '3d' ? (
-              <div className="flex h-full w-full items-center justify-center pt-12">
-                <Product3DViewer
-                  colorHex={getColorVisual(selectedColor).hex}
-                  colorName={selectedColor}
-                  className="h-full w-full min-h-[380px]"
-                  heightPx={580}
-                />
-              </div>
-            ) : (
-              <>
-                <img src={selectedImageUrl} alt="" className="absolute inset-0 h-full w-full scale-110 object-cover opacity-20 blur-2xl" aria-hidden="true" />
-                <div className="absolute inset-0 bg-gradient-to-br from-chumbo-950/35 via-chumbo-950/55 to-chumbo-950" />
-                <div className={`relative z-10 grid h-full w-full pt-12 ${imageChoices.length > 1 ? 'grid-cols-[76px_minmax(0,1fr)]' : ''}`}>
-                  {imageChoices.length > 1 && (
-                    <div className="flex max-h-full flex-col gap-2 overflow-y-auto border-r border-white/10 bg-chumbo-950/80 p-2.5 backdrop-blur-md">
-                      {imageChoices.map((imageUrl, index) => (
-                        <button
-                          type="button"
-                          key={imageUrl}
-                          onClick={() => setSelectedImageUrl(imageUrl)}
-                          onMouseEnter={() => setSelectedImageUrl(imageUrl)}
-                          className={`h-14 w-14 shrink-0 overflow-hidden rounded-xl border-2 bg-chumbo-900 p-0.5 transition-all duration-150 ${imageUrl === selectedImageUrl ? 'border-laser-400 shadow-[0_0_0_2px_rgba(34,211,238,0.25)] scale-105' : 'border-chumbo-700 opacity-70 hover:border-chumbo-500 hover:opacity-100'}`}
-                          aria-label={`Ver foto ${index + 1} da cor ${selectedColor}`}
-                        >
-                          <img src={imageUrl} alt="" className="h-full w-full rounded-lg object-cover" />
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  <div className="flex min-h-0 items-center justify-center p-3 sm:p-6">
-                    <div className="relative aspect-square w-full max-w-[580px] overflow-hidden rounded-2xl border border-chumbo-800 bg-chumbo-950/90 shadow-2xl flex items-center justify-center">
-                      <img src={selectedImageUrl} alt={product.title} className="h-full w-full object-contain p-4" />
-                    </div>
-                  </div>
+            <img src={selectedImageUrl} alt="" className="absolute inset-0 h-full w-full scale-110 object-cover opacity-20 blur-2xl" aria-hidden="true" />
+            <div className="absolute inset-0 bg-gradient-to-br from-chumbo-950/35 via-chumbo-950/55 to-chumbo-950" />
+            <div className={`relative z-10 grid h-full w-full p-3 sm:p-5 ${imageChoices.length > 1 ? 'grid-cols-[76px_minmax(0,1fr)]' : ''}`}>
+              {imageChoices.length > 1 && (
+                <div className="flex max-h-full flex-col gap-2 overflow-y-auto border-r border-white/10 bg-chumbo-950/80 p-2 backdrop-blur-md">
+                  {imageChoices.map((imageUrl, index) => (
+                    <button
+                      type="button"
+                      key={imageUrl}
+                      onClick={() => setSelectedImageUrl(imageUrl)}
+                      onMouseEnter={() => setSelectedImageUrl(imageUrl)}
+                      className={`h-14 w-14 shrink-0 overflow-hidden rounded-xl border-2 bg-chumbo-900 p-0.5 transition-all duration-150 ${imageUrl === selectedImageUrl ? 'border-laser-400 shadow-[0_0_0_2px_rgba(34,211,238,0.25)] scale-105' : 'border-chumbo-700 opacity-70 hover:border-chumbo-500 hover:opacity-100'}`}
+                      aria-label={`Ver foto ${index + 1} da cor ${selectedColor}`}
+                    >
+                      <img src={imageUrl} alt="" className="h-full w-full rounded-lg object-cover" />
+                    </button>
+                  ))}
                 </div>
-              </>
-            )}
+              )}
+              <div className="flex min-h-0 items-center justify-center p-2 sm:p-4">
+                <div className="relative aspect-square w-full max-w-[560px] overflow-hidden rounded-2xl border border-chumbo-800 bg-chumbo-950/90 shadow-2xl flex items-center justify-center">
+                  <img src={selectedImageUrl} alt={product.title} className="h-full w-full object-contain p-4" />
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="flex min-h-0 flex-col bg-chumbo-900 p-5 sm:p-8 lg:overflow-y-auto lg:p-10">
@@ -274,7 +233,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
                           type="button"
                           key={color.name}
                           onClick={() => selectColor(color.name)}
-                          className={`relative h-16 w-16 overflow-hidden rounded-xl border-2 bg-white p-1 transition ${selectedColor === color.name ? 'border-laser-400 shadow-[0_0_0_2px_rgba(34,211,238,0.16)]' : 'border-chumbo-700 hover:border-chumbo-500'}`}
+                          onMouseEnter={() => selectColor(color.name)}
+                          className={`relative h-16 w-16 overflow-hidden rounded-xl border-2 bg-white p-1 transition ${selectedColor === color.name ? 'border-laser-400 shadow-[0_0_0_2px_rgba(34,211,238,0.16)] scale-105' : 'border-chumbo-700 hover:border-chumbo-500'}`}
                           title={color.name}
                           aria-label={`Selecionar cor ${color.name}`}
                           aria-pressed={selectedColor === color.name}
@@ -311,7 +271,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
 
                 {/* Simulador de Frete no Modal */}
                 <div className="mt-5 border-t border-chumbo-800 pt-5">
-                  <FreightCalculatorWidget compact />
+                  <FreightCalculatorWidget
+                    compact
+                    selectedOptionCode={selectedFreight?.code}
+                    onSelectOption={(opt) => setSelectedFreight(opt)}
+                  />
                 </div>
               </div>
             </div>
@@ -320,10 +284,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
               <div className="grid grid-cols-[1fr_auto] items-end gap-4 lg:grid-cols-[minmax(150px,1fr)_auto_minmax(220px,1.2fr)]">
                 <div aria-live="polite" aria-label="Total da compra">
                   <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500">Total</span>
-                  <span className="mt-1 block whitespace-nowrap text-3xl font-extrabold text-white">{money(purchaseTotal)}</span>
-                  {quantity > 1 && (
-                    <span className="mt-1 block whitespace-nowrap text-[11px] text-slate-500">{quantity} × {money(selectedPrice)} cada</span>
-                  )}
+                  <span className="mt-1 block whitespace-nowrap text-3xl font-extrabold text-white">{money(finalTotal)}</span>
+                  <div className="mt-1 flex flex-col text-[11px] text-slate-400">
+                    {quantity > 1 && <span>{quantity} × {money(selectedPrice)} cada</span>}
+                    {selectedFreight && <span className="font-mono text-laser-400 font-bold">+ Frete ({selectedFreight.name}): {money(selectedFreight.price)}</span>}
+                  </div>
                 </div>
 
                 <div className="flex h-12 items-center rounded-xl border border-chumbo-700 bg-chumbo-950 p-1" aria-label="Quantidade">

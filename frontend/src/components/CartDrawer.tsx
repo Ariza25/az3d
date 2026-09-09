@@ -50,6 +50,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [drawerMode, setDrawerMode] = useState<'cart' | 'orders'>('cart');
   const [checkoutStep, setCheckoutStep] = useState<'items' | 'delivery'>('items');
+  const [selectedFreight, setSelectedFreight] = useState<{ code: string; name: string; price: number; deliveryDays: number } | null>(null);
+
+  const freightAmount = (deliveryMethod === 'shipping' && selectedFreight) ? selectedFreight.price : 0;
+  const cartGrandTotal = totalPrice + freightAmount;
 
   const canShip = tenantSettings?.delivery_ship_enabled ?? true;
   const canPickup = tenantSettings?.delivery_pickup_enabled ?? true;
@@ -380,7 +384,11 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
                       </article>
                     ))}
                     <div className="mt-4 pt-2">
-                      <FreightCalculatorWidget compact />
+                      <FreightCalculatorWidget
+                        compact
+                        selectedOptionCode={selectedFreight?.code}
+                        onSelectOption={(opt) => setSelectedFreight(opt)}
+                      />
                     </div>
                   </div>
                 ) : (
@@ -417,6 +425,34 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
                       </div>
                     </section>
 
+                    {deliveryMethod === 'shipping' && (
+                      <section className="space-y-4">
+                        <div>
+                          <h3 className="text-sm font-bold text-white mb-2">Cálculo & Escolha do Frete</h3>
+                          <FreightCalculatorWidget
+                            compact
+                            selectedOptionCode={selectedFreight?.code}
+                            onSelectOption={(opt) => setSelectedFreight(opt)}
+                          />
+                        </div>
+
+                        <div>
+                          <div className="mb-3">
+                            <h3 className="text-sm font-bold text-white">Endereço de entrega</h3>
+                            <p className="mt-1 text-xs text-slate-500">Preencha onde o pedido deve chegar.</p>
+                          </div>
+                          <div className="grid gap-3 sm:grid-cols-[1fr_1fr_88px]">
+                            <RequiredInput label="CEP" value={zipCode} onChange={setZipCode} placeholder="00000-000" autoComplete="postal-code" />
+                            <RequiredInput label="Cidade" value={city} onChange={setCity} placeholder="Sua cidade" autoComplete="address-level2" />
+                            <RequiredInput label="UF" value={state} onChange={setState} placeholder="SP" autoComplete="address-level1" />
+                          </div>
+                          <div className="mt-3">
+                            <RequiredInput label="Endereço completo" value={shippingAddress} onChange={setShippingAddress} placeholder="Rua, número, bairro e complemento" autoComplete="street-address" />
+                          </div>
+                        </div>
+                      </section>
+                    )}
+
                     <section>
                       <div className="mb-3">
                         <h3 className="text-sm font-bold text-white">Dados para contato</h3>
@@ -427,23 +463,6 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
                         <RequiredInput label="Telefone" value={recipientPhone} onChange={setRecipientPhone} placeholder="(00) 00000-0000" autoComplete="tel" />
                       </div>
                     </section>
-
-                    {deliveryMethod === 'shipping' && (
-                      <section>
-                        <div className="mb-3">
-                          <h3 className="text-sm font-bold text-white">Endereço de entrega</h3>
-                          <p className="mt-1 text-xs text-slate-500">Preencha onde o pedido deve chegar.</p>
-                        </div>
-                        <div className="grid gap-3 sm:grid-cols-[1fr_1fr_88px]">
-                          <RequiredInput label="CEP" value={zipCode} onChange={setZipCode} placeholder="00000-000" autoComplete="postal-code" />
-                          <RequiredInput label="Cidade" value={city} onChange={setCity} placeholder="Sua cidade" autoComplete="address-level2" />
-                          <RequiredInput label="UF" value={state} onChange={setState} placeholder="SP" autoComplete="address-level1" />
-                        </div>
-                        <div className="mt-3">
-                          <RequiredInput label="Endereço completo" value={shippingAddress} onChange={setShippingAddress} placeholder="Rua, número, bairro e complemento" autoComplete="street-address" />
-                        </div>
-                      </section>
-                    )}
 
                     <label className="block">
                       <span className="mb-1.5 block text-xs font-semibold text-slate-300">Observações <span className="font-normal text-slate-500">(opcional)</span></span>
@@ -484,16 +503,28 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
               )}
 
               {cart.length > 0 && checkoutStep === 'delivery' && (
-                <footer className="border-t border-chumbo-850 bg-chumbo-900/90 px-5 py-5 sm:px-7">
-                  <div className="mb-4 flex items-center justify-between">
-                    <span className="text-sm font-semibold text-slate-300">Total do pedido</span>
-                    <span className="text-2xl font-extrabold text-white">{money(totalPrice)}</span>
+                <footer className="border-t border-chumbo-850 bg-chumbo-900/90 px-5 py-5 sm:px-7 space-y-2">
+                  <div className="flex items-center justify-between text-xs text-slate-400">
+                    <span>Subtotal produtos</span>
+                    <span className="font-mono font-semibold text-white">{money(totalPrice)}</span>
+                  </div>
+                  {deliveryMethod === 'shipping' && (
+                    <div className="flex items-center justify-between text-xs text-slate-400">
+                      <span>Frete ({selectedFreight?.name || 'A definir'})</span>
+                      <span className="font-mono font-bold text-laser-400">
+                        {selectedFreight ? money(selectedFreight.price) : 'Grátis / A calcular'}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between pt-2 border-t border-chumbo-800">
+                    <span className="text-sm font-bold text-slate-200">Total do pedido</span>
+                    <span className="text-2xl font-extrabold text-white">{money(cartGrandTotal)}</span>
                   </div>
                   <button
                     type="button"
                     onClick={handleCheckout}
                     disabled={isSubmitting || (!canShip && !canPickup)}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-white py-3.5 text-sm font-extrabold text-chumbo-950 shadow-xl transition-colors hover:bg-slate-200 disabled:opacity-50"
+                    className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-white py-3.5 text-sm font-extrabold text-chumbo-950 shadow-xl transition-colors hover:bg-slate-200 disabled:opacity-50"
                   >
                     <span>{isSubmitting ? 'Abrindo Mercado Pago...' : 'Ir para o pagamento'}</span>
                     <ArrowRight className="h-4 w-4" />

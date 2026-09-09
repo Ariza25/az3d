@@ -25,6 +25,16 @@ export const FreightCalculatorWidget: React.FC<FreightCalculatorWidgetProps> = (
   const [isLoading, setIsLoading] = useState(false);
   const [options, setOptions] = useState<FreightOption[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [internalSelectedCode, setInternalSelectedCode] = useState<string | null>(selectedOptionCode || null);
+
+  const activeSelectedCode = selectedOptionCode || internalSelectedCode;
+
+  const handleSelectOption = (opt: FreightOption) => {
+    setInternalSelectedCode(opt.code);
+    if (onSelectOption) {
+      onSelectOption(opt);
+    }
+  };
 
   const handleCalculate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,8 +57,8 @@ export const FreightCalculatorWidget: React.FC<FreightCalculatorWidgetProps> = (
       }));
 
       setOptions(mappedOptions);
-      if (onSelectOption && mappedOptions.length > 0) {
-        onSelectOption(mappedOptions[0]);
+      if (mappedOptions.length > 0) {
+        handleSelectOption(mappedOptions[0]);
       }
     } catch (err: any) {
       setError(err.message || 'Falha ao calcular frete no servidor.');
@@ -96,15 +106,15 @@ export const FreightCalculatorWidget: React.FC<FreightCalculatorWidgetProps> = (
       {options && (
         <div className="mt-3 space-y-2 border-t border-chumbo-800 pt-3">
           {options.map((opt) => {
-            const isSelected = selectedOptionCode === opt.code;
+            const isSelected = activeSelectedCode === opt.code;
             return (
               <button
                 key={opt.code}
                 type="button"
-                onClick={() => onSelectOption && onSelectOption(opt)}
+                onClick={() => handleSelectOption(opt)}
                 className={`flex w-full items-center justify-between rounded-lg border p-2.5 text-left transition-all ${
                   isSelected
-                    ? 'border-laser-500 bg-laser-500/10 text-white'
+                    ? 'border-laser-500 bg-laser-500/10 text-white shadow-md'
                     : 'border-chumbo-800 bg-chumbo-950/40 text-slate-300 hover:border-chumbo-700'
                 }`}
               >
