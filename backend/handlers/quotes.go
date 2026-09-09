@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"az3d-backend/database"
+	"az3d-backend/internal/stlparser"
 	"az3d-backend/models"
 
 	"github.com/gin-gonic/gin"
@@ -112,3 +113,33 @@ func CalculateShippingQuote(c *gin.Context) {
 		"options":          options,
 	})
 }
+
+// ParseSTLFile analyzes uploaded .stl 3D mesh and computes volume, dimensions, weight, and price
+func ParseSTLFile(c *gin.Context) {
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Arquivo .STL obrigatório no campo 'file'"})
+		return
+	}
+
+	file, err := fileHeader.Open()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Falha ao abrir arquivo enviado: " + err.Error()})
+		return
+	}
+	defer file.Close()
+
+	mesh, err := stlparser.ParseSTL(file)
+	if err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Não foi possível processar a malha 3D: " + err.Error()})
+		return
+	}
+
+	material := c.PostForm("material_type")
+	infillStr := c.PostForm("infill_percent")
+	infill, _ := strconv.Atoi(infillStr)
+
+	sliceResult := stlparser.CalculateWeightAndHours(mesh, material, infill)
+	c.JSON(http.StatusOK, sliceResult)
+}
+

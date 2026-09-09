@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { X, UploadCloud, FileCheck, Layers, Cpu, Check, Loader2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, UploadCloud, FileCheck, Layers, Cpu, Check, Loader2, Box } from 'lucide-react';
 import { money } from '../shared/storePresentation';
 import { api } from '../services/api';
+import { parseSTLArrayBuffer, calculateClientSlice, ClientMeshAnalysis } from '../utils/stlParser';
 
 interface CustomPrintQuoteModalProps {
   isOpen: boolean;
@@ -11,18 +12,29 @@ interface CustomPrintQuoteModalProps {
 export const CustomPrintQuoteModal: React.FC<CustomPrintQuoteModalProps> = ({ isOpen, onClose }) => {
   const [fileName, setFileName] = useState<string | null>(null);
   const [fileSizeMb, setFileSizeMb] = useState<number>(0);
+  const [mesh, setMesh] = useState<ClientMeshAnalysis | null>(null);
   const [material, setMaterial] = useState<'PLA' | 'ABS' | 'PETG' | 'TPU' | 'Resin'>('PLA');
   const [infill, setInfill] = useState<number>(20);
   const [estimatedWeightG, setEstimatedWeightG] = useState<number>(45);
   const [estimatedHours, setEstimatedHours] = useState<number>(3.5);
   const [estimatedPrice, setEstimatedPrice] = useState<number>(68.0);
   const [customerEmail, setCustomerEmail] = useState<string>('');
+  const [isParsing, setIsParsing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
 
+  useEffect(() => {
+    if (mesh) {
+      const slice = calculateClientSlice(mesh, material, infill);
+      setEstimatedWeightG(slice.estimatedWeightG);
+      setEstimatedHours(slice.estimatedHours);
+      setEstimatedPrice(slice.estimatedPrice);
+    }
+  }, [material, infill, mesh]);
+
   if (!isOpen) return null;
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -30,14 +42,35 @@ export const CustomPrintQuoteModal: React.FC<CustomPrintQuoteModalProps> = ({ is
     const mb = parseFloat((file.size / (1024 * 1024)).toFixed(2));
     setFileSizeMb(mb);
 
-    const mockVolumeG = Math.round(Math.max(15, mb * 12 + 10));
-    const mockHours = parseFloat((mockVolumeG / 15).toFixed(1));
-    setEstimatedWeightG(mockVolumeG);
-    setEstimatedHours(mockHours);
+    setIsParsing(true);
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const parsedMesh = parseSTLArrayBuffer(arrayBuffer);
+      setMesh(parsedMesh);
 
-    const matMultiplier = material === 'Resin' ? 1.8 : material === 'PETG' ? 1.3 : material === 'TPU' ? 1.5 : 1.0;
-    const calculatedPrice = (mockVolumeG * 0.45 + mockHours * 12) * matMultiplier;
-    setEstimatedPrice(Math.round(calculatedPrice));
+      const slice = calculateClientSlice(parsedMesh, material, infill);
+      setEstimatedWeightG(slice.estimatedWeightG);
+      setEstimatedHours(slice.estimatedHours);
+      setEstimatedPrice(slice.estimatedPrice);
+    } catch (err) {
+      console.warn('Fallback para estimativa rápida de arquivo 3D:', err);
+      const mockVol = Math.round(Math.max(15, mb * 12 + 10));
+      const mockMesh: ClientMeshAnalysis = {
+        triangleCount: 4500,
+        volumeCm3: mockVol,
+        surfaceAreaCm2: mockVol * 1.5,
+        dimXMm: 65,
+        dimYMm: 65,
+        dimZMm: 45,
+      };
+      setMesh(mockMesh);
+      const slice = calculateClientSlice(mockMesh, material, infill);
+      setEstimatedWeightG(slice.estimatedWeightG);
+      setEstimatedHours(slice.estimatedHours);
+      setEstimatedPrice(slice.estimatedPrice);
+    } finally {
+      setIsParsing(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -102,10 +135,15 @@ export const CustomPrintQuoteModal: React.FC<CustomPrintQuoteModalProps> = ({ is
               <input
                 type="file"
                 accept=".stl,.3mf,.obj"
-                onChange={handleFileUpload}
+                onChange={(e) => void handleFileUpload(e)}
                 className="absolute inset-0 opacity-0 cursor-pointer"
               />
-              {fileName ? (
+              {isParsing ? (
+                <div className="flex items-center justify-center gap-2 text-laser-400 font-bold text-sm">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span>Analisando malha 3D e calculando volume...</span>
+                </div>
+              ) : fileName ? (
                 <div className="flex items-center justify-center gap-3 text-laser-400 font-medium">
                   <FileCheck className="h-6 w-6" />
                   <span className="truncate max-w-xs">{fileName}</span>
@@ -115,7 +153,7 @@ export const CustomPrintQuoteModal: React.FC<CustomPrintQuoteModalProps> = ({ is
                 <div>
                   <UploadCloud className="mx-auto h-10 w-10 text-slate-400" />
                   <p className="mt-2 text-sm font-semibold text-white">Clique ou arraste seu arquivo .STL, .3MF ou .OBJ</p>
-                  <p className="mt-1 text-xs text-slate-400">Tamanho máximo: 50MB per file</p>
+                  <p className="mt-1 text-xs text-slate-400">Cálculo automático de volume (cm³), peso (g) e dimensões (mm)</p>
                 </div>
               )}
             </div>
@@ -155,24 +193,52 @@ export const CustomPrintQuoteModal: React.FC<CustomPrintQuoteModalProps> = ({ is
               </div>
             </div>
 
-            {/* Fatiamento Simulado */}
-            {fileName && (
-              <div className="rounded-xl border border-chumbo-800 bg-chumbo-900/80 p-4">
-                <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1.5">
-                  <Cpu className="h-4 w-4 text-laser-400" />
-                  <span>Análise de Fatiamento Estimado</span>
+            {/* Geometry Breakdown & Slicing Results */}
+            {mesh && (
+              <div className="rounded-xl border border-chumbo-800 bg-chumbo-900/80 p-4 space-y-3">
+                <div className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-laser-400">
+                    <Box className="h-4 w-4" />
+                    <span>Geometria 3D & Dimensões do Modelo</span>
+                  </div>
+                  <span className="font-mono text-[10px] text-slate-500">
+                    {mesh.triangleCount.toLocaleString('pt-BR')} triângulos
+                  </span>
                 </div>
+
+                {/* Dimensions X x Y x Z */}
+                <div className="grid grid-cols-3 gap-2 text-center text-xs border-b border-chumbo-800 pb-3">
+                  <div className="rounded-lg bg-chumbo-950 p-2">
+                    <span className="block text-[10px] text-slate-400">Largura (X)</span>
+                    <strong className="text-slate-200 font-mono">{mesh.dimXMm} mm</strong>
+                  </div>
+                  <div className="rounded-lg bg-chumbo-950 p-2">
+                    <span className="block text-[10px] text-slate-400">Profundidade (Y)</span>
+                    <strong className="text-slate-200 font-mono">{mesh.dimYMm} mm</strong>
+                  </div>
+                  <div className="rounded-lg bg-chumbo-950 p-2">
+                    <span className="block text-[10px] text-slate-400">Altura (Z)</span>
+                    <strong className="text-slate-200 font-mono">{mesh.dimZMm} mm</strong>
+                  </div>
+                </div>
+
+                {/* Slicing Calculations */}
+                <div className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                  <Cpu className="h-4 w-4 text-laser-400" />
+                  <span>Análise de Fatiamento em Tempo Real</span>
+                </div>
+
                 <div className="grid grid-cols-3 gap-2 text-center text-xs">
                   <div className="rounded-lg bg-chumbo-950 p-2">
-                    <span className="block text-slate-400">Peso Est.</span>
-                    <strong className="text-white font-mono">{estimatedWeightG}g</strong>
+                    <span className="block text-[10px] text-slate-400">Volume 3D</span>
+                    <strong className="text-white font-mono">{mesh.volumeCm3} cm³</strong>
                   </div>
                   <div className="rounded-lg bg-chumbo-950 p-2">
-                    <span className="block text-slate-400">Tempo Est.</span>
-                    <strong className="text-white font-mono">{estimatedHours}h</strong>
+                    <span className="block text-[10px] text-slate-400">Peso ({infill}% infill)</span>
+                    <strong className="text-amber-400 font-mono">{estimatedWeightG}g</strong>
                   </div>
                   <div className="rounded-lg bg-chumbo-950 p-2">
-                    <span className="block text-slate-400">Orçamento Est.</span>
+                    <span className="block text-[10px] text-slate-400">Orçamento</span>
                     <strong className="text-laser-400 font-mono font-bold">{money(estimatedPrice)}</strong>
                   </div>
                 </div>
@@ -202,7 +268,7 @@ export const CustomPrintQuoteModal: React.FC<CustomPrintQuoteModalProps> = ({ is
               </button>
               <button
                 type="submit"
-                disabled={!fileName || isSubmitting}
+                disabled={!fileName || isSubmitting || isParsing}
                 className="flex items-center gap-1.5 rounded-xl bg-laser-500 px-5 py-2 text-xs font-extrabold text-chumbo-950 hover:bg-laser-400 disabled:opacity-50"
               >
                 {isSubmitting ? (

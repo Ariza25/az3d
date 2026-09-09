@@ -88,6 +88,7 @@ func main() {
 		api.GET("/tenant/settings", tenantSettingsHandler.GetTenantSettings)
 		api.POST("/shipping/calculate-quote", handlers.CalculateShippingQuote)
 		api.POST("/quotes/custom-3d", handlers.CreateCustom3DQuote)
+		api.POST("/quotes/parse-stl", handlers.ParseSTLFile)
 		api.GET("/payments/mercadopago/oauth/callback", mercadoPagoHandler.OAuthCallback)
 		api.GET("/marketplaces/mercadolivre/oauth/callback", marketplaceHandler.MercadoLivreOAuthCallback)
 
