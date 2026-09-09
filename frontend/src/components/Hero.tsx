@@ -35,23 +35,23 @@ export const Hero: React.FC<HeroProps> = ({
       <div className="absolute -left-24 top-10 h-72 w-72 rounded-full bg-cyan-500/10 blur-3xl" />
       <div className="absolute right-0 top-0 h-full w-1/2 bg-[radial-gradient(circle_at_center,rgba(34,211,238,0.08),transparent_62%)]" />
 
-      <div className={`relative z-10 mx-auto grid max-w-7xl items-center gap-10 px-4 py-12 sm:px-6 lg:px-8 lg:py-16 ${featuredProduct ? 'lg:grid-cols-[minmax(0,1fr)_420px]' : ''}`}>
-        <div className="max-w-2xl space-y-7">
+      <div className={`relative z-10 mx-auto grid max-w-7xl items-center gap-6 sm:gap-10 px-4 py-6 sm:py-12 lg:px-8 lg:py-16 ${featuredProduct ? 'lg:grid-cols-[minmax(0,1fr)_420px]' : ''}`}>
+        <div className="max-w-2xl space-y-4 sm:space-y-7">
           <div className="flex items-center gap-3">
             {logoUrl ? (
-              <img src={logoUrl} alt={storeName} className="h-12 w-12 rounded-xl border border-white/15 bg-chumbo-900 object-cover" />
+              <img src={logoUrl} alt={storeName} className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl border border-white/15 bg-chumbo-900 object-cover" />
             ) : (
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-white/15 bg-chumbo-900" style={{ color: primaryColor }}>
-                <ShoppingBag className="h-6 w-6" />
+              <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-xl border border-white/15 bg-chumbo-900" style={{ color: primaryColor }}>
+                <ShoppingBag className="h-5 w-5 sm:h-6 sm:w-6" />
               </div>
             )}
             <div>
-              <p className="text-xs font-mono uppercase tracking-widest text-slate-400">Loja oficial</p>
-              <h1 className="text-4xl font-extrabold leading-tight text-white sm:text-5xl lg:text-6xl">{storeName}</h1>
+              <p className="text-[10px] sm:text-xs font-mono uppercase tracking-widest text-slate-400">Loja oficial</p>
+              <h1 className="text-2xl font-extrabold leading-tight text-white sm:text-5xl lg:text-6xl">{storeName}</h1>
             </div>
           </div>
 
-          <p className="max-w-xl text-base leading-relaxed text-slate-300 sm:text-lg">
+          <p className="max-w-xl text-xs sm:text-base leading-relaxed text-slate-300 sm:text-lg">
             Peças selecionadas, produção cuidadosa e compra direta. Explore o catálogo e encontre o item ideal para o seu projeto.
           </p>
 

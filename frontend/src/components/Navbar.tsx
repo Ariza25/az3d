@@ -33,7 +33,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <header className="sticky top-0 z-40 w-full glass-panel border-b border-chumbo-800 bg-chumbo-950/80 backdrop-blur-md">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-        <div className="flex h-16 items-center justify-between sm:h-20">
+        <div className="flex h-14 items-center justify-between sm:h-20">
           
           {/* Identidade da loja */}
           <div className="flex min-w-0 items-center space-x-3 sm:space-x-4">

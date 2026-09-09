@@ -32,8 +32,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal }
         />
         <div className="absolute inset-0 bg-gradient-to-t from-chumbo-950 via-transparent to-transparent opacity-80" />
 
-        <div className="absolute left-3 top-3">
-          <div className={`border px-2.5 py-1 rounded-lg text-[11px] font-bold ${stockStatus.tone}`}>
+        <div className="absolute left-2 top-2 sm:left-3 sm:top-3">
+          <div className={`border px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[10px] sm:text-[11px] font-bold ${stockStatus.tone}`}>
             {stockStatus.label}
           </div>
         </div>
@@ -43,67 +43,70 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal }
             e.stopPropagation();
             onOpenModal(product);
           }}
-          className="absolute top-3 right-3 p-2 rounded-xl bg-chumbo-950/80 hover:bg-chumbo-800 text-slate-300 hover:text-white border border-chumbo-700/80 opacity-0 group-hover:opacity-100 transition-all duration-200"
+          className="absolute top-2 right-2 sm:top-3 sm:right-3 p-1.5 sm:p-2 rounded-xl bg-chumbo-950/80 hover:bg-chumbo-800 text-slate-300 hover:text-white border border-chumbo-700/80 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-200"
           title="Ver detalhes do produto"
         >
-          <Maximize2 className="w-4 h-4" />
+          <Maximize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
         </button>
       </div>
 
-      <div className="flex flex-1 flex-col p-5">
+      <div className="flex flex-1 flex-col p-3 sm:p-5">
         <div className="flex-1">
-          <h3
-            onClick={() => onOpenModal(product)}
-            className="text-base font-bold text-white group-hover:text-slate-200 transition-colors line-clamp-1 cursor-pointer"
-          >
-            {product.title}
-          </h3>
-          {rating && reviewCount > 0 && (
-            <div className="mt-1 flex justify-end">
-              <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-300">
-                <Star className="h-3.5 w-3.5 fill-amber-300" />
+          <div className="flex items-start justify-between gap-1">
+            <h3
+              onClick={() => onOpenModal(product)}
+              className="text-xs sm:text-base font-bold text-white group-hover:text-slate-200 transition-colors line-clamp-2 cursor-pointer leading-tight"
+            >
+              {product.title}
+            </h3>
+            {rating && reviewCount > 0 && (
+              <span className="inline-flex shrink-0 items-center gap-0.5 text-[10px] sm:text-xs font-bold text-amber-300">
+                <Star className="h-3 w-3 sm:h-3.5 sm:w-3.5 fill-amber-300" />
                 {rating.toFixed(1)}
               </span>
-            </div>
-          )}
-          <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-slate-400">
+            )}
+          </div>
+
+          <p className="mt-1.5 hidden line-clamp-2 text-xs leading-relaxed text-slate-400 sm:block">
             {product.description}
           </p>
         </div>
 
-        <div className="mt-4 flex items-center justify-end gap-3 text-[11px] font-mono text-slate-500">
-          <div className="flex items-center -space-x-1.5">
+        {/* Available Color Swatches */}
+        <div className="mt-2 sm:mt-4 flex items-center justify-between text-[10px] sm:text-[11px] font-mono text-slate-500">
+          <div className="flex items-center -space-x-1 sm:-space-x-1.5">
             {colors.map((color) => {
               const visual = getColorVisual(color);
               return (
                 <span
                   key={color}
                   title={color}
-                  className="h-4 w-4 rounded-full border border-chumbo-950 ring-1 ring-chumbo-700"
+                  className="h-3 w-3 sm:h-4 sm:w-4 rounded-full border border-chumbo-950 ring-1 ring-chumbo-700"
                   style={{ backgroundColor: visual.hex, borderColor: visual.border }}
                 />
               );
             })}
-            {colors.length === 1 && <span className="ml-2 text-slate-500">{colors[0]}</span>}
-            {colors.length === 0 && <span className="text-slate-500">Cor padrao</span>}
           </div>
+          {colors.length > 0 && (
+            <span className="text-[10px] text-slate-400 sm:text-xs font-mono">{colors.length} cor{colors.length > 1 ? 'es' : ''}</span>
+          )}
         </div>
 
-        <div className="mt-5 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3 border-t border-chumbo-800 pt-4">
+        <div className="mt-3 sm:mt-5 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] items-stretch sm:items-end gap-2 sm:gap-3 border-t border-chumbo-800 pt-2.5 sm:pt-4">
           <div className="min-w-0">
-            <span className="text-[10px] uppercase font-mono tracking-wider text-slate-400 block">
+            <span className="text-[9px] sm:text-[10px] uppercase font-mono tracking-wider text-slate-400 block">
               {product.store_variants?.some((variant) => variant.price !== product.price) ? 'A partir de' : 'Preço'}
             </span>
-            <span className="block whitespace-nowrap text-xl font-extrabold text-white">{money(product.price)}</span>
+            <span className="block whitespace-nowrap text-sm sm:text-xl font-extrabold text-white">{money(product.price)}</span>
           </div>
 
           <button
             onClick={() => addToCart(defaultProduct, 1, defaultColor)}
             disabled={!stockStatus.canBuy}
-            className="flex h-11 items-center space-x-2 rounded-xl bg-white px-4 text-chumbo-950 shadow-md transition-all hover:bg-slate-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45"
+            className="flex h-9 sm:h-11 items-center justify-center space-x-1.5 rounded-xl bg-white px-2.5 sm:px-4 text-chumbo-950 shadow-md transition-all hover:bg-slate-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45"
           >
-            <ShoppingBag className="w-4 h-4" />
-            <span className="text-xs font-extrabold">{stockStatus.canBuy ? 'Adicionar' : 'Indisponível'}</span>
+            <ShoppingBag className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span className="text-[11px] sm:text-xs font-extrabold">{stockStatus.canBuy ? 'Comprar' : 'Esgotado'}</span>
           </button>
         </div>
       </div>

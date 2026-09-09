@@ -38,7 +38,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({ products, isLoading, o
       <div className="mb-5 flex items-center justify-between">
         <p className="text-sm text-slate-400"><span className="font-bold text-white">{products.length}</span> {products.length === 1 ? 'produto' : 'produtos'}</p>
       </div>
-      <div className="grid grid-cols-1 items-stretch gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className="grid grid-cols-2 items-stretch gap-3 sm:gap-6 md:grid-cols-3 lg:grid-cols-4">
         {products.map((product) => (
           <ProductCard key={product.id} product={product} onOpenModal={onOpenModal} />
         ))}

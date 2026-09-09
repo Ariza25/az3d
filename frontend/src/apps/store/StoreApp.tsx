@@ -16,9 +16,10 @@ import { api } from '../../services/api';
 import { StoreFilters, AvailabilityFilter, StoreSort } from '../../components/StoreFilters';
 import { getStockStatus, getTotalStock, groupMarketplaceProducts } from '../../shared/storePresentation';
 import { getCurrentStoreRouteStyle, getProductPath, getStorePath } from '../../shared/tenantRoutes';
-import { AlertCircle, CheckCircle2, Clock3, X } from 'lucide-react';
+import { AlertCircle, ArrowRight, CheckCircle2, Clock3, ShoppingBag, X } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { getAppPathname, withBasePath } from '../../shared/basePath';
+import { money } from '../../shared/storePresentation';
 
 const getProductSlugFromLocation = () => {
   const [, first, second, third, fourth] = getAppPathname().split('/');
@@ -65,7 +66,7 @@ export const StoreApp: React.FC = () => {
     setSearchQuery,
     isLoading,
   } = useTenantCatalog();
-  const { openCart, openOrders } = useCart();
+  const { openCart, openOrders, totalItems, totalPrice } = useCart();
 
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [tenantSettings, setTenantSettings] = useState<TenantSettings | null>(null);
@@ -383,6 +384,32 @@ export const StoreApp: React.FC = () => {
               Finalizar compra
             </button>
           </div>
+        </div>
+      )}
+
+      {totalItems > 0 && !cartNotice && (
+        <div className="fixed bottom-4 left-4 right-4 z-40 sm:hidden">
+          <button
+            onClick={openCart}
+            className="flex w-full items-center justify-between rounded-2xl border border-laser-500/40 bg-chumbo-950/95 p-3.5 shadow-2xl backdrop-blur-md transition-all active:scale-[0.98]"
+          >
+            <div className="flex items-center gap-3">
+              <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-laser-400 text-chumbo-950">
+                <ShoppingBag className="h-5 w-5 stroke-[2.2]" />
+                <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-white text-[10px] font-extrabold text-chumbo-950 shadow">
+                  {totalItems}
+                </span>
+              </div>
+              <div className="text-left">
+                <p className="text-xs font-bold text-slate-300">Ver carrinho</p>
+                <p className="text-sm font-extrabold text-white">{money(totalPrice)}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 rounded-xl bg-laser-400 px-3.5 py-2 text-xs font-extrabold text-chumbo-950">
+              <span>Checkout</span>
+              <ArrowRight className="h-4 w-4" />
+            </div>
+          </button>
         </div>
       )}
     </div>

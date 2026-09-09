@@ -102,10 +102,10 @@ export const CustomPrintQuoteModal: React.FC<CustomPrintQuoteModalProps> = ({ is
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-xl overflow-hidden rounded-2xl border border-chumbo-800 bg-chumbo-950 shadow-2xl">
-        <div className="flex items-center justify-between border-b border-chumbo-800 px-6 py-4">
-          <div className="flex items-center gap-2 text-lg font-extrabold text-white">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 sm:p-4 backdrop-blur-sm">
+      <div className="flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-chumbo-800 bg-chumbo-950 shadow-2xl">
+        <div className="flex items-center justify-between border-b border-chumbo-800 px-4 py-3 sm:px-6 sm:py-4">
+          <div className="flex items-center gap-2 text-base sm:text-lg font-extrabold text-white">
             <Layers className="h-5 w-5 text-laser-400" />
             <span>Orçamento de Impressão 3D Customizada</span>
           </div>
@@ -129,7 +129,7 @@ export const CustomPrintQuoteModal: React.FC<CustomPrintQuoteModalProps> = ({ is
             </p>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto">
             {/* File Dropzone */}
             <div className="relative rounded-xl border-2 border-dashed border-chumbo-700 bg-chumbo-900/50 p-6 text-center transition-colors hover:border-laser-500/60">
               <input
