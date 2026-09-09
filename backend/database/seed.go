@@ -1,0 +1,386 @@
+package database
+
+import (
+	"crypto/rand"
+	"encoding/base64"
+	"log"
+	"strings"
+
+	"az3d-backend/config"
+	"az3d-backend/models"
+	"az3d-backend/utils"
+
+	"gorm.io/gorm"
+)
+
+func bootstrapData(db *gorm.DB, cfg *config.Config) {
+	var tenant models.Tenant
+	if err := db.Where("slug = ?", "az3d").First(&tenant).Error; err != nil {
+		tenant = models.Tenant{Name: "AZ3D", Slug: "az3d"}
+		db.Create(&tenant)
+	} else if tenant.Name == "AZ3D Print Studio" {
+		db.Model(&tenant).Update("name", "AZ3D")
+		tenant.Name = "AZ3D"
+	}
+
+	ensureTenantSettings(db, tenant)
+	if strings.EqualFold(strings.TrimSpace(cfg.Env), "production") {
+		if err := neutralizeDefaultProductionPasswords(db); err != nil {
+			log.Fatalf("Erro ao remover senhas padrao em producao: %v", err)
+		}
+	} else {
+		ensureMasterAdmin(db, tenant.ID)
+		ensureTenantSeedAccount(db, tenant.ID)
+		ensureFilamentSpools(db, tenant.ID)
+	}
+	if strings.TrimSpace(cfg.AdminLogin) != "" {
+		if err := ensureConfiguredMasterAdmin(db, tenant.ID, cfg.AdminLogin, cfg.AdminPassword); err != nil {
+			log.Fatalf("Erro ao configurar conta master: %v", err)
+		}
+	}
+	cleanupLegacySeedArtifacts(db)
+}
+
+func ensureConfiguredMasterAdmin(db *gorm.DB, tenantID uint, login string, password string) error {
+	login = strings.ToLower(strings.TrimSpace(login))
+	passwordHash, err := utils.HashPassword(password)
+	if err != nil {
+		return err
+	}
+
+	var user models.User
+	result := db.Where("LOWER(email) = ?", login).First(&user)
+	if result.Error != nil {
+		if result.Error != gorm.ErrRecordNotFound {
+			return result.Error
+		}
+		result = db.Where("role = ?", "master_admin").Order("id ASC").First(&user)
+	}
+
+	if result.Error == nil {
+		return db.Model(&user).Updates(map[string]any{
+			"tenant_id":     tenantID,
+			"name":          "Admin Master",
+			"email":         login,
+			"password":      passwordHash,
+			"role":          "master_admin",
+			"auth_provider": "password",
+		}).Error
+	}
+	if result.Error != gorm.ErrRecordNotFound {
+		return result.Error
+	}
+
+	return db.Create(&models.User{
+		TenantID:     tenantID,
+		Name:         "Admin Master",
+		Email:        login,
+		Password:     passwordHash,
+		Role:         "master_admin",
+		AuthProvider: "password",
+	}).Error
+}
+
+func neutralizeDefaultProductionPasswords(db *gorm.DB) error {
+	accounts := []struct {
+		username        string
+		email           string
+		defaultPassword string
+	}{
+		{username: "admin", email: "admin@az3d.local", defaultPassword: "Admin@123"},
+		{username: "teste", email: "teste@gmail.com", defaultPassword: "Teste@123"},
+	}
+
+	for _, account := range accounts {
+		var user models.User
+		err := db.Where("username = ? OR email = ?", account.username, account.email).First(&user).Error
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				continue
+			}
+			return err
+		}
+		if !utils.CheckPasswordHash(account.defaultPassword, user.Password) {
+			continue
+		}
+
+		randomPassword := make([]byte, 48)
+		if _, err := rand.Read(randomPassword); err != nil {
+			return err
+		}
+		hash, err := utils.HashPassword(base64.RawURLEncoding.EncodeToString(randomPassword))
+		if err != nil {
+			return err
+		}
+		if err := db.Model(&user).Update("password", hash).Error; err != nil {
+			return err
+		}
+		log.Printf("Senha padrao desativada para a conta %q em producao", account.username)
+	}
+
+	return nil
+}
+
+func cleanupLegacySeedArtifacts(db *gorm.DB) {
+	legacyProductSlugs := []string{
+		"dragao-articulado-guardiao-ember",
+		"suporte-cyberspace-headphone",
+		"vaso-poligonal-voronoi-v1",
+		"capacete-cyberpunk-neon-protocol",
+		"organizador-modular-cabos-deskflow",
+		"busto-mecha-samurai-8k",
+		"luminaria-mesa-lua-texturizada-lunar-3d",
+		"gabarito-angular-mecanico-regulavel",
+		"chassis-robotico-4wd",
+	}
+	var legacyProducts []models.Product
+	db.Unscoped().Where("slug IN ?", legacyProductSlugs).Find(&legacyProducts)
+	productIDs := make([]uint, 0, len(legacyProducts))
+	for _, product := range legacyProducts {
+		productIDs = append(productIDs, product.ID)
+	}
+	if len(productIDs) > 0 {
+		db.Unscoped().Where("product_id IN ?", productIDs).Delete(&models.ProductColorImage{})
+		db.Unscoped().Where("product_id IN ?", productIDs).Delete(&models.ProductVariant{})
+		db.Unscoped().Where("product_id IN ?", productIDs).Delete(&models.ProductColorStock{})
+		db.Unscoped().Where("product_id IN ?", productIDs).Delete(&models.ProductReview{})
+		db.Unscoped().Where("product_id IN ?", productIDs).Delete(&models.ProductFavorite{})
+		db.Unscoped().Where("product_id IN ?", productIDs).Delete(&models.ProductPricingSnapshot{})
+		db.Unscoped().Where("product_id IN ?", productIDs).Delete(&models.ProductActualCost{})
+		db.Unscoped().Where("product_id IN ?", productIDs).Delete(&models.MarketplaceProductMapping{})
+		db.Unscoped().Where("id IN ?", productIDs).Delete(&models.Product{})
+	}
+
+	legacyCategorySlugs := []string{
+		"colecionaveis-geek",
+		"setup-tech",
+		"decoracao",
+		"utilitarios",
+		"cosplay-props",
+		"robotica-prototipagem",
+		"acessorios-industriais",
+	}
+	db.Unscoped().Where("slug IN ?", legacyCategorySlugs).Delete(&models.Category{})
+
+	db.Unscoped().Where("username IN ? OR email IN ?", []string{"admin-az3d", "cliente-az3d"}, []string{"admin@az3d.com.br", "cliente@az3d.com.br"}).Delete(&models.User{})
+	db.Unscoped().Where("external_order_id LIKE ? OR raw_payload = ?", "SIM-%", `{"source":"admin_simulation"}`).Delete(&models.ExternalMarketplaceOrder{})
+	db.Unscoped().Where("external_item_id LIKE ?", "ITEM-%").Delete(&models.ExternalMarketplaceOrderItem{})
+	db.Unscoped().Where("name IN ?", []string{"Manutencao e depreciacao", "Assinaturas e ferramentas"}).Delete(&models.TenantFixedCost{})
+	db.Unscoped().
+		Where("is_connected = ? AND access_token = ? AND refresh_token = ? AND auth_code = ? AND account_name IN ?", false, "", "", "", []string{"Shopee", "Mercado Livre", "Amazon Seller"}).
+		Delete(&models.MarketplaceAccount{})
+
+	var makerlab models.Tenant
+	if result := db.Where("slug = ? AND name = ?", "makerlab", "MakerLab 3D Tech").Limit(1).Find(&makerlab); result.RowsAffected > 0 {
+		db.Unscoped().Where("tenant_id = ?", makerlab.ID).Delete(&models.TenantSettings{})
+		db.Unscoped().Where("tenant_id = ?", makerlab.ID).Delete(&models.TenantStoreSettings{})
+		db.Unscoped().Where("tenant_id = ?", makerlab.ID).Delete(&models.TenantPricingSettings{})
+		db.Unscoped().Where("tenant_id = ?", makerlab.ID).Delete(&models.TenantFulfillmentSettings{})
+		db.Unscoped().Where("tenant_id = ?", makerlab.ID).Delete(&models.TenantMarketplaceSettings{})
+		db.Unscoped().Where("tenant_id = ?", makerlab.ID).Delete(&models.MaterialPreset{})
+		db.Unscoped().Where("tenant_id = ?", makerlab.ID).Delete(&models.PrinterPreset{})
+		db.Unscoped().Where("tenant_id = ?", makerlab.ID).Delete(&models.PlatformFeePreset{})
+		db.Unscoped().Where("tenant_id = ?", makerlab.ID).Delete(&models.MarketplaceAccount{})
+		db.Unscoped().Delete(&makerlab)
+	}
+}
+
+func ensureTenantSettings(db *gorm.DB, tenant models.Tenant) {
+	if tenant.ID == 0 {
+		return
+	}
+
+	settings := models.TenantSettings{
+		TenantID:              tenant.ID,
+		StoreName:             tenant.Name,
+		LogoURL:               tenant.LogoURL,
+		PrimaryColor:          "#22d3ee",
+		AccentColor:           "#ffffff",
+		DefaultSpoolPrice:     120,
+		DefaultSpoolWeight:    1000,
+		DefaultPrinterPowerKW: 0.07,
+		DefaultEnergyTariff:   1,
+		DefaultPackagingCost:  1.5,
+		DefaultLaborCost:      0,
+		DefaultExtraCost:      0,
+		DefaultFailureRatePct: 8,
+		DefaultMarginPct:      60,
+		DefaultPlatformFeePct: 12,
+		DefaultPaymentFeePct:  4.99,
+		DefaultFixedFee:       0,
+		DeliveryPickupEnabled: true,
+		DeliveryShipEnabled:   true,
+	}
+
+	var count int64
+	db.Model(&models.TenantSettings{}).Where("tenant_id = ?", tenant.ID).Count(&count)
+	if count == 0 {
+		db.Create(&settings)
+	} else {
+		db.Where("tenant_id = ?", tenant.ID).First(&settings)
+	}
+
+	db.Model(&models.TenantStoreSettings{}).Where("tenant_id = ?", tenant.ID).Count(&count)
+	if count == 0 {
+		db.Create(&models.TenantStoreSettings{
+			TenantID:     tenant.ID,
+			StoreName:    settings.StoreName,
+			LogoURL:      settings.LogoURL,
+			PrimaryColor: settings.PrimaryColor,
+			AccentColor:  settings.AccentColor,
+		})
+	}
+
+	db.Model(&models.TenantPricingSettings{}).Where("tenant_id = ?", tenant.ID).Count(&count)
+	if count == 0 {
+		db.Create(&models.TenantPricingSettings{
+			TenantID:              tenant.ID,
+			DefaultSpoolPrice:     settings.DefaultSpoolPrice,
+			DefaultSpoolWeight:    settings.DefaultSpoolWeight,
+			DefaultPrinterPowerKW: settings.DefaultPrinterPowerKW,
+			DefaultEnergyTariff:   settings.DefaultEnergyTariff,
+			DefaultPackagingCost:  settings.DefaultPackagingCost,
+			DefaultLaborCost:      settings.DefaultLaborCost,
+			DefaultExtraCost:      settings.DefaultExtraCost,
+			DefaultFailureRatePct: settings.DefaultFailureRatePct,
+			DefaultMarginPct:      settings.DefaultMarginPct,
+			DefaultPlatformFeePct: settings.DefaultPlatformFeePct,
+			DefaultPaymentFeePct:  settings.DefaultPaymentFeePct,
+			DefaultFixedFee:       settings.DefaultFixedFee,
+		})
+	}
+
+	db.Model(&models.TenantFulfillmentSettings{}).Where("tenant_id = ?", tenant.ID).Count(&count)
+	if count == 0 {
+		db.Create(&models.TenantFulfillmentSettings{
+			TenantID:              tenant.ID,
+			DeliveryPickupEnabled: settings.DeliveryPickupEnabled,
+			DeliveryShipEnabled:   settings.DeliveryShipEnabled,
+		})
+	}
+
+	db.Model(&models.MaterialPreset{}).Where("tenant_id = ?", tenant.ID).Count(&count)
+	if count == 0 {
+		db.Create(&models.MaterialPreset{
+			TenantID:         tenant.ID,
+			Name:             "PLA padrao",
+			MaterialType:     "PLA",
+			ColorName:        "Preto Slate",
+			SpoolPrice:       settings.DefaultSpoolPrice,
+			SpoolWeightGrams: settings.DefaultSpoolWeight,
+			IsDefault:        true,
+			IsActive:         true,
+		})
+	}
+
+	db.Model(&models.PrinterPreset{}).Where("tenant_id = ?", tenant.ID).Count(&count)
+	if count == 0 {
+		db.Create(&models.PrinterPreset{
+			TenantID:  tenant.ID,
+			Name:      "Impressora padrao",
+			PowerKW:   settings.DefaultPrinterPowerKW,
+			IsDefault: true,
+			IsActive:  true,
+		})
+	}
+
+	db.Model(&models.PlatformFeePreset{}).Where("tenant_id = ?", tenant.ID).Count(&count)
+	if count == 0 {
+		db.Create(&models.PlatformFeePreset{
+			TenantID:           tenant.ID,
+			Name:               "Loja propria",
+			PlatformFeePercent: settings.DefaultPlatformFeePct,
+			PaymentFeePercent:  settings.DefaultPaymentFeePct,
+			FixedFee:           settings.DefaultFixedFee,
+			IsDefault:          true,
+			IsActive:           true,
+		})
+	}
+}
+
+func ensureMasterAdmin(db *gorm.DB, tenantID uint) {
+	password, err := utils.HashPassword("Admin@123")
+	if err != nil {
+		log.Printf("Erro ao gerar senha do admin master: %v", err)
+		return
+	}
+
+	user := models.User{
+		TenantID: tenantID,
+		Name:     "Admin Master",
+		Username: "admin",
+		Email:    "admin@az3d.local",
+		Password: password,
+		Role:     "master_admin",
+	}
+
+	var existing models.User
+	err = db.Where("username = ? OR email = ?", user.Username, user.Email).First(&existing).Error
+	if err == nil {
+		updates := map[string]any{
+			"tenant_id": tenantID,
+			"name":      user.Name,
+			"username":  user.Username,
+			"role":      user.Role,
+		}
+		if existing.Email == "" {
+			updates["email"] = user.Email
+		}
+		db.Model(&existing).Updates(updates)
+		return
+	}
+
+	db.Create(&user)
+}
+
+func ensureTenantSeedAccount(db *gorm.DB, tenantID uint) {
+	password, err := utils.HashPassword("Teste@123")
+	if err != nil {
+		log.Printf("Erro ao gerar senha da conta tenant inicial: %v", err)
+		return
+	}
+
+	user := models.User{
+		TenantID: tenantID,
+		Name:     "Tenant AZ3D",
+		Username: "teste",
+		Email:    "teste@gmail.com",
+		Password: password,
+		Role:     "tenant_admin",
+	}
+
+	var existing models.User
+	err = db.Where("username = ? OR email = ?", user.Username, user.Email).First(&existing).Error
+	if err == nil {
+		db.Model(&existing).Updates(map[string]any{
+			"tenant_id": tenantID,
+			"name":      user.Name,
+			"username":  user.Username,
+			"email":     user.Email,
+			"password":  user.Password,
+			"role":      user.Role,
+		})
+		return
+	}
+
+	db.Create(&user)
+}
+
+func ensureFilamentSpools(db *gorm.DB, tenantID uint) {
+	var count int64
+	db.Model(&models.FilamentSpool{}).Where("tenant_id = ?", tenantID).Count(&count)
+	if count > 0 {
+		return
+	}
+
+	spools := []models.FilamentSpool{
+		{TenantID: tenantID, Name: "PLA Silk Gold ESUN", MaterialType: "PLA", ColorName: "Dourado Seda", ColorHex: "#eab308", SpoolWeightG: 1000, RemainingWeightG: 780, PricePerKG: 120.0, IsActive: true},
+		{TenantID: tenantID, Name: "PLA Matte Black Bambu", MaterialType: "PLA", ColorName: "Preto Fosco", ColorHex: "#1e293b", SpoolWeightG: 1000, RemainingWeightG: 140, PricePerKG: 110.0, IsActive: true},
+		{TenantID: tenantID, Name: "PETG Clear Red Sunlu", MaterialType: "PETG", ColorName: "Vermelho Translúcido", ColorHex: "#ef4444", SpoolWeightG: 1000, RemainingWeightG: 920, PricePerKG: 135.0, IsActive: true},
+		{TenantID: tenantID, Name: "TPU Flex Cyan Overture", MaterialType: "TPU", ColorName: "Ciano Flex", ColorHex: "#06b6d4", SpoolWeightG: 800, RemainingWeightG: 450, PricePerKG: 180.0, IsActive: true},
+	}
+
+	for _, spool := range spools {
+		db.Create(&spool)
+	}
+}
