@@ -10,16 +10,26 @@ import (
 	"time"
 
 	"az3d-backend/database"
+	"az3d-backend/internal/services"
 	"az3d-backend/models"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
-type PricingHandler struct{}
+type PricingHandler struct {
+	db      *gorm.DB
+	service *services.PricingService
+}
 
-func NewPricingHandler() *PricingHandler {
-	return &PricingHandler{}
+func NewPricingHandler(db *gorm.DB, service *services.PricingService) *PricingHandler {
+	if service == nil && db != nil {
+		service = services.NewPricingService(db)
+	}
+	return &PricingHandler{
+		db:      db,
+		service: service,
+	}
 }
 
 func getOrCreateTenantStoreSettings(tenantID uint) (models.TenantStoreSettings, error) {

@@ -1,13 +1,18 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"az3d-backend/config"
 	"az3d-backend/database"
 	"az3d-backend/handlers"
+	"az3d-backend/internal/services"
 	"az3d-backend/middleware"
 
 	"github.com/gin-contrib/cors"
@@ -26,6 +31,9 @@ func main() {
 	if cfg.Env == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
+
+	bgCtx, stopBg := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stopBg()
 
 	r := gin.New()
 	r.Use(gin.Recovery(), middleware.StructuredLogger())
@@ -48,19 +56,21 @@ func main() {
 		c.Status(204)
 	})
 
+	pricingService := services.NewPricingService(database.DB)
+
 	authHandler := handlers.NewAuthHandler(cfg)
 	productHandler := handlers.NewProductHandler(cfg)
 	mercadoPagoHandler := handlers.NewMercadoPagoHandler(cfg)
 	orderHandler := handlers.NewOrderHandler(mercadoPagoHandler)
 	tenantHandler := handlers.NewTenantHandler()
 	tenantSettingsHandler := handlers.NewTenantSettingsHandler()
-	pricingHandler := handlers.NewPricingHandler()
+	pricingHandler := handlers.NewPricingHandler(database.DB, pricingService)
 	marketplaceHandler := handlers.NewMarketplaceHandler(cfg)
 	carrierHandler := handlers.NewCarrierHandler(cfg)
 	shipmentHandler := handlers.NewShipmentHandler(cfg)
 	platformHandler := handlers.NewPlatformHandler(cfg)
-	handlers.StartTrackingSyncJob(cfg)
-	handlers.StartMarketplaceSyncJob(cfg, marketplaceHandler)
+	handlers.StartTrackingSyncJob(bgCtx, cfg)
+	handlers.StartMarketplaceSyncJob(bgCtx, cfg, marketplaceHandler)
 
 	r.Static("/uploads", "./uploads")
 

@@ -16,16 +16,13 @@ import (
 // StartMarketplaceSyncJob consumes the durable database outbox and periodically
 // reconciles connected accounts. Webhook handlers stay fast and never trust the
 // notification body as the source of catalog/order data.
-func StartMarketplaceSyncJob(cfg *config.Config, handler *MarketplaceHandler) {
-	if cfg == nil || handler == nil || cfg.MarketplaceSyncIntervalMin <= 0 || database.DB == nil {
+func StartMarketplaceSyncJob(ctx context.Context, cfg *config.Config, handler *MarketplaceHandler) {
+	if ctx == nil || cfg == nil || handler == nil || cfg.MarketplaceSyncIntervalMin <= 0 || database.DB == nil {
 		return
 	}
 	interval := time.Duration(cfg.MarketplaceSyncIntervalMin) * time.Minute
 	go func() {
-		// Do not wait for the first periodic reconciliation after a deploy/cold
-		// start. This also backfills catalog details added by newer importer
-		// versions, such as the complete image gallery for each variation.
-		startupCtx, startupCancel := context.WithTimeout(context.Background(), 4*time.Minute)
+		startupCtx, startupCancel := context.WithTimeout(ctx, 4*time.Minute)
 		accounts, products, failed := handler.ReconcileMarketplaceCatalogs(startupCtx)
 		startupCancel()
 		log.Printf("[marketplace-sync] startup catalog reconciliation accounts=%d products=%d failed=%d", accounts, products, failed)
@@ -33,16 +30,22 @@ func StartMarketplaceSyncJob(cfg *config.Config, handler *MarketplaceHandler) {
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		cycles := 0
-		for range ticker.C {
-			ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
-			processed, failed := handler.ProcessMarketplaceQueue(ctx, 100)
-			cycles++
-			if cycles%15 == 0 {
-				handler.ReconcileMarketplaceAccounts(ctx)
-			}
-			cancel()
-			if processed > 0 || failed > 0 {
-				log.Printf("[marketplace-sync] processed=%d failed=%d", processed, failed)
+		for {
+			select {
+			case <-ctx.Done():
+				log.Println("[marketplace-sync] job encerrado graciosamente")
+				return
+			case <-ticker.C:
+				syncCtx, cancel := context.WithTimeout(ctx, 4*time.Minute)
+				processed, failed := handler.ProcessMarketplaceQueue(syncCtx, 100)
+				cycles++
+				if cycles%15 == 0 {
+					handler.ReconcileMarketplaceAccounts(syncCtx)
+				}
+				cancel()
+				if processed > 0 || failed > 0 {
+					log.Printf("[marketplace-sync] processed=%d failed=%d", processed, failed)
+				}
 			}
 		}
 	}()

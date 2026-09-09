@@ -35,18 +35,24 @@ type trackingSyncEntry struct {
 	Error         string `json:"error,omitempty"`
 }
 
-func StartTrackingSyncJob(cfg *config.Config) {
-	if cfg.TrackingSyncIntervalMin <= 0 {
+func StartTrackingSyncJob(ctx context.Context, cfg *config.Config) {
+	if ctx == nil || cfg == nil || cfg.TrackingSyncIntervalMin <= 0 {
 		return
 	}
 	interval := time.Duration(cfg.TrackingSyncIntervalMin) * time.Minute
 	go func() {
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
-		for range ticker.C {
-			summary := SyncActiveTracking(context.Background(), cfg, 0)
-			if summary.Processed > 0 || summary.Failed > 0 {
-				log.Printf("[tracking-sync] processed=%d synced=%d failed=%d", summary.Processed, summary.Synced, summary.Failed)
+		for {
+			select {
+			case <-ctx.Done():
+				log.Println("[tracking-sync] job encerrado graciosamente")
+				return
+			case <-ticker.C:
+				summary := SyncActiveTracking(ctx, cfg, 0)
+				if summary.Processed > 0 || summary.Failed > 0 {
+					log.Printf("[tracking-sync] processed=%d synced=%d failed=%d", summary.Processed, summary.Synced, summary.Failed)
+				}
 			}
 		}
 	}()
