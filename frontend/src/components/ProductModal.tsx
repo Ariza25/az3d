@@ -36,23 +36,38 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
   const activeProduct = useMemo(() => product ? getStoreVariantProduct(product, selectedColor) : null, [product, selectedColor]);
 
   const imageChoices = useMemo(() => {
+    if (!product) return [];
+    const norm = (s: string) => (s || '').trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const selectedKey = norm(selectedColor);
+
+    const candidateList = [
+      ...(activeProduct?.color_images || []),
+      ...(product.color_images || []),
+    ];
+
+    let matchedUrls = candidateList
+      .filter((img) => {
+        if (!img || !img.image_url) return false;
+        if (!img.color_name) return true;
+        const imgColorKey = norm(img.color_name);
+        return imgColorKey === selectedKey || imgColorKey === 'padrao';
+      })
+      .map((img) => img.image_url);
+
+    if (matchedUrls.length === 0 && activeProduct?.image_url) {
+      matchedUrls.push(activeProduct.image_url);
+    }
+    if (matchedUrls.length === 0 && product.image_url) {
+      matchedUrls.push(product.image_url);
+    }
+
     const seen = new Set<string>();
-    if (!activeProduct) return [];
-    const selectedColorKey = selectedColor.trim().toLocaleLowerCase('pt-BR');
-    const variantImages = activeProduct.color_images || [];
-    const groupedImages = (product?.color_images || []).filter(
-      (image) => image.color_name.trim().toLocaleLowerCase('pt-BR') === selectedColorKey
-    );
-    const choices = [...variantImages, ...groupedImages]
-      .filter((image) => product?.store_variants?.length || image.color_name.trim().toLocaleLowerCase('pt-BR') === selectedColorKey)
-      .map((image) => image.image_url);
-    if (choices.length === 0 && activeProduct.image_url) choices.push(activeProduct.image_url);
-    return choices.filter((imageUrl) => {
-      if (!imageUrl || seen.has(imageUrl)) return false;
-      seen.add(imageUrl);
+    return matchedUrls.filter((url) => {
+      if (!url || seen.has(url)) return false;
+      seen.add(url);
       return true;
     });
-  }, [activeProduct, product?.color_images, product?.store_variants, selectedColor]);
+  }, [activeProduct, product, selectedColor]);
 
   useEffect(() => {
     setSelectedColor(availableColors[0]?.name || 'Padrão');
