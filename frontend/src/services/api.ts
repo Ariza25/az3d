@@ -998,28 +998,30 @@ export const api = {
     return data;
   },
 
-  // Mercado Livre Trends & Market Intelligence
-  getMLTrends: async (category?: string, tenantId?: number): Promise<{ category?: string; trends: MLTrendKeyword[] }> => {
+  // Mercado Livre & Shopee Trends & Market Intelligence
+  getMLTrends: async (category?: string, provider = 'mercadolivre', tenantId?: number): Promise<{ category?: string; provider?: string; trends: MLTrendKeyword[] }> => {
     const params = new URLSearchParams();
     if (category) params.append('category', category);
+    if (provider) params.append('provider', provider);
     const res = await fetch(`${API_BASE_URL}/admin/marketplaces/trends?${params.toString()}`, {
       headers: getAdminHeaders(tenantId),
     });
-    if (!res.ok) throw new Error('Erro ao carregar tendências do Mercado Livre');
+    if (!res.ok) throw new Error('Erro ao carregar tendências do marketplace');
     return res.json();
   },
 
-  getMLSearchInsights: async (query?: string, tenantId?: number): Promise<MLSearchInsight> => {
+  getMLSearchInsights: async (query?: string, provider = 'mercadolivre', tenantId?: number): Promise<MLSearchInsight> => {
     const params = new URLSearchParams();
     if (query) params.append('q', query);
+    if (provider) params.append('provider', provider);
     const res = await fetch(`${API_BASE_URL}/admin/marketplaces/search-insights?${params.toString()}`, {
       headers: getAdminHeaders(tenantId),
     });
-    if (!res.ok) throw new Error('Erro ao analisar concorrência no Mercado Livre');
+    if (!res.ok) throw new Error('Erro ao analisar concorrência no marketplace');
     return res.json();
   },
 
-  auditMLListing: async (params: { title?: string; price?: number; images?: number; free_shipping?: boolean; full_shipping?: boolean; material?: string }, tenantId?: number): Promise<MLListingAudit> => {
+  auditMLListing: async (params: { title?: string; price?: number; images?: number; free_shipping?: boolean; full_shipping?: boolean; material?: string; provider?: string }, tenantId?: number): Promise<MLListingAudit> => {
     const urlParams = new URLSearchParams();
     if (params.title) urlParams.append('title', params.title);
     if (params.price) urlParams.append('price', String(params.price));
@@ -1027,6 +1029,7 @@ export const api = {
     if (params.free_shipping) urlParams.append('free_shipping', 'true');
     if (params.full_shipping) urlParams.append('full_shipping', 'true');
     if (params.material) urlParams.append('material', params.material);
+    if (params.provider) urlParams.append('provider', params.provider);
     const res = await fetch(`${API_BASE_URL}/admin/marketplaces/listing-audit?${urlParams.toString()}`, {
       headers: getAdminHeaders(tenantId),
     });
@@ -1034,9 +1037,10 @@ export const api = {
     return res.json();
   },
 
-  getMLProductOpportunities: async (category?: string, tenantId?: number): Promise<{ category?: string; opportunities: MLProductOpportunity[] }> => {
+  getMLProductOpportunities: async (category?: string, provider = 'mercadolivre', tenantId?: number): Promise<{ category?: string; provider?: string; opportunities: MLProductOpportunity[] }> => {
     const params = new URLSearchParams();
     if (category) params.append('category', category);
+    if (provider) params.append('provider', provider);
     const res = await fetch(`${API_BASE_URL}/admin/marketplaces/product-opportunities?${params.toString()}`, {
       headers: getAdminHeaders(tenantId),
     });

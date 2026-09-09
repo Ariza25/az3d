@@ -32,6 +32,7 @@ export const MarketplaceIntelligencePanel: React.FC<MarketplaceIntelligencePanel
   tenantId,
   products = [],
 }) => {
+  const [provider, setProvider] = useState<'mercadolivre' | 'shopee' | 'amazon'>('mercadolivre');
   const [activeTab, setActiveTab] = useState<'trends' | 'audit' | 'insights' | 'opportunities'>('trends');
 
   // Trends state
@@ -47,7 +48,7 @@ export const MarketplaceIntelligencePanel: React.FC<MarketplaceIntelligencePanel
   // Audit state
   const [selectedProductId, setSelectedProductId] = useState<number | ''>('');
   const [auditParams, setAuditParams] = useState({
-    title: 'Suporte de Headset Gamer 3D Universal PLA',
+    title: 'Suporte de Headset Gamer 3D Universal PLA #shopee #achadinhos',
     price: 69.90,
     images: 5,
     free_shipping: true,
@@ -63,16 +64,29 @@ export const MarketplaceIntelligencePanel: React.FC<MarketplaceIntelligencePanel
 
   // Load initial data
   useEffect(() => {
-    void loadTrends();
-    void loadSearchInsights('suporte headset');
-    void loadOpportunities();
-    void runAudit();
-  }, [tenantId]);
+    void reloadAllData(provider);
+  }, [tenantId, provider]);
 
-  const loadTrends = async (category = selectedCategory) => {
+  const reloadAllData = async (targetProvider = provider) => {
+    await Promise.all([
+      loadTrends(selectedCategory, targetProvider),
+      loadSearchInsights(searchQuery, targetProvider),
+      loadOpportunities(selectedCategory, targetProvider),
+      runAudit(targetProvider),
+    ]);
+  };
+
+  const handleSwitchProvider = (newProvider: 'mercadolivre' | 'shopee' | 'amazon') => {
+    setProvider(newProvider);
+    if (newProvider === 'shopee' && !auditParams.title.includes('#')) {
+      setAuditParams((prev) => ({ ...prev, title: `${prev.title} #shopee #achadinhos #impressao3d` }));
+    }
+  };
+
+  const loadTrends = async (category = selectedCategory, targetProvider = provider) => {
     setLoadingTrends(true);
     try {
-      const res = await api.getMLTrends(category === 'all' ? undefined : category, tenantId);
+      const res = await api.getMLTrends(category === 'all' ? undefined : category, targetProvider, tenantId);
       setTrends(res.trends || []);
     } catch (err) {
       console.error(err);
@@ -81,11 +95,11 @@ export const MarketplaceIntelligencePanel: React.FC<MarketplaceIntelligencePanel
     }
   };
 
-  const loadSearchInsights = async (query: string) => {
+  const loadSearchInsights = async (query: string, targetProvider = provider) => {
     if (!query.trim()) return;
     setLoadingInsights(true);
     try {
-      const res = await api.getMLSearchInsights(query, tenantId);
+      const res = await api.getMLSearchInsights(query, targetProvider, tenantId);
       setSearchInsight(res);
     } catch (err) {
       console.error(err);
@@ -94,10 +108,10 @@ export const MarketplaceIntelligencePanel: React.FC<MarketplaceIntelligencePanel
     }
   };
 
-  const runAudit = async () => {
+  const runAudit = async (targetProvider = provider) => {
     setLoadingAudit(true);
     try {
-      const res = await api.auditMLListing(auditParams, tenantId);
+      const res = await api.auditMLListing({ ...auditParams, provider: targetProvider }, tenantId);
       setAuditResult(res);
     } catch (err) {
       console.error(err);
@@ -106,10 +120,10 @@ export const MarketplaceIntelligencePanel: React.FC<MarketplaceIntelligencePanel
     }
   };
 
-  const loadOpportunities = async () => {
+  const loadOpportunities = async (category = selectedCategory, targetProvider = provider) => {
     setLoadingOpps(true);
     try {
-      const res = await api.getMLProductOpportunities(undefined, tenantId);
+      const res = await api.getMLProductOpportunities(category === 'all' ? undefined : category, targetProvider, tenantId);
       setOpportunities(res.opportunities || []);
     } catch (err) {
       console.error(err);
@@ -122,8 +136,9 @@ export const MarketplaceIntelligencePanel: React.FC<MarketplaceIntelligencePanel
     setSelectedProductId(prodId);
     const prod = products.find((p) => p.id === prodId);
     if (prod) {
+      const baseTitle = prod.title;
       setAuditParams({
-        title: prod.title,
+        title: provider === 'shopee' && !baseTitle.includes('#') ? `${baseTitle} #shopee #impressao3d` : baseTitle,
         price: prod.price,
         images: (prod as any).images?.length || (prod.image_url ? 4 : 1),
         free_shipping: prod.price >= 79,
@@ -146,29 +161,68 @@ export const MarketplaceIntelligencePanel: React.FC<MarketplaceIntelligencePanel
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-xl font-extrabold tracking-wide text-white">
-                  Inteligência Mercado Livre & Trend Radar
+                  Inteligência de Mercado {provider === 'amazon' ? 'Amazon 📦' : provider === 'shopee' ? 'Shopee 🧡' : 'Mercado Livre 💛'}
                 </h2>
                 <span className="rounded-full bg-amber-500/20 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-400 border border-amber-500/30">
-                  Estilo Metrify + Google Trends
+                  {provider === 'amazon' ? 'Amazon SP-API Engine' : provider === 'shopee' ? 'Shopee Intelligence Engine' : 'Estilo Metrify + Google Trends'}
                 </span>
               </div>
               <p className="mt-1 text-xs text-slate-400">
-                Analise tendências do Mercado Livre, audite seus anúncios e descubra os produtos 3D mais lucrativos para vender.
+                {provider === 'amazon'
+                  ? 'Analise BSR da Amazon, audite anúncios estilo FBA (até 200 chars) e simule margens de lucro.'
+                  : provider === 'shopee'
+                  ? 'Analise tendências da Shopee, audite títulos com hashtags e descubra os produtos 3D mais lucrativos.'
+                  : 'Analise tendências do Mercado Livre, audite seus anúncios e descubra os produtos 3D mais lucrativos para vender.'}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Channel Selector Pills */}
+            <div className="flex items-center gap-1 rounded-xl bg-chumbo-950 p-1 border border-chumbo-800">
+              <button
+                type="button"
+                onClick={() => handleSwitchProvider('mercadolivre')}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
+                  provider === 'mercadolivre'
+                    ? 'bg-amber-400 text-chumbo-950 shadow-md shadow-amber-400/20'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <span>Mercado Livre 💛</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSwitchProvider('shopee')}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
+                  provider === 'shopee'
+                    ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <span>Shopee 🧡</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSwitchProvider('amazon')}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
+                  provider === 'amazon'
+                    ? 'bg-sky-500 text-white shadow-md shadow-sky-500/20'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <span>Amazon 📦</span>
+              </button>
+            </div>
+
             <button
-              onClick={() => {
-                void loadTrends();
-                void loadSearchInsights(searchQuery);
-                void runAudit();
-              }}
-              className="flex items-center gap-2 rounded-xl border border-chumbo-700 bg-chumbo-800/80 px-3.5 py-2 text-xs font-semibold text-slate-200 transition-colors hover:bg-chumbo-700 hover:text-white"
+              onClick={() => void reloadAllData()}
+              className="flex items-center gap-2 rounded-xl border border-chumbo-700 bg-chumbo-800/80 px-3 py-2 text-xs font-semibold text-slate-200 transition-colors hover:bg-chumbo-700 hover:text-white"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${loadingTrends || loadingOpps ? 'animate-spin' : ''}`} />
-              <span>Atualizar dados</span>
+              <span>Atualizar</span>
             </button>
           </div>
         </div>
@@ -359,7 +413,7 @@ export const MarketplaceIntelligencePanel: React.FC<MarketplaceIntelligencePanel
 
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1">
-                Título do Anúncio (ideal 50-60 chars)
+                Título do Anúncio ({provider === 'amazon' ? 'ideal 120-200 chars no padrão FBA' : provider === 'shopee' ? 'ideal 80-120 chars com #hashtags' : 'ideal 50-60 chars'})
               </label>
               <input
                 type="text"
@@ -368,9 +422,11 @@ export const MarketplaceIntelligencePanel: React.FC<MarketplaceIntelligencePanel
                 className="w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3 py-2 text-xs text-white focus:border-amber-500 focus:outline-none"
               />
               <span className={`text-[10px] mt-1 block font-mono ${
-                auditParams.title.length >= 45 && auditParams.title.length <= 60
-                  ? 'text-emerald-400'
-                  : 'text-amber-400'
+                provider === 'amazon'
+                  ? (auditParams.title.length >= 120 && auditParams.title.length <= 200 ? 'text-emerald-400' : 'text-amber-400')
+                  : provider === 'shopee'
+                  ? (auditParams.title.length >= 80 && auditParams.title.length <= 120 ? 'text-emerald-400' : 'text-amber-400')
+                  : (auditParams.title.length >= 45 && auditParams.title.length <= 60 ? 'text-emerald-400' : 'text-amber-400')
               }`}>
                 Tamanho atual: {auditParams.title.length} caracteres
               </span>
