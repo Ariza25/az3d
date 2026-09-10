@@ -130,7 +130,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [carrierAccounts, setCarrierAccounts] = useState<TenantCarrierAccount[]>([]);
   const [shipments, setShipments] = useState<OrderShipment[]>([]);
   const [syncingShipmentId, setSyncingShipmentId] = useState<number | 'all' | null>(null);
-  const [shipmentForm, setShipmentForm] = useState({ order_id: 0, carrier: 'correios', tracking_code: '' });
+  const [shipmentForm, setShipmentForm] = useState({ order_id: 0, carrier: 'superfrete', tracking_code: '' });
   const [mappings, setMappings] = useState<MarketplaceProductMapping[]>([]);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -224,7 +224,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     try {
       await api.saveShipment(shipmentForm, activeTenant.id);
       setMessage({ type: 'success', text: 'Envio vinculado com sucesso ao pedido!' });
-      setShipmentForm({ order_id: 0, carrier: 'correios', tracking_code: '' });
+      setShipmentForm({ order_id: 0, carrier: 'superfrete', tracking_code: '' });
       void loadTenantData('orders');
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Não foi possível vincular o envio.' });

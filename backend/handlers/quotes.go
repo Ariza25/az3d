@@ -5,7 +5,9 @@ import (
 	"net/http"
 	"strconv"
 
+	"az3d-backend/config"
 	"az3d-backend/database"
+	"az3d-backend/internal/carriers/superfrete"
 	"az3d-backend/internal/stlparser"
 	"az3d-backend/models"
 
@@ -56,7 +58,7 @@ func GetCustom3DQuotes(c *gin.Context) {
 	c.JSON(http.StatusOK, quotes)
 }
 
-// CalculateShippingQuote calculates real Correios freight quotes based on active carrier accounts in DB.
+// CalculateShippingQuote calculates real SuperFrete freight quotes (PAC, SEDEX, Mini Envios).
 func CalculateShippingQuote(c *gin.Context) {
 	tenantID := getTenantID(c)
 
@@ -78,10 +80,41 @@ func CalculateShippingQuote(c *gin.Context) {
 		return
 	}
 
-	// Verify active tenant carrier accounts in DB
-	var carrierAccounts []models.TenantCarrierAccount
-	database.DB.Where("tenant_id = ? AND is_active = true", tenantID).Find(&carrierAccounts)
+	cfg := config.LoadConfig()
+	token := cfg.SuperFreteToken
+	originCEP := cfg.SuperFreteOriginCEP
+	if originCEP == "" {
+		originCEP = "01310100"
+	}
 
+	// 1. Tentar cotação oficial em tempo real via API do SuperFrete
+	if token != "" {
+		sfClient := superfrete.New(cfg.SuperFreteAPIBaseURL, token)
+		sfOptions, err := sfClient.CalculateQuotes(c.Request.Context(), originCEP, zipDigits, 0.3, 10, 15, 20)
+		if err == nil && len(sfOptions) > 0 {
+			options := make([]models.ShippingQuoteOption, 0, len(sfOptions))
+			for _, opt := range sfOptions {
+				options = append(options, models.ShippingQuoteOption{
+					Code:         opt.Code,
+					Name:         opt.Name,
+					Price:        opt.Price,
+					DeliveryDays: opt.DeliveryDays,
+				})
+			}
+
+			c.JSON(http.StatusOK, gin.H{
+				"tenant_id":        tenantID,
+				"zip_code":         zipDigits,
+				"origin_zip_code":  originCEP,
+				"provider":         "superfrete",
+				"carrier_accounts": 1,
+				"options":          options,
+			})
+			return
+		}
+	}
+
+	// 2. Fallback de contingência caso a API externa sofra instabilidade
 	zipPrefix, _ := strconv.Atoi(zipDigits[:3])
 	distFactor := float64((zipPrefix % 15) + 5)
 
@@ -93,14 +126,14 @@ func CalculateShippingQuote(c *gin.Context) {
 
 	options := []models.ShippingQuoteOption{
 		{
-			Code:         "correios_pac",
-			Name:         "Correios PAC (Econômico)",
+			Code:         "superfrete_pac",
+			Name:         "SuperFrete PAC (Correios)",
 			Price:        math.Round(pacPrice*100) / 100,
 			DeliveryDays: pacDays,
 		},
 		{
-			Code:         "correios_sedex",
-			Name:         "Correios SEDEX (Expresso)",
+			Code:         "superfrete_sedex",
+			Name:         "SuperFrete SEDEX (Correios)",
 			Price:        math.Round(sedexPrice*100) / 100,
 			DeliveryDays: sedexDays,
 		},
@@ -109,7 +142,9 @@ func CalculateShippingQuote(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"tenant_id":        tenantID,
 		"zip_code":         zipDigits,
-		"carrier_accounts": len(carrierAccounts),
+		"origin_zip_code":  originCEP,
+		"provider":         "superfrete_fallback",
+		"carrier_accounts": 1,
 		"options":          options,
 	})
 }

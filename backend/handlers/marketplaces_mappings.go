@@ -107,6 +107,7 @@ func importMarketplaceCatalogItem(tenantID uint, provider string, defaultCategor
 			Description:      strings.TrimSpace(item.Description),
 			Price:            item.Price,
 			ImageURL:         imageURL,
+			VideoURL:         item.VideoURL,
 			CategoryID:       categoryID,
 			Material:         defaultString(item.Material, "Material informado no marketplace"),
 			LayerHeight:      defaultString(item.LayerHeight, "0.16mm"),
@@ -154,6 +155,9 @@ func importMarketplaceCatalogItem(tenantID uint, provider string, defaultCategor
 			product.Description = strings.TrimSpace(item.Description)
 			if imageURL != "" {
 				product.ImageURL = imageURL
+			}
+			if item.VideoURL != "" {
+				product.VideoURL = item.VideoURL
 			}
 			product.CategoryID = categoryID
 			product.Material = defaultString(item.Material, product.Material)

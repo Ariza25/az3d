@@ -49,6 +49,9 @@ type Config struct {
 	MercadoLivreClientSecret   string
 	MercadoLivreRedirectURI    string
 	MercadoLivreWebhookSecret  string
+	SuperFreteToken            string
+	SuperFreteAPIBaseURL       string
+	SuperFreteOriginCEP        string
 }
 
 func LoadConfig() *Config {
@@ -105,9 +108,21 @@ func LoadConfig() *Config {
 		MercadoLivreClientSecret:   getEnv("MELI_CLIENT_SECRET", ""),
 		MercadoLivreRedirectURI:    getEnv("MELI_REDIRECT_URI", ""),
 		MercadoLivreWebhookSecret:  getEnv("MELI_WEBHOOK_SECRET", ""),
+		SuperFreteToken:            firstNonEmpty(getEnv("SUPER_FRETE", ""), getEnv("SUPERFRETE_TOKEN", "")),
+		SuperFreteAPIBaseURL:       getEnv("SUPER_FRETE_API_BASE_URL", "https://api.superfrete.com/api/v0"),
+		SuperFreteOriginCEP:        getEnv("SUPER_FRETE_ORIGIN_CEP", "01310100"),
 	}
 	cfg.validate()
 	return cfg
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
 }
 
 func getEnv(key, fallback string) string {

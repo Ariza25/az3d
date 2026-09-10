@@ -265,6 +265,8 @@ type mercadoItem struct {
 	Attributes        []mercadoAttribute `json:"attributes"`
 	Variations        []mercadoVariation `json:"variations"`
 	Status            string             `json:"status"`
+	VideoID           string             `json:"video_id"`
+	Videos            []any              `json:"videos"`
 }
 
 type mercadoPicture struct {
@@ -287,6 +289,35 @@ type mercadoVariation struct {
 	AttributeCombinations []mercadoAttribute `json:"attribute_combinations"`
 	Attributes            []mercadoAttribute `json:"attributes"`
 	PictureIDs            []string           `json:"picture_ids"`
+}
+
+func resolveMercadoLivreVideoURL(videoID string, videos []any) string {
+	videoID = strings.TrimSpace(videoID)
+	if videoID != "" {
+		if strings.HasPrefix(videoID, "http://") || strings.HasPrefix(videoID, "https://") {
+			return videoID
+		}
+		return fmt.Sprintf("https://www.youtube.com/watch?v=%s", videoID)
+	}
+	for _, v := range videos {
+		switch val := v.(type) {
+		case string:
+			if s := strings.TrimSpace(val); s != "" {
+				if strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://") {
+					return s
+				}
+				return fmt.Sprintf("https://www.youtube.com/watch?v=%s", s)
+			}
+		case map[string]any:
+			if u, ok := val["url"].(string); ok && strings.TrimSpace(u) != "" {
+				return strings.TrimSpace(u)
+			}
+			if id, ok := val["id"].(string); ok && strings.TrimSpace(id) != "" {
+				return resolveMercadoLivreVideoURL(id, nil)
+			}
+		}
+	}
+	return ""
 }
 
 func normalizeItem(item mercadoItem) mp.CatalogItem {
@@ -314,7 +345,9 @@ func normalizeItem(item mercadoItem) mp.CatalogItem {
 		status = "paused"
 	}
 
-	variants, colorStocks, colorImages := normalizeVariations(item, imageURL, status == "active")
+	videoURL := resolveMercadoLivreVideoURL(item.VideoID, item.Videos)
+
+	variants, colorStocks, colorImages := normalizeVariations(item, imageURL, videoURL, status == "active")
 	stockQty := maxInt(item.AvailableQuantity, 0)
 	if len(variants) > 0 {
 		stockQty = 0
@@ -323,11 +356,11 @@ func normalizeItem(item mercadoItem) mp.CatalogItem {
 		}
 	} else {
 		colorName := marketplaceListingColor(item.Title, sku)
-		colorImages = listingPictures(item.Pictures, colorName, imageURL)
+		colorImages = listingPictures(item.Pictures, colorName, imageURL, videoURL)
 		colorStocks = []mp.CatalogColorStock{{ColorName: colorName, StockQty: stockQty}}
 	}
 	if len(colorImages) == 0 {
-		colorImages = []mp.CatalogColorImage{{ColorName: "Padrao", ImageURL: imageURL, SortOrder: 0}}
+		colorImages = []mp.CatalogColorImage{{ColorName: "Padrao", ImageURL: imageURL, VideoURL: videoURL, SortOrder: 0}}
 	}
 	if len(colorStocks) == 0 {
 		colorStocks = []mp.CatalogColorStock{{ColorName: "Padrao", StockQty: stockQty}}
@@ -342,6 +375,7 @@ func normalizeItem(item mercadoItem) mp.CatalogItem {
 		Description:    item.Title,
 		Price:          item.Price,
 		ImageURL:       imageURL,
+		VideoURL:       videoURL,
 		Material:       material,
 		StockQty:       stockQty,
 		Status:         status,
@@ -355,7 +389,7 @@ func normalizeItem(item mercadoItem) mp.CatalogItem {
 	}
 }
 
-func listingPictures(pictures []mercadoPicture, colorName string, fallbackImageURL string) []mp.CatalogColorImage {
+func listingPictures(pictures []mercadoPicture, colorName string, fallbackImageURL string, videoURL string) []mp.CatalogColorImage {
 	images := make([]mp.CatalogColorImage, 0, len(pictures))
 	seen := map[string]struct{}{}
 	for _, picture := range pictures {
@@ -370,10 +404,10 @@ func listingPictures(pictures []mercadoPicture, colorName string, fallbackImageU
 			continue
 		}
 		seen[pictureURL] = struct{}{}
-		images = append(images, mp.CatalogColorImage{ColorName: colorName, ImageURL: pictureURL, SortOrder: len(images)})
+		images = append(images, mp.CatalogColorImage{ColorName: colorName, ImageURL: pictureURL, VideoURL: videoURL, SortOrder: len(images)})
 	}
 	if len(images) == 0 && strings.TrimSpace(fallbackImageURL) != "" {
-		images = append(images, mp.CatalogColorImage{ColorName: colorName, ImageURL: strings.TrimSpace(fallbackImageURL), SortOrder: 0})
+		images = append(images, mp.CatalogColorImage{ColorName: colorName, ImageURL: strings.TrimSpace(fallbackImageURL), VideoURL: videoURL, SortOrder: 0})
 	}
 	return images
 }
@@ -404,11 +438,14 @@ func marketplaceListingColor(title string, sku string) string {
 	return "Padrao"
 }
 
-func normalizeVariations(item mercadoItem, fallbackImageURL string, active bool) ([]mp.CatalogVariant, []mp.CatalogColorStock, []mp.CatalogColorImage) {
+func normalizeVariations(item mercadoItem, fallbackImageURL string, videoURL string, active bool) ([]mp.CatalogVariant, []mp.CatalogColorStock, []mp.CatalogColorImage) {
 	variants := make([]mp.CatalogVariant, 0, len(item.Variations))
 	stocks := make([]mp.CatalogColorStock, 0, len(item.Variations))
 	images := make([]mp.CatalogColorImage, 0, len(item.Variations))
 	pictures := make(map[string]string, len(item.Pictures))
+	allPictureURLs := make([]string, 0, len(item.Pictures))
+	variationAssignedPicIDs := make(map[string]struct{})
+
 	for _, picture := range item.Pictures {
 		pictureURL := strings.TrimSpace(picture.SecureURL)
 		if pictureURL == "" {
@@ -416,6 +453,27 @@ func normalizeVariations(item mercadoItem, fallbackImageURL string, active bool)
 		}
 		if picture.ID != "" && pictureURL != "" {
 			pictures[picture.ID] = pictureURL
+			allPictureURLs = append(allPictureURLs, pictureURL)
+		}
+	}
+
+	for _, variation := range item.Variations {
+		for _, picID := range variation.PictureIDs {
+			variationAssignedPicIDs[picID] = struct{}{}
+		}
+	}
+
+	// Fotos gerais do anúncio pai que não foram atribuídas com exclusividade a uma variação específica
+	generalPictureURLs := make([]string, 0)
+	for _, picture := range item.Pictures {
+		if _, assigned := variationAssignedPicIDs[picture.ID]; !assigned {
+			pictureURL := strings.TrimSpace(picture.SecureURL)
+			if pictureURL == "" {
+				pictureURL = strings.TrimSpace(picture.URL)
+			}
+			if pictureURL != "" {
+				generalPictureURLs = append(generalPictureURLs, pictureURL)
+			}
 		}
 	}
 
@@ -440,17 +498,43 @@ func normalizeVariations(item mercadoItem, fallbackImageURL string, active bool)
 		})
 		stocks = append(stocks, mp.CatalogColorStock{ColorName: name, StockQty: maxInt(variation.AvailableQuantity, 0)})
 
-		variationImageURLs := make([]string, 0, len(variation.PictureIDs))
+		variationImageURLs := make([]string, 0, len(variation.PictureIDs)+len(generalPictureURLs))
+		seenVariationURLs := make(map[string]struct{})
+
+		// 1. Fotos específicas desta variação/cor
 		for _, pictureID := range variation.PictureIDs {
 			if pictureURL := pictures[pictureID]; pictureURL != "" {
-				variationImageURLs = append(variationImageURLs, pictureURL)
+				if _, exists := seenVariationURLs[pictureURL]; !exists {
+					seenVariationURLs[pictureURL] = struct{}{}
+					variationImageURLs = append(variationImageURLs, pictureURL)
+				}
 			}
 		}
-		if len(variationImageURLs) == 0 && fallbackImageURL != "" {
-			variationImageURLs = append(variationImageURLs, fallbackImageURL)
+
+		// 2. Fotos gerais do anúncio pai (contexto, medidas, detalhes compartilhados)
+		for _, generalURL := range generalPictureURLs {
+			if _, exists := seenVariationURLs[generalURL]; !exists {
+				seenVariationURLs[generalURL] = struct{}{}
+				variationImageURLs = append(variationImageURLs, generalURL)
+			}
 		}
+
+		// 3. Fallback se a variação não teve nenhuma foto vinculada
+		if len(variationImageURLs) == 0 {
+			if fallbackImageURL != "" {
+				variationImageURLs = append(variationImageURLs, fallbackImageURL)
+			} else if len(allPictureURLs) > 0 {
+				variationImageURLs = append(variationImageURLs, allPictureURLs...)
+			}
+		}
+
 		for pictureIndex, variationImageURL := range variationImageURLs {
-			images = append(images, mp.CatalogColorImage{ColorName: name, ImageURL: variationImageURL, SortOrder: index*100 + pictureIndex})
+			images = append(images, mp.CatalogColorImage{
+				ColorName: name,
+				ImageURL:  variationImageURL,
+				VideoURL:  videoURL,
+				SortOrder: index*100 + pictureIndex,
+			})
 		}
 	}
 	return variants, stocks, images

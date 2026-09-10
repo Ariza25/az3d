@@ -260,6 +260,7 @@ func (h *PlatformHandler) GetObservabilityHealth(c *gin.Context) {
 		"mercado_pago_configured":         connectedPaymentAccounts > 0,
 		"mercado_pago_webhook_secret":     h.cfg != nil && strings.TrimSpace(h.cfg.MercadoPagoWebhookSecret) != "",
 		"correios_base_configured":        strings.TrimSpace(os.Getenv("CORREIOS_API_BASE_URL")) != "",
+		"superfrete_configured":           h.cfg != nil && strings.TrimSpace(h.cfg.SuperFreteToken) != "",
 		"checked_at":                      time.Now(),
 	})
 }
@@ -284,7 +285,8 @@ func (h *PlatformHandler) GetPlatformEnvironment(c *gin.Context) {
 		{Key: "CORS_ALLOWED_ORIGINS", Category: "network", Configured: len(cfg.CORSOrigins) > 0, Required: true, Description: "Origens autorizadas a consumir a API"},
 		{Key: "FRONTEND_BASE_URL", Category: "network", Configured: strings.TrimSpace(cfg.FrontendBaseURL) != "", Required: true, Description: "URL publica usada nos retornos OAuth"},
 		{Key: "GOOGLE_OAUTH", Category: "authentication", Configured: strings.TrimSpace(cfg.GoogleOAuthClientID) != "" && strings.TrimSpace(cfg.GoogleOAuthClientSecret) != "", Required: false, Description: "Login administrativo via Google"},
-		{Key: "CORREIOS_API_BASE_URL", Category: "integrations", Configured: strings.TrimSpace(cfg.CorreiosAPIBaseURL) != "", Required: false, Description: "Endpoint base para rastreamento"},
+		{Key: "SUPER_FRETE", Category: "integrations", Configured: strings.TrimSpace(cfg.SuperFreteToken) != "", Required: true, Description: "Token da API SuperFrete para cotação e cálculo de frete"},
+		{Key: "CORREIOS_API_BASE_URL", Category: "integrations", Configured: strings.TrimSpace(cfg.CorreiosAPIBaseURL) != "", Required: false, Description: "Endpoint base para rastreamento legado"},
 		{Key: "MELI_OAUTH", Category: "integrations", Configured: strings.TrimSpace(cfg.MercadoLivreClientID) != "" && strings.TrimSpace(cfg.MercadoLivreClientSecret) != "" && strings.TrimSpace(cfg.MercadoLivreRedirectURI) != "", Required: false, Description: "Aplicacao OAuth global do Mercado Livre"},
 		{Key: "MERCADO_PAGO_OAUTH", Category: "integrations", Configured: strings.TrimSpace(cfg.MercadoPagoClientID) != "" && strings.TrimSpace(cfg.MercadoPagoClientSecret) != "" && strings.TrimSpace(cfg.MercadoPagoRedirectURI) != "", Required: false, Description: "Aplicacao OAuth global do Mercado Pago"},
 		{Key: "MERCADO_PAGO_WEBHOOK_SECRET", Category: "integrations", Configured: strings.TrimSpace(cfg.MercadoPagoWebhookSecret) != "", Required: false, Description: "Assinatura dos webhooks globais do Mercado Pago"},

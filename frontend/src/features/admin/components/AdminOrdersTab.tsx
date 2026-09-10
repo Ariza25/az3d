@@ -55,7 +55,8 @@ export const AdminOrdersTab: React.FC<AdminOrdersTabProps> = ({
               }
               className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
             >
-              <option value="correios">Correios</option>
+              <option value="superfrete">SuperFrete (Correios)</option>
+              <option value="correios">Correios (Legado)</option>
             </select>
           </div>
           <div className="flex-1 space-y-1.5">

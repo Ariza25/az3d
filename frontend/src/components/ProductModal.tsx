@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Product } from '../types';
-import { Check, Heart, Layers, Minus, Plus, ShoppingBag, Star, X } from 'lucide-react';
+import { Check, Heart, Layers, Minus, Play, Plus, ShoppingBag, Star, X } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
@@ -12,6 +12,27 @@ interface ProductModalProps {
   onClose: () => void;
 }
 
+interface ProductMedia {
+  id: string;
+  type: 'image' | 'video';
+  url: string;
+  thumbnailUrl: string;
+}
+
+const getYouTubeEmbedUrl = (url: string): string | null => {
+  if (!url) return null;
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+  const match = url.match(regExp);
+  return match && match[2].length === 11 ? `https://www.youtube.com/embed/${match[2]}?autoplay=1&rel=0` : null;
+};
+
+const getYouTubeThumbnail = (url: string): string | null => {
+  if (!url) return null;
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+  const match = url.match(regExp);
+  return match && match[2].length === 11 ? `https://img.youtube.com/vi/${match[2]}/hqdefault.jpg` : null;
+};
+
 export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) => {
   const { addToCart } = useCart();
   const { isAuthenticated } = useAuth();
@@ -19,7 +40,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
   const [quantity, setQuantity] = useState(1);
   const [isFavorite, setIsFavorite] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [selectedImageUrl, setSelectedImageUrl] = useState('');
+  const [selectedMediaId, setSelectedMediaId] = useState('');
   const [selectedFreight, setSelectedFreight] = useState<{ code: string; name: string; price: number; deliveryDays: number } | null>(null);
 
   const availableColors = useMemo(() => {
@@ -35,7 +56,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
 
   const activeProduct = useMemo(() => product ? getStoreVariantProduct(product, selectedColor) : null, [product, selectedColor]);
 
-  const imageChoices = useMemo(() => {
+  const mediaChoices = useMemo<ProductMedia[]>(() => {
     if (!product) return [];
     const norm = (s: string) => (s || '').trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     const selectedKey = norm(selectedColor);
@@ -45,29 +66,56 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
       ...(product.color_images || []),
     ];
 
-    let matchedUrls = candidateList
-      .filter((img) => {
-        if (!img || !img.image_url) return false;
-        if (!img.color_name) return true;
-        const imgColorKey = norm(img.color_name);
-        return imgColorKey === selectedKey || imgColorKey === 'padrao';
-      })
-      .map((img) => img.image_url);
+    // Fotos específicas da cor ou compartilhadas
+    const matchedPhotos: { url: string; colorKey: string }[] = [];
+    const seenUrls = new Set<string>();
 
-    if (matchedUrls.length === 0 && activeProduct?.image_url) {
-      matchedUrls.push(activeProduct.image_url);
-    }
-    if (matchedUrls.length === 0 && product.image_url) {
-      matchedUrls.push(product.image_url);
-    }
-
-    const seen = new Set<string>();
-    return matchedUrls.filter((url) => {
-      if (!url || seen.has(url)) return false;
-      seen.add(url);
-      return true;
+    candidateList.forEach((img) => {
+      if (!img || !img.image_url) return;
+      const key = norm(img.color_name);
+      if (key === selectedKey || key === 'padrao' || !img.color_name) {
+        if (!seenUrls.has(img.image_url)) {
+          seenUrls.add(img.image_url);
+          matchedPhotos.push({ url: img.image_url, colorKey: key });
+        }
+      }
     });
+
+    if (matchedPhotos.length === 0 && activeProduct?.image_url && !seenUrls.has(activeProduct.image_url)) {
+      seenUrls.add(activeProduct.image_url);
+      matchedPhotos.push({ url: activeProduct.image_url, colorKey: selectedKey });
+    }
+    if (matchedPhotos.length === 0 && product.image_url && !seenUrls.has(product.image_url)) {
+      seenUrls.add(product.image_url);
+      matchedPhotos.push({ url: product.image_url, colorKey: 'padrao' });
+    }
+
+    const mediaList: ProductMedia[] = matchedPhotos.map((photo, idx) => ({
+      id: `img-${idx}-${photo.url}`,
+      type: 'image',
+      url: photo.url,
+      thumbnailUrl: photo.url,
+    }));
+
+    // Detectar vídeo do produto ou variação
+    const videoUrl = activeProduct?.video_url || product.video_url || candidateList.find((c) => c.video_url)?.video_url;
+    if (videoUrl && !seenUrls.has(videoUrl)) {
+      const ytThumb = getYouTubeThumbnail(videoUrl);
+      const fallbackThumb = mediaList[0]?.thumbnailUrl || activeProduct?.image_url || product.image_url;
+      mediaList.push({
+        id: `vid-${videoUrl}`,
+        type: 'video',
+        url: videoUrl,
+        thumbnailUrl: ytThumb || fallbackThumb,
+      });
+    }
+
+    return mediaList;
   }, [activeProduct, product, selectedColor]);
+
+  const activeMedia = useMemo(() => {
+    return mediaChoices.find((m) => m.id === selectedMediaId) || mediaChoices[0] || null;
+  }, [mediaChoices, selectedMediaId]);
 
   useEffect(() => {
     setSelectedColor(availableColors[0]?.name || 'Padrão');
@@ -76,8 +124,10 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
   }, [product?.id]);
 
   useEffect(() => {
-    setSelectedImageUrl(imageChoices[0] || activeProduct?.image_url || product?.image_url || '');
-  }, [activeProduct?.id, imageChoices.join('|')]);
+    if (mediaChoices.length > 0) {
+      setSelectedMediaId(mediaChoices[0].id);
+    }
+  }, [activeProduct?.id, selectedColor, mediaChoices.map((m) => m.id).join('|')]);
 
   useEffect(() => {
     if (!activeProduct) return;
@@ -176,28 +226,65 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
 
         <div className="grid lg:h-[700px] lg:max-h-[calc(100vh-2rem)] lg:grid-cols-[54fr_46fr]">
           <div className="relative min-h-[340px] overflow-hidden bg-chumbo-950 p-3 sm:min-h-[440px] lg:min-h-0">
-            <img src={selectedImageUrl} alt="" className="absolute inset-0 h-full w-full scale-110 object-cover opacity-20 blur-2xl" aria-hidden="true" />
+            <img src={activeMedia?.thumbnailUrl || product.image_url} alt="" className="absolute inset-0 h-full w-full scale-110 object-cover opacity-20 blur-2xl" aria-hidden="true" />
             <div className="absolute inset-0 bg-gradient-to-br from-chumbo-950/35 via-chumbo-950/55 to-chumbo-950" />
-            <div className={`relative z-10 grid h-full w-full p-3 sm:p-5 ${imageChoices.length > 1 ? 'grid-cols-[76px_minmax(0,1fr)]' : ''}`}>
-              {imageChoices.length > 1 && (
+            <div className={`relative z-10 grid h-full w-full p-3 sm:p-5 ${mediaChoices.length > 1 ? 'grid-cols-[76px_minmax(0,1fr)]' : ''}`}>
+              {mediaChoices.length > 1 && (
                 <div className="flex max-h-full flex-col gap-2 overflow-y-auto border-r border-white/10 bg-chumbo-950/80 p-2 backdrop-blur-md">
-                  {imageChoices.map((imageUrl, index) => (
-                    <button
-                      type="button"
-                      key={imageUrl}
-                      onClick={() => setSelectedImageUrl(imageUrl)}
-                      onMouseEnter={() => setSelectedImageUrl(imageUrl)}
-                      className={`h-14 w-14 shrink-0 overflow-hidden rounded-xl border-2 bg-chumbo-900 p-0.5 transition-all duration-150 ${imageUrl === selectedImageUrl ? 'border-laser-400 shadow-[0_0_0_2px_rgba(34,211,238,0.25)] scale-105' : 'border-chumbo-700 opacity-70 hover:border-chumbo-500 hover:opacity-100'}`}
-                      aria-label={`Ver foto ${index + 1} da cor ${selectedColor}`}
-                    >
-                      <img src={imageUrl} alt="" className="h-full w-full rounded-lg object-cover" />
-                    </button>
-                  ))}
+                  {mediaChoices.map((media, index) => {
+                    const isCurrent = media.id === activeMedia?.id;
+                    return (
+                      <button
+                        type="button"
+                        key={media.id}
+                        onClick={() => setSelectedMediaId(media.id)}
+                        onMouseEnter={() => setSelectedMediaId(media.id)}
+                        className={`relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border-2 bg-chumbo-900 p-0.5 transition-all duration-150 ${
+                          isCurrent
+                            ? 'border-laser-400 shadow-[0_0_0_2px_rgba(34,211,238,0.25)] scale-105'
+                            : 'border-chumbo-700 opacity-70 hover:border-chumbo-500 hover:opacity-100'
+                        }`}
+                        aria-label={media.type === 'video' ? 'Ver vídeo do produto' : `Ver foto ${index + 1} da cor ${selectedColor}`}
+                      >
+                        <img src={media.thumbnailUrl} alt="" className="h-full w-full rounded-lg object-cover" />
+                        {media.type === 'video' && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/45 backdrop-blur-[1px]">
+                            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-laser-400 text-chumbo-950 shadow-md">
+                              <Play className="h-3 w-3 fill-chumbo-950 translate-x-0.5" />
+                            </div>
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
               <div className="flex min-h-0 items-center justify-center p-2 sm:p-4">
                 <div className="relative aspect-square w-full max-w-[560px] overflow-hidden rounded-2xl border border-chumbo-800 bg-chumbo-950/90 shadow-2xl flex items-center justify-center">
-                  <img src={selectedImageUrl} alt={product.title} className="h-full w-full object-contain p-4" />
+                  {activeMedia?.type === 'video' ? (
+                    getYouTubeEmbedUrl(activeMedia.url) ? (
+                      <iframe
+                        src={getYouTubeEmbedUrl(activeMedia.url)!}
+                        title={product.title}
+                        className="h-full w-full rounded-2xl border-0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    ) : (
+                      <video
+                        src={activeMedia.url}
+                        controls
+                        autoPlay
+                        className="h-full w-full rounded-2xl object-contain bg-black"
+                      />
+                    )
+                  ) : (
+                    <img
+                      src={activeMedia?.url || activeProduct?.image_url || product.image_url}
+                      alt={product.title}
+                      className="h-full w-full object-contain p-4 transition-transform duration-300 hover:scale-105"
+                    />
+                  )}
                 </div>
               </div>
             </div>

@@ -53,7 +53,7 @@ func TestExchangeAuthCodeSendsPKCEVerifier(t *testing.T) {
 
 func TestNormalizeVariationsPreservesStructuredAttributes(t *testing.T) {
 	item := mercadoItem{Price: 42, Variations: []mercadoVariation{{ID: 10, Price: 45, AvailableQuantity: 3, AttributeCombinations: []mercadoAttribute{{ID: "COLOR", Name: "Cor", ValueName: "Preto"}, {ID: "SIZE", Name: "Tamanho", ValueName: "G"}}}}}
-	variants, stocks, _ := normalizeVariations(item, "", true)
+	variants, stocks, _ := normalizeVariations(item, "", "", true)
 	if len(variants) != 1 || variants[0].VariationName != "Preto / G" {
 		t.Fatalf("unexpected variants: %#v", variants)
 	}
@@ -517,5 +517,44 @@ func TestFetchOrdersMarksOptionalFinancialDetailsAsIncomplete(t *testing.T) {
 	}
 	if len(result.Orders[0].FinancialNotes) != 2 || !strings.Contains(result.Message, "incompletos") {
 		t.Fatalf("missing incomplete detail diagnostics: %#v / %q", result.Orders[0], result.Message)
+	}
+}
+
+func TestNormalizeItemPreservesVideoAndSharedPhotosAcrossVariations(t *testing.T) {
+	item := normalizeItem(mercadoItem{
+		ID: "MLB-789", Title: "Suporte Celular com Cores", Price: 33.9, AvailableQuantity: 20, Status: "active",
+		VideoID: "dQw4w9WgXcQ",
+		Pictures: []mercadoPicture{
+			{ID: "PIC-RED", SecureURL: "https://img.example/red.jpg"},
+			{ID: "PIC-WHITE", SecureURL: "https://img.example/white.jpg"},
+			{ID: "PIC-GENERAL-1", SecureURL: "https://img.example/measures.jpg"},
+			{ID: "PIC-GENERAL-2", SecureURL: "https://img.example/lifestyle.jpg"},
+		},
+		Variations: []mercadoVariation{
+			{ID: 1, Price: 33.9, AvailableQuantity: 10, PictureIDs: []string{"PIC-RED"}, AttributeCombinations: []mercadoAttribute{{ID: "COLOR", ValueName: "Vermelho"}}},
+			{ID: 2, Price: 33.9, AvailableQuantity: 10, PictureIDs: []string{"PIC-WHITE"}, AttributeCombinations: []mercadoAttribute{{ID: "COLOR", ValueName: "Branco"}}},
+		},
+	})
+
+	if item.VideoURL != "https://www.youtube.com/watch?v=dQw4w9WgXcQ" {
+		t.Fatalf("unexpected item video url: %s", item.VideoURL)
+	}
+	// Cada variação deve ter sua foto específica + as 2 fotos gerais do produto = 3 fotos cada!
+	// Total de color_images = 6 fotos
+	if len(item.ColorImages) != 6 {
+		t.Fatalf("expected 6 color images across variations, got %d: %#v", len(item.ColorImages), item.ColorImages)
+	}
+
+	redImages := []string{}
+	for _, img := range item.ColorImages {
+		if img.ColorName == "Vermelho" {
+			redImages = append(redImages, img.ImageURL)
+			if img.VideoURL != item.VideoURL {
+				t.Fatalf("color image missing video url: %#v", img)
+			}
+		}
+	}
+	if len(redImages) != 3 || redImages[0] != "https://img.example/red.jpg" {
+		t.Fatalf("unexpected red images gallery: %#v", redImages)
 	}
 }

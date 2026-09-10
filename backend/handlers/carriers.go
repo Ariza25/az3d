@@ -119,7 +119,9 @@ func (h *CarrierHandler) ToggleCarrierAccount(c *gin.Context) {
 }
 
 func carrierLabel(provider string) string {
-	switch provider {
+	switch strings.ToLower(strings.TrimSpace(provider)) {
+	case "superfrete":
+		return "SuperFrete (Correios)"
 	case "correios":
 		return "Correios"
 	default:

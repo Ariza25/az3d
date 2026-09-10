@@ -12,6 +12,7 @@ import (
 	"az3d-backend/database"
 	"az3d-backend/internal/carriers"
 	"az3d-backend/internal/carriers/correios"
+	"az3d-backend/internal/carriers/superfrete"
 	"az3d-backend/models"
 	"az3d-backend/utils"
 
@@ -152,6 +153,10 @@ func connectorForAccount(cfg *config.Config, account *models.TenantCarrierAccoun
 	credentials["auth_type"] = account.AuthType
 
 	switch strings.ToLower(account.Provider) {
+	case "superfrete":
+		token := firstNonEmpty(stringCredential(credentials, "token", "access_token", "api_key"), cfg.SuperFreteToken)
+		apiBaseURL := firstNonEmpty(stringCredential(credentials, "api_base_url"), cfg.SuperFreteAPIBaseURL)
+		return superfrete.New(apiBaseURL, token), nil
 	case "correios":
 		apiBaseURL := firstNonEmpty(stringCredential(credentials, "api_base_url"), cfg.CorreiosAPIBaseURL)
 		tokenBaseURL := firstNonEmpty(stringCredential(credentials, "token_base_url"), cfg.CorreiosTokenBaseURL)
@@ -242,15 +247,20 @@ func setShipmentSyncError(account *models.TenantCarrierAccount, shipment *models
 	})
 }
 
-func stringCredential(values map[string]any, key string) string {
-	value, ok := values[key]
-	if !ok || value == nil {
-		return ""
+func stringCredential(values map[string]any, keys ...string) string {
+	for _, key := range keys {
+		value, ok := values[key]
+		if !ok || value == nil {
+			continue
+		}
+		if typed, ok := value.(string); ok && strings.TrimSpace(typed) != "" {
+			return strings.TrimSpace(typed)
+		}
+		if str := strings.TrimSpace(fmt.Sprint(value)); str != "" && str != "<nil>" {
+			return str
+		}
 	}
-	if typed, ok := value.(string); ok {
-		return strings.TrimSpace(typed)
-	}
-	return fmt.Sprint(value)
+	return ""
 }
 
 func oldestEventTime(events []carriers.TrackingEvent) time.Time {

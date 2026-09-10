@@ -46,7 +46,7 @@ export const AdminObservability: React.FC<AdminObservabilityProps> = ({ health, 
           <div className="mt-4 space-y-2.5">
             <Dependency label="Mercado Pago · conta conectada" ok={health?.mercado_pago_configured} />
             <Dependency label="Mercado Pago · webhook secret" ok={health?.mercado_pago_webhook_secret} />
-            <Dependency label="Correios · endpoint base" ok={health?.correios_base_configured} />
+            <Dependency label="SuperFrete · API de Frete" ok={health?.superfrete_configured ?? health?.correios_base_configured} />
           </div>
         </Card>
       </div>

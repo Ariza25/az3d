@@ -376,6 +376,7 @@ func catalogItemToModelInput(item marketplaces.CatalogItem) models.MarketplaceCa
 		Description:    item.Description,
 		Price:          item.Price,
 		ImageURL:       item.ImageURL,
+		VideoURL:       item.VideoURL,
 		Material:       item.Material,
 		LayerHeight:    item.LayerHeight,
 		PrintTime:      item.PrintTime,
@@ -395,6 +396,7 @@ func catalogColorImagesToModel(items []marketplaces.CatalogColorImage) []models.
 		inputs = append(inputs, models.ProductColorImageInput{
 			ColorName: item.ColorName,
 			ImageURL:  item.ImageURL,
+			VideoURL:  item.VideoURL,
 			SortOrder: item.SortOrder,
 		})
 	}

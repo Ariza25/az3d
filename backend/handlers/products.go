@@ -111,6 +111,7 @@ func syncProductColorImages(tenantID uint, productID uint, inputs []models.Produ
 			ProductID: productID,
 			ColorName: colorName,
 			ImageURL:  imageURL,
+			VideoURL:  strings.TrimSpace(input.VideoURL),
 			SortOrder: input.SortOrder,
 		}
 		if err := database.DB.Create(&image).Error; err != nil {
@@ -551,6 +552,7 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 		Description: input.Description,
 		Price:       input.Price,
 		ImageURL:    input.ImageURL,
+		VideoURL:    strings.TrimSpace(input.VideoURL),
 		CategoryID:  input.CategoryID,
 		Material:    input.Material,
 		LayerHeight: input.LayerHeight,
@@ -640,6 +642,7 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 	if input.ImageURL != "" {
 		product.ImageURL = input.ImageURL
 	}
+	product.VideoURL = strings.TrimSpace(input.VideoURL)
 	if input.CategoryID > 0 {
 		product.CategoryID = input.CategoryID
 	}

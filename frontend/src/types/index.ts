@@ -39,6 +39,7 @@ export interface Product {
   rating?: number;
   review_count?: number;
   image_url: string;
+  video_url?: string;
   model_3d_url?: string;
   supported_materials?: string[];
   infill_options?: number[];
@@ -83,6 +84,7 @@ export interface ProductColorImage {
   product_id?: number;
   color_name: string;
   image_url: string;
+  video_url?: string;
   sort_order: number;
 }
 
@@ -165,6 +167,7 @@ export interface ProductInput {
   description: string;
   price: number;
   image_url: string;
+  video_url?: string;
   color_images?: ProductColorImage[];
   category_id: number;
   material: string;
@@ -782,6 +785,7 @@ export interface ObservabilityHealth {
   mercado_pago_configured: boolean;
   mercado_pago_webhook_secret: boolean;
   correios_base_configured: boolean;
+  superfrete_configured?: boolean;
   checked_at: string;
 }
 

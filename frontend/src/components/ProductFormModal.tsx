@@ -21,10 +21,12 @@ const createDefaultProductInput = (categoryId: number): ProductInput => ({
   description: '',
   price: 99.90,
   image_url: DEFAULT_PRODUCT_IMAGE_URL,
+  video_url: '',
   color_images: [
     {
       color_name: 'Preto Slate',
       image_url: DEFAULT_PRODUCT_IMAGE_URL,
+      video_url: '',
       sort_order: 0,
     },
   ],
@@ -62,16 +64,19 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
         description: productToEdit.description,
         price: productToEdit.price,
         image_url: productToEdit.image_url,
+        video_url: productToEdit.video_url || '',
         color_images: productToEdit.color_images?.length
           ? productToEdit.color_images.map((image, index) => ({
               color_name: image.color_name,
               image_url: image.image_url,
+              video_url: image.video_url || '',
               sort_order: image.sort_order ?? index,
             }))
           : [
               {
                 color_name: 'Preto Slate',
                 image_url: productToEdit.image_url,
+                video_url: productToEdit.video_url || '',
                 sort_order: 0,
               },
             ],
@@ -377,6 +382,20 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 }}
                 className="block w-full text-xs text-slate-400 file:mr-3 file:rounded-lg file:border-0 file:bg-chumbo-800 file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-white hover:file:bg-chumbo-700"
               />
+            </div>
+
+            <div className="md:col-span-2 space-y-1.5">
+              <label className="text-xs font-mono text-slate-300 block uppercase">URL do Vídeo (YouTube ou arquivo de vídeo)</label>
+              <input
+                type="url"
+                value={formData.video_url || ''}
+                onChange={(e) => setFormData({ ...formData, video_url: e.target.value })}
+                placeholder="https://www.youtube.com/watch?v=... ou link direto .mp4"
+                className="w-full bg-chumbo-950 border border-chumbo-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-laser-400 transition-colors font-mono"
+              />
+              <p className="text-[11px] text-slate-400">
+                O vídeo aparecerá com player integrado nas miniaturas da galeria do produto na loja.
+              </p>
             </div>
 
             <div className="md:col-span-2 space-y-3 rounded-xl border border-chumbo-800 bg-chumbo-950/40 p-4">

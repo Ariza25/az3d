@@ -70,8 +70,8 @@ export const groupMarketplaceProducts = (products: Product[]) => {
       .map((sibling) => {
         const color = getMarketplaceVariantColor(sibling) || 'Padrao';
         const images = sibling.color_images?.length
-          ? sibling.color_images.map((img, idx) => ({ ...img, color_name: color, sort_order: idx }))
-          : [{ image_url: sibling.image_url, color_name: color, sort_order: 0 }];
+          ? sibling.color_images.map((img, idx) => ({ ...img, color_name: color, sort_order: idx, video_url: img.video_url || sibling.video_url }))
+          : [{ image_url: sibling.image_url, video_url: sibling.video_url, color_name: color, sort_order: 0 }];
         return {
           ...sibling,
           store_variant_color: color,
@@ -87,10 +87,13 @@ export const groupMarketplaceProducts = (products: Product[]) => {
       stock_qty: getTotalStock(variant),
     }));
 
+    const mainVideoUrl = variants.find((v) => v.video_url)?.video_url || defaultProduct.video_url;
+
     return {
       ...defaultProduct,
       title: getMarketplaceFamilyTitle(defaultProduct),
       image_url: defaultProduct.color_images?.[0]?.image_url || defaultProduct.image_url,
+      video_url: mainVideoUrl,
       price: Math.min(...variants.map((variant) => variant.price)),
       in_stock: variants.some((variant) => getStockStatus(variant).canBuy),
       stock_qty: colorStocks.reduce((total, stock) => total + stock.stock_qty, 0),

@@ -31,6 +31,7 @@ type Product struct {
 	Rating      float64             `gorm:"default:0" json:"-"`
 	ReviewCount int                 `gorm:"default:0" json:"-"`
 	ImageURL    string              `gorm:"size:500" json:"image_url"`
+	VideoURL    string              `gorm:"size:500" json:"video_url"`
 	CategoryID  uint                `gorm:"not null" json:"category_id"`
 	Category    *Category           `gorm:"foreignKey:CategoryID" json:"category,omitempty"`
 	ColorImages []ProductColorImage `gorm:"foreignKey:ProductID" json:"color_images,omitempty"`
@@ -65,6 +66,7 @@ type ProductColorImage struct {
 	Product   *Product  `gorm:"foreignKey:ProductID" json:"product,omitempty"`
 	ColorName string    `gorm:"size:80;not null" json:"color_name"`
 	ImageURL  string    `gorm:"size:500;not null" json:"image_url"`
+	VideoURL  string    `gorm:"size:500" json:"video_url"`
 	SortOrder int       `gorm:"default:0" json:"sort_order"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -207,6 +209,7 @@ type ProductInput struct {
 	Description string                   `json:"description"`
 	Price       float64                  `json:"price" binding:"required"`
 	ImageURL    string                   `json:"image_url"`
+	VideoURL    string                   `json:"video_url"`
 	CategoryID  uint                     `json:"category_id" binding:"required"`
 	Material    string                   `json:"material"`
 	LayerHeight string                   `json:"layer_height"`
@@ -225,6 +228,7 @@ type ProductInput struct {
 type ProductColorImageInput struct {
 	ColorName string `json:"color_name"`
 	ImageURL  string `json:"image_url"`
+	VideoURL  string `json:"video_url"`
 	SortOrder int    `json:"sort_order"`
 }
 

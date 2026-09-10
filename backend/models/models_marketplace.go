@@ -244,6 +244,7 @@ type MarketplaceCatalogItemInput struct {
 	Description    string                   `json:"description"`
 	Price          float64                  `json:"price" binding:"required"`
 	ImageURL       string                   `json:"image_url"`
+	VideoURL       string                   `json:"video_url"`
 	CategoryID     uint                     `json:"category_id"`
 	Material       string                   `json:"material"`
 	LayerHeight    string                   `json:"layer_height"`

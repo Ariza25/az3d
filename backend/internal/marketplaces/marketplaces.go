@@ -36,6 +36,7 @@ type CatalogItem struct {
 	Description    string
 	Price          float64
 	ImageURL       string
+	VideoURL       string
 	Material       string
 	LayerHeight    string
 	PrintTime      string
@@ -52,6 +53,7 @@ type CatalogItem struct {
 type CatalogColorImage struct {
 	ColorName string
 	ImageURL  string
+	VideoURL  string
 	SortOrder int
 }
 
