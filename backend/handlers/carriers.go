@@ -85,6 +85,14 @@ func (h *CarrierHandler) SaveCarrierAccount(c *gin.Context) {
 	account.AuthType = authType
 	account.IsActive = input.IsActive
 	account.SyncTracking = input.SyncTracking
+	if clean := cleanCEP(input.OriginCEP); clean != "" {
+		account.OriginCEP = clean
+		var fulfillment models.TenantFulfillmentSettings
+		if err := database.DB.Where("tenant_id = ?", tenantID).First(&fulfillment).Error; err == nil {
+			fulfillment.OriginCEP = clean
+			_ = database.DB.Save(&fulfillment).Error
+		}
+	}
 	if encryptedCredentials != "" {
 		account.EncryptedCredentials = encryptedCredentials
 		account.IsConnected = true
@@ -128,3 +136,14 @@ func carrierLabel(provider string) string {
 		return provider
 	}
 }
+
+func cleanCEP(val string) string {
+	digits := ""
+	for _, ch := range val {
+		if ch >= '0' && ch <= '9' {
+			digits += string(ch)
+		}
+	}
+	return digits
+}
+

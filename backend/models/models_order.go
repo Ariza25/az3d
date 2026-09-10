@@ -11,6 +11,7 @@ type TenantCarrierAccount struct {
 	Provider             string     `gorm:"size:50;not null;uniqueIndex:idx_carrier_account_tenant_provider" json:"provider"`
 	AccountName          string     `gorm:"size:120" json:"account_name"`
 	AuthType             string     `gorm:"size:40;default:'contract_credentials'" json:"auth_type"`
+	OriginCEP            string     `gorm:"size:10" json:"origin_cep"`
 	EncryptedCredentials string     `gorm:"type:text" json:"-"`
 	TokenExpiresAt       *time.Time `json:"token_expires_at,omitempty"`
 	IsActive             bool       `gorm:"default:true" json:"is_active"`
@@ -116,6 +117,7 @@ type TenantCarrierAccountInput struct {
 	Provider     string         `json:"provider" binding:"required"`
 	AccountName  string         `json:"account_name"`
 	AuthType     string         `json:"auth_type"`
+	OriginCEP    string         `json:"origin_cep"`
 	IsActive     bool           `json:"is_active"`
 	SyncTracking bool           `json:"sync_tracking"`
 	Credentials  map[string]any `json:"credentials"`
@@ -133,7 +135,9 @@ type UpdateOrderStatusInput struct {
 }
 
 type ShippingQuoteInput struct {
-	ZipCode string `json:"zip_code" binding:"required"`
+	ZipCode   string `json:"zip_code" binding:"required"`
+	TenantID  *uint  `json:"tenant_id,omitempty"`
+	ProductID *uint  `json:"product_id,omitempty"`
 }
 
 type ShippingQuoteOption struct {

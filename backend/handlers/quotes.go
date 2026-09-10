@@ -1,15 +1,18 @@
 package handlers
 
 import (
+	"encoding/json"
 	"math"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"az3d-backend/config"
 	"az3d-backend/database"
 	"az3d-backend/internal/carriers/superfrete"
 	"az3d-backend/internal/stlparser"
 	"az3d-backend/models"
+	"az3d-backend/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -82,12 +85,71 @@ func CalculateShippingQuote(c *gin.Context) {
 
 	cfg := config.LoadConfig()
 	token := cfg.SuperFreteToken
-	originCEP := cfg.SuperFreteOriginCEP
+
+	if input.TenantID != nil && *input.TenantID > 0 {
+		tenantID = *input.TenantID
+	} else if input.ProductID != nil && *input.ProductID > 0 {
+		var prod models.Product
+		if err := database.DB.Select("tenant_id").First(&prod, *input.ProductID).Error; err == nil && prod.TenantID > 0 {
+			tenantID = prod.TenantID
+		}
+	}
+
+	// 1. Resolver CEP de origem e token específico das configurações do Tenant
+	originCEP := ""
+
+	// 1a. Buscar na conta de transportadora ativa do tenant (priorizando superfrete)
+	var carrierAcct models.TenantCarrierAccount
+	if err := database.DB.Where("tenant_id = ? AND is_active = ? AND origin_cep <> ''", tenantID, true).
+		Order("CASE WHEN provider = 'superfrete' THEN 0 ELSE 1 END").
+		First(&carrierAcct).Error; err == nil && carrierAcct.OriginCEP != "" {
+		originCEP = cleanDigits(carrierAcct.OriginCEP)
+	}
+
+	// Se a conta tiver credenciais criptografadas com token próprio, descriptografa
+	if carrierAcct.ID > 0 && carrierAcct.EncryptedCredentials != "" && cfg.CredentialEncryptionKey != "" {
+		if decrypted, err := utils.DecryptString(carrierAcct.EncryptedCredentials, cfg.CredentialEncryptionKey); err == nil {
+			var creds map[string]any
+			if json.Unmarshal([]byte(decrypted), &creds) == nil {
+				if t, ok := creds["access_token"].(string); ok && strings.TrimSpace(t) != "" {
+					token = strings.TrimSpace(t)
+				} else if t, ok := creds["token"].(string); ok && strings.TrimSpace(t) != "" {
+					token = strings.TrimSpace(t)
+				}
+				if originCEP == "" {
+					if c, ok := creds["origin_cep"].(string); ok && strings.TrimSpace(c) != "" {
+						originCEP = cleanDigits(c)
+					}
+				}
+			}
+		}
+	}
+
+	// 1b. Se não encontrou na transportadora, buscar em TenantFulfillmentSettings
 	if originCEP == "" {
+		var fulfillment models.TenantFulfillmentSettings
+		if err := database.DB.Where("tenant_id = ?", tenantID).First(&fulfillment).Error; err == nil && fulfillment.OriginCEP != "" {
+			originCEP = cleanDigits(fulfillment.OriginCEP)
+		}
+	}
+
+	// 1c. Se não encontrou, buscar em TenantSettings
+	if originCEP == "" {
+		var settings models.TenantSettings
+		if err := database.DB.Where("tenant_id = ?", tenantID).First(&settings).Error; err == nil && settings.OriginCEP != "" {
+			originCEP = cleanDigits(settings.OriginCEP)
+		}
+	}
+
+	// 1d. Fallbacks finais: env SUPER_FRETE_ORIGIN_CEP ou padrão
+	if originCEP == "" {
+		originCEP = cleanDigits(cfg.SuperFreteOriginCEP)
+	}
+	if originCEP == "" || len(originCEP) != 8 {
 		originCEP = "01310100"
 	}
 
-	// 1. Tentar cotação oficial em tempo real via API do SuperFrete
+	// 2. Tentar cotação oficial em tempo real via API do SuperFrete
 	if token != "" {
 		sfClient := superfrete.New(cfg.SuperFreteAPIBaseURL, token)
 		sfOptions, err := sfClient.CalculateQuotes(c.Request.Context(), originCEP, zipDigits, 0.3, 10, 15, 20)

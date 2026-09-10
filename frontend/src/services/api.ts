@@ -986,12 +986,12 @@ export const api = {
     return data;
   },
 
-  // Cotação de Frete Correios / Transportadoras em Tempo Real
+  // Cotação de Frete SuperFrete / Correios em Tempo Real
   calculateFreightQuote: async (zipCode: string, tenantId?: number): Promise<{ options: { code: string; name: string; price: number; delivery_days: number }[] }> => {
     const res = await fetch(`${API_BASE_URL}/shipping/calculate-quote`, {
       method: 'POST',
       headers: getHeaders(tenantId),
-      body: JSON.stringify({ zip_code: zipCode }),
+      body: JSON.stringify({ zip_code: zipCode, tenant_id: tenantId }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Erro ao calcular frete');

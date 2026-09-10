@@ -66,40 +66,59 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
       ...(product.color_images || []),
     ];
 
-    // Fotos específicas da cor ou compartilhadas
-    const matchedPhotos: { url: string; colorKey: string }[] = [];
+    const specificPhotos: string[] = [];
+    const sharedPhotos: string[] = [];
     const seenUrls = new Set<string>();
 
     candidateList.forEach((img) => {
       if (!img || !img.image_url) return;
       const key = norm(img.color_name);
-      if (key === selectedKey || key === 'padrao' || !img.color_name) {
+      if (key === selectedKey) {
         if (!seenUrls.has(img.image_url)) {
           seenUrls.add(img.image_url);
-          matchedPhotos.push({ url: img.image_url, colorKey: key });
+          specificPhotos.push(img.image_url);
+        }
+      } else if (key === 'padrao' || !img.color_name) {
+        if (!seenUrls.has(img.image_url)) {
+          seenUrls.add(img.image_url);
+          sharedPhotos.push(img.image_url);
         }
       }
     });
 
-    if (matchedPhotos.length === 0 && activeProduct?.image_url && !seenUrls.has(activeProduct.image_url)) {
-      seenUrls.add(activeProduct.image_url);
-      matchedPhotos.push({ url: activeProduct.image_url, colorKey: selectedKey });
+    let chosenPhotos = specificPhotos.length > 0 ? specificPhotos : sharedPhotos;
+    if (chosenPhotos.length === 0 && activeProduct?.image_url) {
+      chosenPhotos = [activeProduct.image_url];
     }
-    if (matchedPhotos.length === 0 && product.image_url && !seenUrls.has(product.image_url)) {
-      seenUrls.add(product.image_url);
-      matchedPhotos.push({ url: product.image_url, colorKey: 'padrao' });
+    if (chosenPhotos.length === 0 && product.image_url) {
+      chosenPhotos = [product.image_url];
     }
 
-    const mediaList: ProductMedia[] = matchedPhotos.map((photo, idx) => ({
-      id: `img-${idx}-${photo.url}`,
-      type: 'image',
-      url: photo.url,
-      thumbnailUrl: photo.url,
-    }));
+    // Detectar vídeo da cor ativa ou produto
+    const videoUrl = activeProduct?.video_url || product.video_url || candidateList.find((c) => norm(c.color_name) === selectedKey && c.video_url)?.video_url || candidateList.find((c) => c.video_url)?.video_url;
 
-    // Detectar vídeo do produto ou variação
-    const videoUrl = activeProduct?.video_url || product.video_url || candidateList.find((c) => c.video_url)?.video_url;
-    if (videoUrl && !seenUrls.has(videoUrl)) {
+    const mediaList: ProductMedia[] = [];
+    chosenPhotos.forEach((url, idx) => {
+      mediaList.push({
+        id: `img-${idx}-${url}`,
+        type: 'image',
+        url,
+        thumbnailUrl: url,
+      });
+
+      // No Mercado Livre, o vídeo fica logo após a foto principal (2ª posição)
+      if (idx === 0 && videoUrl) {
+        const ytThumb = getYouTubeThumbnail(videoUrl);
+        mediaList.push({
+          id: `vid-${videoUrl}`,
+          type: 'video',
+          url: videoUrl,
+          thumbnailUrl: ytThumb || url,
+        });
+      }
+    });
+
+    if (videoUrl && !mediaList.some((m) => m.type === 'video')) {
       const ytThumb = getYouTubeThumbnail(videoUrl);
       const fallbackThumb = mediaList[0]?.thumbnailUrl || activeProduct?.image_url || product.image_url;
       mediaList.push({
@@ -375,6 +394,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
                 <div className="mt-5 border-t border-chumbo-800 pt-5">
                   <FreightCalculatorWidget
                     compact
+                    tenantId={product.tenant_id}
                     selectedOptionCode={selectedFreight?.code}
                     onSelectOption={(opt) => setSelectedFreight(opt)}
                   />

@@ -11,12 +11,14 @@ interface FreightOption {
 }
 
 interface FreightCalculatorWidgetProps {
+  tenantId?: number;
   onSelectOption?: (option: FreightOption) => void;
   selectedOptionCode?: string;
   compact?: boolean;
 }
 
 export const FreightCalculatorWidget: React.FC<FreightCalculatorWidgetProps> = ({
+  tenantId,
   onSelectOption,
   selectedOptionCode,
   compact = false,
@@ -48,7 +50,7 @@ export const FreightCalculatorWidget: React.FC<FreightCalculatorWidgetProps> = (
     setIsLoading(true);
 
     try {
-      const res = await api.calculateFreightQuote(cleanCep);
+      const res = await api.calculateFreightQuote(cleanCep, tenantId);
       const mappedOptions: FreightOption[] = (res.options || []).map((opt) => ({
         code: opt.code,
         name: opt.name,

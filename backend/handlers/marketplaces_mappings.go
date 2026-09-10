@@ -130,13 +130,12 @@ func importMarketplaceCatalogItem(tenantID uint, provider string, defaultCategor
 			product.Status = status
 		}
 		contentSyncAllowed := settings.ContentSyncPolicy == "always" ||
-			(settings.ContentSyncPolicy == "imported_only" && marketplaceOwnsProduct)
-		if overwriteLocal && marketplaceOwnsProduct {
-			contentSyncAllowed = true
-		}
-		shouldSyncImages = contentSyncAllowed
-		shouldSyncVariants = contentSyncAllowed || settings.MarketplaceControlsPrice
-		shouldSyncStocks = settings.MarketplaceControlsStock
+			(settings.ContentSyncPolicy == "imported_only" && marketplaceOwnsProduct) ||
+			(overwriteLocal && (marketplaceOwnsProduct || normalizeProvider(provider) == "mercadolivre")) ||
+			normalizeProvider(provider) == "mercadolivre"
+		shouldSyncImages = contentSyncAllowed || len(item.ColorImages) > 0
+		shouldSyncVariants = contentSyncAllowed || settings.MarketplaceControlsPrice || len(item.Variants) > 0
+		shouldSyncStocks = settings.MarketplaceControlsStock || len(item.ColorStocks) > 0
 		if settings.MarketplaceControlsPrice {
 			product.Price = item.Price
 		}

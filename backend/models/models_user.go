@@ -38,6 +38,7 @@ type TenantSettings struct {
 	DefaultFixedFee       float64   `gorm:"default:0" json:"default_fixed_fee"`
 	DeliveryPickupEnabled bool      `gorm:"default:true" json:"delivery_pickup_enabled"`
 	DeliveryShipEnabled   bool      `gorm:"default:true" json:"delivery_ship_enabled"`
+	OriginCEP             string    `gorm:"size:10" json:"origin_cep"`
 	CreatedAt             time.Time `json:"created_at"`
 	UpdatedAt             time.Time `json:"updated_at"`
 }
@@ -60,6 +61,7 @@ type TenantFulfillmentSettings struct {
 	Tenant                *Tenant   `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
 	DeliveryPickupEnabled bool      `gorm:"default:true" json:"delivery_pickup_enabled"`
 	DeliveryShipEnabled   bool      `gorm:"default:true" json:"delivery_ship_enabled"`
+	OriginCEP             string    `gorm:"size:10" json:"origin_cep"`
 	CreatedAt             time.Time `json:"created_at"`
 	UpdatedAt             time.Time `json:"updated_at"`
 }
@@ -133,6 +135,7 @@ type TenantSettingsInput struct {
 	DefaultFixedFee       float64 `json:"default_fixed_fee"`
 	DeliveryPickupEnabled bool    `json:"delivery_pickup_enabled"`
 	DeliveryShipEnabled   bool    `json:"delivery_ship_enabled"`
+	OriginCEP             string  `json:"origin_cep"`
 }
 
 type TenantMarketplaceSettingsInput struct {

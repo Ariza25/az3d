@@ -157,66 +157,30 @@ func (c *Connector) fetchItemIDsByStatus(ctx context.Context, baseURL string, ac
 
 func (c *Connector) fetchItems(ctx context.Context, baseURL string, token string, itemIDs []string) ([]mp.CatalogItem, error) {
 	items := []mp.CatalogItem{}
+	missingIDs := []string{}
+
 	for start := 0; start < len(itemIDs); start += 20 {
 		end := start + 20
 		if end > len(itemIDs) {
 			end = len(itemIDs)
 		}
+		chunk := itemIDs[start:end]
 
-		endpoint, _ := url.Parse(baseURL + "/items/bulk")
-		query := endpoint.Query()
-		query.Set("ids", strings.Join(itemIDs[start:end], ","))
-		endpoint.RawQuery = query.Encode()
+		// 1. Tentar rota /items/bulk (usada em mocks e compatibilidade)
+		endpointBulk, _ := url.Parse(baseURL + "/items/bulk")
+		queryBulk := endpointBulk.Query()
+		queryBulk.Set("ids", strings.Join(chunk, ","))
+		endpointBulk.RawQuery = queryBulk.Encode()
 
-		var response []struct {
+		var responseBulk []struct {
+			Code       int         `json:"code"`
 			StatusCode int         `json:"status_code"`
 			Body       mercadoItem `json:"body"`
 		}
-		if err := c.getJSON(ctx, endpoint.String(), token, &response); err != nil {
-			return nil, err
-		}
-		added := 0
-		statusCounts := make(map[int]int)
-		missingBodyID := 0
-		for _, entry := range response {
-			statusCounts[entry.StatusCode]++
-			if entry.StatusCode >= 300 {
-				continue
-			}
-			if entry.Body.ID == "" {
-				missingBodyID++
-				continue
-			}
-			items = append(items, normalizeItem(entry.Body))
-			added++
-		}
-		if len(response) > 0 && added == 0 {
-			return nil, fmt.Errorf("items/bulk nao retornou corpos utilizaveis: respostas=%d status=%v sem_body_id=%d", len(response), statusCounts, missingBodyID)
-		}
-	}
-	if len(items) == 0 && len(itemIDs) > 0 {
-		for start := 0; start < len(itemIDs); start += 20 {
-			end := start + 20
-			if end > len(itemIDs) {
-				end = len(itemIDs)
-			}
-			endpoint, _ := url.Parse(baseURL + "/items")
-			query := endpoint.Query()
-			query.Set("ids", strings.Join(itemIDs[start:end], ","))
-			endpoint.RawQuery = query.Encode()
-			var response []struct {
-				Code       int         `json:"code"`
-				StatusCode int         `json:"status_code"`
-				Body       mercadoItem `json:"body"`
-			}
-			if err := c.getJSON(ctx, endpoint.String(), token, &response); err != nil {
-				var apiErr *APIError
-				if errors.As(err, &apiErr) && (apiErr.StatusCode == http.StatusForbidden || apiErr.StatusCode == http.StatusNotFound) {
-					break
-				}
-				return nil, err
-			}
-			for _, entry := range response {
+		errBulk := c.getJSON(ctx, endpointBulk.String(), token, &responseBulk)
+		if errBulk == nil && len(responseBulk) > 0 {
+			receivedIDs := make(map[string]struct{})
+			for _, entry := range responseBulk {
 				statusCode := entry.StatusCode
 				if statusCode == 0 {
 					statusCode = entry.Code
@@ -224,31 +188,87 @@ func (c *Connector) fetchItems(ctx context.Context, baseURL string, token string
 				if statusCode >= 300 || entry.Body.ID == "" {
 					continue
 				}
+				receivedIDs[entry.Body.ID] = struct{}{}
 				items = append(items, normalizeItem(entry.Body))
+			}
+			for _, id := range chunk {
+				if _, ok := receivedIDs[id]; !ok {
+					missingIDs = append(missingIDs, id)
+				}
+			}
+			continue
+		}
+
+		// 2. Rota moderna /items com atributos completos de galeria e videos
+		endpoint, _ := url.Parse(baseURL + "/items")
+		query := endpoint.Query()
+		query.Set("ids", strings.Join(chunk, ","))
+		query.Set("attributes", "id,seller_id,title,price,available_quantity,thumbnail,pictures,permalink,seller_custom_field,attributes,variations,status,video_id,videos")
+		endpoint.RawQuery = query.Encode()
+
+		var response []struct {
+			Code       int         `json:"code"`
+			StatusCode int         `json:"status_code"`
+			Body       mercadoItem `json:"body"`
+		}
+		if err := c.getJSON(ctx, endpoint.String(), token, &response); err != nil {
+			missingIDs = append(missingIDs, chunk...)
+			continue
+		}
+
+		receivedIDs := make(map[string]struct{})
+		for _, entry := range response {
+			statusCode := entry.StatusCode
+			if statusCode == 0 {
+				statusCode = entry.Code
+			}
+			if statusCode >= 300 || entry.Body.ID == "" {
+				continue
+			}
+			receivedIDs[entry.Body.ID] = struct{}{}
+
+			// Se o multiget retornar sem galeria de fotos ou com pictures incompletas, enriquece buscando o item direto
+			itemBody := entry.Body
+			if len(itemBody.Pictures) <= 1 && itemBody.ID != "" {
+				var detailedItem mercadoItem
+				detailedEndpoint := baseURL + "/items/" + url.PathEscape(itemBody.ID)
+				if err := c.getJSON(ctx, detailedEndpoint, token, &detailedItem); err == nil && detailedItem.ID != "" {
+					if len(detailedItem.Pictures) > len(itemBody.Pictures) {
+						itemBody.Pictures = detailedItem.Pictures
+					}
+					if len(detailedItem.Videos) > 0 {
+						itemBody.Videos = detailedItem.Videos
+					}
+					if detailedItem.VideoID != "" {
+						itemBody.VideoID = detailedItem.VideoID
+					}
+					if len(detailedItem.Variations) > 0 {
+						itemBody.Variations = detailedItem.Variations
+					}
+				}
+			}
+
+			items = append(items, normalizeItem(itemBody))
+		}
+
+		for _, id := range chunk {
+			if _, ok := receivedIDs[id]; !ok {
+				missingIDs = append(missingIDs, id)
 			}
 		}
 	}
-	if len(items) == 0 && len(itemIDs) > 0 {
-		individualStatusCounts := make(map[int]int)
-		for _, itemID := range itemIDs {
+
+	// Para IDs que não foram retornados no lote, busca individualmente
+	if len(missingIDs) > 0 {
+		for _, itemID := range missingIDs {
 			var item mercadoItem
 			endpoint := baseURL + "/items/" + url.PathEscape(itemID)
-			if err := c.getJSON(ctx, endpoint, token, &item); err != nil {
-				var apiErr *APIError
-				if errors.As(err, &apiErr) && (apiErr.StatusCode == http.StatusForbidden || apiErr.StatusCode == http.StatusNotFound) {
-					individualStatusCounts[apiErr.StatusCode]++
-					continue
-				}
-				return nil, err
-			}
-			if item.ID != "" {
+			if err := c.getJSON(ctx, endpoint, token, &item); err == nil && item.ID != "" {
 				items = append(items, normalizeItem(item))
 			}
 		}
-		if len(items) == 0 && len(individualStatusCounts) > 0 {
-			return nil, fmt.Errorf("itens conhecidos indisponiveis na consulta autenticada: status=%v", individualStatusCounts)
-		}
 	}
+
 	return items, nil
 }
 
@@ -292,32 +312,54 @@ type mercadoVariation struct {
 }
 
 func resolveMercadoLivreVideoURL(videoID string, videos []any) string {
+	// 1. Procurar URLs de vídeo diretas no array de vídeos
+	for _, v := range videos {
+		switch val := v.(type) {
+		case string:
+			s := strings.TrimSpace(val)
+			if strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://") {
+				return s
+			}
+		case map[string]any:
+			// Campos comumente retornados pelo Mercado Livre para vídeos
+			for _, key := range []string{"url", "stream_url", "secure_url", "source", "download_url"} {
+				if u, ok := val[key].(string); ok {
+					u = strings.TrimSpace(u)
+					if strings.HasPrefix(u, "http://") || strings.HasPrefix(u, "https://") {
+						return u
+					}
+				}
+			}
+			if mediaType, ok := val["type"].(string); ok && strings.EqualFold(mediaType, "youtube") {
+				if id, ok := val["id"].(string); ok && strings.TrimSpace(id) != "" {
+					return fmt.Sprintf("https://www.youtube.com/watch?v=%s", strings.TrimSpace(id))
+				}
+			}
+		}
+	}
+
+	// 2. Tratar videoID
 	videoID = strings.TrimSpace(videoID)
 	if videoID != "" {
 		if strings.HasPrefix(videoID, "http://") || strings.HasPrefix(videoID, "https://") {
 			return videoID
 		}
-		return fmt.Sprintf("https://www.youtube.com/watch?v=%s", videoID)
-	}
-	for _, v := range videos {
-		switch val := v.(type) {
-		case string:
-			if s := strings.TrimSpace(val); s != "" {
-				if strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://") {
-					return s
-				}
-				return fmt.Sprintf("https://www.youtube.com/watch?v=%s", s)
-			}
-		case map[string]any:
-			if u, ok := val["url"].(string); ok && strings.TrimSpace(u) != "" {
-				return strings.TrimSpace(u)
-			}
-			if id, ok := val["id"].(string); ok && strings.TrimSpace(id) != "" {
-				return resolveMercadoLivreVideoURL(id, nil)
-			}
+		// IDs do YouTube possuem 11 caracteres
+		if len(videoID) == 11 && isValidYouTubeID(videoID) {
+			return fmt.Sprintf("https://www.youtube.com/watch?v=%s", videoID)
 		}
 	}
+
 	return ""
+}
+
+func isValidYouTubeID(id string) bool {
+	for _, r := range id {
+		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' || r == '-') {
+			return false
+		}
+	}
+	return true
 }
 
 func normalizeItem(item mercadoItem) mp.CatalogItem {
@@ -355,7 +397,7 @@ func normalizeItem(item mercadoItem) mp.CatalogItem {
 			stockQty += maxInt(stock.StockQty, 0)
 		}
 	} else {
-		colorName := marketplaceListingColor(item.Title, sku)
+		colorName := marketplaceListingColor(item.Title, sku, item.Attributes)
 		colorImages = listingPictures(item.Pictures, colorName, imageURL, videoURL)
 		colorStocks = []mp.CatalogColorStock{{ColorName: colorName, StockQty: stockQty}}
 	}
@@ -412,8 +454,25 @@ func listingPictures(pictures []mercadoPicture, colorName string, fallbackImageU
 	return images
 }
 
-func marketplaceListingColor(title string, sku string) string {
+func marketplaceListingColor(title string, sku string, attributes []mercadoAttribute) string {
 	colors := []string{"Branco", "Preto", "Cinza", "Bege", "Vermelho", "Azul", "Verde", "Amarelo", "Rosa", "Roxo", "Laranja", "Marrom", "Natural", "Dourado", "Prata"}
+
+	// 1. Atributos da API
+	for _, attr := range attributes {
+		id := strings.ToUpper(strings.TrimSpace(attr.ID))
+		if id == "COLOR" || id == "MAIN_COLOR" || id == "COR" || id == "COR_PRINCIPAL" {
+			if val := strings.TrimSpace(attr.ValueName); val != "" {
+				for _, color := range colors {
+					if strings.EqualFold(val, color) {
+						return color
+					}
+				}
+				return val
+			}
+		}
+	}
+
+	// 2. Título do anúncio
 	words := strings.Fields(strings.TrimSpace(title))
 	if len(words) > 0 {
 		last := strings.Trim(words[len(words)-1], " .,-_/()")
@@ -422,8 +481,17 @@ func marketplaceListingColor(title string, sku string) string {
 				return color
 			}
 		}
+		for _, w := range words {
+			clean := strings.Trim(w, " .,-_/()")
+			for _, color := range colors {
+				if strings.EqualFold(clean, color) {
+					return color
+				}
+			}
+		}
 	}
 
+	// 3. SKU
 	parts := strings.FieldsFunc(strings.ToUpper(strings.TrimSpace(sku)), func(r rune) bool { return r == '-' || r == '_' })
 	if len(parts) > 0 {
 		aliases := map[string]string{

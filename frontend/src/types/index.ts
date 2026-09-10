@@ -283,6 +283,7 @@ export interface TenantSettings {
   default_fixed_fee: number;
   delivery_pickup_enabled: boolean;
   delivery_ship_enabled: boolean;
+  origin_cep?: string;
 }
 
 export interface TenantStoreSettings {
@@ -316,6 +317,7 @@ export interface TenantFulfillmentSettings {
   tenant_id: number;
   delivery_pickup_enabled: boolean;
   delivery_ship_enabled: boolean;
+  origin_cep?: string;
 }
 
 export interface MaterialPreset {
@@ -639,6 +641,7 @@ export interface TenantCarrierAccount {
   provider: string;
   account_name: string;
   auth_type: string;
+  origin_cep?: string;
   token_expires_at?: string;
   is_active: boolean;
   is_connected: boolean;
@@ -653,6 +656,7 @@ export interface TenantCarrierAccountInput {
   provider: string;
   account_name?: string;
   auth_type?: string;
+  origin_cep?: string;
   is_active: boolean;
   sync_tracking: boolean;
   credentials?: Record<string, unknown>;

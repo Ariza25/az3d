@@ -386,6 +386,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
                     <div className="mt-4 pt-2">
                       <FreightCalculatorWidget
                         compact
+                        tenantId={tenantSettings?.tenant_id}
                         selectedOptionCode={selectedFreight?.code}
                         onSelectOption={(opt) => setSelectedFreight(opt)}
                       />
@@ -431,6 +432,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
                           <h3 className="text-sm font-bold text-white mb-2">Cálculo & Escolha do Frete</h3>
                           <FreightCalculatorWidget
                             compact
+                            tenantId={tenantSettings?.tenant_id}
                             selectedOptionCode={selectedFreight?.code}
                             onSelectOption={(opt) => setSelectedFreight(opt)}
                           />

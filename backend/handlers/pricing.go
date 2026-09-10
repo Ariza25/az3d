@@ -171,6 +171,7 @@ func tenantSettingsFromDomains(tenantID uint) (models.TenantSettings, error) {
 	settings.DefaultFixedFee = pricing.DefaultFixedFee
 	settings.DeliveryPickupEnabled = fulfillment.DeliveryPickupEnabled
 	settings.DeliveryShipEnabled = fulfillment.DeliveryShipEnabled
+	settings.OriginCEP = fulfillment.OriginCEP
 	return settings, nil
 }
 
@@ -209,6 +210,9 @@ func syncTenantSettingsDomains(tenantID uint, input models.TenantSettingsInput) 
 
 	fulfillment.DeliveryPickupEnabled = input.DeliveryPickupEnabled
 	fulfillment.DeliveryShipEnabled = input.DeliveryShipEnabled
+	if strings.TrimSpace(input.OriginCEP) != "" {
+		fulfillment.OriginCEP = cleanDigits(input.OriginCEP)
+	}
 
 	if err := database.DB.Save(&store).Error; err != nil {
 		return legacy, err
@@ -1125,3 +1129,14 @@ func (h *PricingHandler) DeletePlatformPreset(c *gin.Context) {
 	database.DB.Where("tenant_id = ? AND id = ?", tenantID, id).Delete(&models.PlatformFeePreset{})
 	c.JSON(http.StatusOK, gin.H{"message": "Preset removido"})
 }
+
+func cleanDigits(val string) string {
+	digits := ""
+	for _, ch := range val {
+		if ch >= '0' && ch <= '9' {
+			digits += string(ch)
+		}
+	}
+	return digits
+}
+
