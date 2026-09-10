@@ -377,6 +377,58 @@ func TestFetchCatalogItemsFallsBackToLegacyMultigetWhenBulkIsEmpty(t *testing.T)
 	}
 }
 
+func TestFetchCatalogItemsHandlesNumericVideoIDAndAttributes(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/items/bulk":
+			_ = json.NewEncoder(w).Encode([]map[string]any{})
+		case "/items":
+			_ = json.NewEncoder(w).Encode([]map[string]any{{
+				"code": http.StatusOK,
+				"body": map[string]any{
+					"id": "MLB-NUMERIC", "seller_id": 12345, "title": "Vaso Bonequinho 8cm Cinza", "price": 35.9, "status": "active",
+					"video_id": 987654321,
+					"videos": []map[string]any{
+						{"id": 987654321, "url": "https://http2.mlstatic.com/video/stream.mp4"},
+					},
+					"attributes": []map[string]any{
+						{"id": "HEIGHT", "name": "Altura", "value_name": 8},
+						{"id": "COLOR", "name": "Cor", "value_name": "Cinza"},
+					},
+					"pictures": []map[string]any{
+						{"id": "PIC-1", "secure_url": "https://img.example/cinza-1.jpg"},
+						{"id": "PIC-2", "secure_url": "https://img.example/cinza-2.jpg"},
+					},
+				},
+			}})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	t.Setenv("MELI_API_BASE_URL", server.URL)
+
+	result, err := New().FetchCatalogItems(context.Background(), mp.Account{
+		SellerID: "12345", AccessToken: "access-token",
+	}, []string{"MLB-NUMERIC"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(result.Items))
+	}
+	item := result.Items[0]
+	if item.VideoURL != "https://http2.mlstatic.com/video/stream.mp4" {
+		t.Fatalf("expected video URL, got %q", item.VideoURL)
+	}
+	if len(item.ColorImages) != 2 {
+		t.Fatalf("expected 2 images, got %d", len(item.ColorImages))
+	}
+	if item.ColorImages[0].ColorName != "Cinza" {
+		t.Fatalf("expected color Cinza, got %q", item.ColorImages[0].ColorName)
+	}
+}
+
 func TestFetchOrdersPaginatesAndUsesAuthoritativeFinancialFields(t *testing.T) {
 	var mu sync.Mutex
 	offsets := []int{}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -166,7 +167,7 @@ func (c *Connector) fetchItems(ctx context.Context, baseURL string, token string
 		}
 		chunk := itemIDs[start:end]
 
-		// 1. Tentar rota /items/bulk (usada em mocks e compatibilidade)
+		// 1. Tentar rota /items/bulk (usada em mocks e compatibilidade de testes)
 		endpointBulk, _ := url.Parse(baseURL + "/items/bulk")
 		queryBulk := endpointBulk.Query()
 		queryBulk.Set("ids", strings.Join(chunk, ","))
@@ -199,11 +200,10 @@ func (c *Connector) fetchItems(ctx context.Context, baseURL string, token string
 			continue
 		}
 
-		// 2. Rota moderna /items com atributos completos de galeria e videos
+		// 2. Rota multiget oficial do Mercado Livre: /items?ids=MLB1,MLB2,...
 		endpoint, _ := url.Parse(baseURL + "/items")
 		query := endpoint.Query()
 		query.Set("ids", strings.Join(chunk, ","))
-		query.Set("attributes", "id,seller_id,title,price,available_quantity,thumbnail,pictures,permalink,seller_custom_field,attributes,variations,status,video_id,videos")
 		endpoint.RawQuery = query.Encode()
 
 		var response []struct {
@@ -212,6 +212,7 @@ func (c *Connector) fetchItems(ctx context.Context, baseURL string, token string
 			Body       mercadoItem `json:"body"`
 		}
 		if err := c.getJSON(ctx, endpoint.String(), token, &response); err != nil {
+			log.Printf("[mercadolivre] multiget falhou para %d itens: %v. Tentando busca individual.", len(chunk), err)
 			missingIDs = append(missingIDs, chunk...)
 			continue
 		}
@@ -227,19 +228,20 @@ func (c *Connector) fetchItems(ctx context.Context, baseURL string, token string
 			}
 			receivedIDs[entry.Body.ID] = struct{}{}
 
-			// Se o multiget retornar sem galeria de fotos ou com pictures incompletas, enriquece buscando o item direto
+			// Se o multiget retornar sem galeria completa (<= 1 foto) ou sem video, enriquece buscando o item direto
 			itemBody := entry.Body
-			if len(itemBody.Pictures) <= 1 && itemBody.ID != "" {
+			videoURL := resolveMercadoLivreVideoURL(itemBody.VideoID, itemBody.Videos)
+			if (len(itemBody.Pictures) <= 1 || videoURL == "") && itemBody.ID != "" {
 				var detailedItem mercadoItem
 				detailedEndpoint := baseURL + "/items/" + url.PathEscape(itemBody.ID)
 				if err := c.getJSON(ctx, detailedEndpoint, token, &detailedItem); err == nil && detailedItem.ID != "" {
 					if len(detailedItem.Pictures) > len(itemBody.Pictures) {
 						itemBody.Pictures = detailedItem.Pictures
 					}
-					if len(detailedItem.Videos) > 0 {
+					if detailedItem.Videos != nil {
 						itemBody.Videos = detailedItem.Videos
 					}
-					if detailedItem.VideoID != "" {
+					if detailedItem.VideoID != nil {
 						itemBody.VideoID = detailedItem.VideoID
 					}
 					if len(detailedItem.Variations) > 0 {
@@ -265,6 +267,8 @@ func (c *Connector) fetchItems(ctx context.Context, baseURL string, token string
 			endpoint := baseURL + "/items/" + url.PathEscape(itemID)
 			if err := c.getJSON(ctx, endpoint, token, &item); err == nil && item.ID != "" {
 				items = append(items, normalizeItem(item))
+			} else if err != nil {
+				log.Printf("[mercadolivre] busca individual do item %s falhou: %v", itemID, err)
 			}
 		}
 	}
@@ -274,19 +278,19 @@ func (c *Connector) fetchItems(ctx context.Context, baseURL string, token string
 
 type mercadoItem struct {
 	ID                string             `json:"id"`
-	SellerID          int64              `json:"seller_id"`
+	SellerID          any                `json:"seller_id"`
 	Title             string             `json:"title"`
 	Price             float64            `json:"price"`
 	AvailableQuantity int                `json:"available_quantity"`
 	Thumbnail         string             `json:"thumbnail"`
 	Pictures          []mercadoPicture   `json:"pictures"`
 	Permalink         string             `json:"permalink"`
-	SellerCustomField string             `json:"seller_custom_field"`
+	SellerCustomField any                `json:"seller_custom_field"`
 	Attributes        []mercadoAttribute `json:"attributes"`
 	Variations        []mercadoVariation `json:"variations"`
 	Status            string             `json:"status"`
-	VideoID           string             `json:"video_id"`
-	Videos            []any              `json:"videos"`
+	VideoID           any                `json:"video_id"`
+	Videos            any                `json:"videos"`
 }
 
 type mercadoPicture struct {
@@ -298,58 +302,97 @@ type mercadoPicture struct {
 type mercadoAttribute struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
-	ValueName string `json:"value_name"`
+	ValueName any    `json:"value_name"`
 }
 
 type mercadoVariation struct {
-	ID                    int64              `json:"id"`
+	ID                    any                `json:"id"`
 	Price                 float64            `json:"price"`
 	AvailableQuantity     int                `json:"available_quantity"`
-	SellerCustomField     string             `json:"seller_custom_field"`
+	SellerCustomField     any                `json:"seller_custom_field"`
 	AttributeCombinations []mercadoAttribute `json:"attribute_combinations"`
 	Attributes            []mercadoAttribute `json:"attributes"`
 	PictureIDs            []string           `json:"picture_ids"`
 }
 
-func resolveMercadoLivreVideoURL(videoID string, videos []any) string {
-	// 1. Procurar URLs de vídeo diretas no array de vídeos
-	for _, v := range videos {
-		switch val := v.(type) {
-		case string:
-			s := strings.TrimSpace(val)
-			if strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://") {
-				return s
+func stringify(val any) string {
+	if val == nil {
+		return ""
+	}
+	switch v := val.(type) {
+	case string:
+		return strings.TrimSpace(v)
+	case float64:
+		return strconv.FormatInt(int64(v), 10)
+	case int64:
+		return strconv.FormatInt(v, 10)
+	case int:
+		return strconv.Itoa(v)
+	case json.Number:
+		return v.String()
+	default:
+		return strings.TrimSpace(fmt.Sprintf("%v", v))
+	}
+}
+
+func resolveMercadoLivreVideoURL(videoID any, videos any) string {
+	// 1. Procurar URLs de vídeo diretas no payload de vídeos
+	if videos != nil {
+		switch vList := videos.(type) {
+		case []any:
+			for _, v := range vList {
+				if u := extractVideoURL(v); u != "" {
+					return u
+				}
 			}
 		case map[string]any:
-			// Campos comumente retornados pelo Mercado Livre para vídeos
-			for _, key := range []string{"url", "stream_url", "secure_url", "source", "download_url"} {
-				if u, ok := val[key].(string); ok {
-					u = strings.TrimSpace(u)
-					if strings.HasPrefix(u, "http://") || strings.HasPrefix(u, "https://") {
-						return u
-					}
-				}
+			if u := extractVideoURL(vList); u != "" {
+				return u
 			}
-			if mediaType, ok := val["type"].(string); ok && strings.EqualFold(mediaType, "youtube") {
-				if id, ok := val["id"].(string); ok && strings.TrimSpace(id) != "" {
-					return fmt.Sprintf("https://www.youtube.com/watch?v=%s", strings.TrimSpace(id))
-				}
+		case string:
+			if u := strings.TrimSpace(vList); strings.HasPrefix(u, "http://") || strings.HasPrefix(u, "https://") {
+				return u
 			}
 		}
 	}
 
 	// 2. Tratar videoID
-	videoID = strings.TrimSpace(videoID)
-	if videoID != "" {
-		if strings.HasPrefix(videoID, "http://") || strings.HasPrefix(videoID, "https://") {
-			return videoID
+	vID := stringify(videoID)
+	if vID != "" {
+		if strings.HasPrefix(vID, "http://") || strings.HasPrefix(vID, "https://") {
+			return vID
 		}
-		// IDs do YouTube possuem 11 caracteres
-		if len(videoID) == 11 && isValidYouTubeID(videoID) {
-			return fmt.Sprintf("https://www.youtube.com/watch?v=%s", videoID)
+		// IDs do YouTube possuem 11 caracteres alfanuméricos
+		if len(vID) == 11 && isValidYouTubeID(vID) {
+			return fmt.Sprintf("https://www.youtube.com/watch?v=%s", vID)
 		}
 	}
 
+	return ""
+}
+
+func extractVideoURL(val any) string {
+	switch v := val.(type) {
+	case string:
+		s := strings.TrimSpace(v)
+		if strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://") {
+			return s
+		}
+	case map[string]any:
+		for _, key := range []string{"url", "stream_url", "secure_url", "source", "download_url"} {
+			if u, ok := v[key].(string); ok {
+				u = strings.TrimSpace(u)
+				if strings.HasPrefix(u, "http://") || strings.HasPrefix(u, "https://") {
+					return u
+				}
+			}
+		}
+		if mediaType, ok := v["type"].(string); ok && strings.EqualFold(mediaType, "youtube") {
+			if id := stringify(v["id"]); id != "" {
+				return fmt.Sprintf("https://www.youtube.com/watch?v=%s", id)
+			}
+		}
+	}
 	return ""
 }
 
@@ -370,16 +413,17 @@ func normalizeItem(item mercadoItem) mp.CatalogItem {
 			imageURL = item.Pictures[0].URL
 		}
 	}
-	sku := strings.TrimSpace(item.SellerCustomField)
+	sku := stringify(item.SellerCustomField)
 	material := ""
 	for _, attr := range item.Attributes {
+		attrVal := stringify(attr.ValueName)
 		switch strings.ToUpper(attr.ID) {
 		case "SELLER_SKU":
 			if sku == "" {
-				sku = strings.TrimSpace(attr.ValueName)
+				sku = attrVal
 			}
 		case "MATERIAL":
-			material = attr.ValueName
+			material = attrVal
 		}
 	}
 	status := "active"
@@ -426,7 +470,7 @@ func normalizeItem(item mercadoItem) mp.CatalogItem {
 		Variants:       variants,
 		Raw: map[string]any{
 			"available_quantity": strconv.Itoa(item.AvailableQuantity),
-			"seller_id":          strconv.FormatInt(item.SellerID, 10),
+			"seller_id":          stringify(item.SellerID),
 		},
 	}
 }
@@ -461,7 +505,7 @@ func marketplaceListingColor(title string, sku string, attributes []mercadoAttri
 	for _, attr := range attributes {
 		id := strings.ToUpper(strings.TrimSpace(attr.ID))
 		if id == "COLOR" || id == "MAIN_COLOR" || id == "COR" || id == "COR_PRINCIPAL" {
-			if val := strings.TrimSpace(attr.ValueName); val != "" {
+			if val := stringify(attr.ValueName); val != "" {
 				for _, color := range colors {
 					if strings.EqualFold(val, color) {
 						return color
@@ -615,7 +659,7 @@ func variationAttributesJSON(attributes []mercadoAttribute) string {
 		if name == "" {
 			name = strings.TrimSpace(attribute.ID)
 		}
-		value := strings.TrimSpace(attribute.ValueName)
+		value := stringify(attribute.ValueName)
 		if name != "" && value != "" {
 			values = append(values, map[string]string{"name": name, "value": value})
 		}
@@ -630,15 +674,15 @@ func variationAttributesJSON(attributes []mercadoAttribute) string {
 func variationName(variation mercadoVariation, index int) string {
 	parts := make([]string, 0, len(variation.AttributeCombinations))
 	for _, attribute := range variation.AttributeCombinations {
-		if value := strings.TrimSpace(attribute.ValueName); value != "" {
+		if value := stringify(attribute.ValueName); value != "" {
 			parts = append(parts, value)
 		}
 	}
 	if len(parts) > 0 {
 		return strings.Join(parts, " / ")
 	}
-	if variation.ID != 0 {
-		return strconv.FormatInt(variation.ID, 10)
+	if vID := stringify(variation.ID); vID != "" && vID != "0" {
+		return vID
 	}
 	return fmt.Sprintf("Variacao %d", index+1)
 }
@@ -646,7 +690,7 @@ func variationName(variation mercadoVariation, index int) string {
 func attributeValue(attributes []mercadoAttribute, id string) string {
 	for _, attribute := range attributes {
 		if strings.EqualFold(strings.TrimSpace(attribute.ID), id) {
-			return strings.TrimSpace(attribute.ValueName)
+			return stringify(attribute.ValueName)
 		}
 	}
 	return ""
