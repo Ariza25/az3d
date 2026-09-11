@@ -66,7 +66,36 @@ type superFreteCalcResponseItem struct {
 	Error    string `json:"error"`
 }
 
+type PackageInfo struct {
+	Format string  `json:"format"` // "box" (Caixa/Pacote), "roll" (Rolo/Prisma), "envelope"
+	Weight float64 `json:"weight"` // em kg (ex: 0.3)
+	Height int     `json:"height"` // em cm (ex: 20)
+	Width  int     `json:"width"`  // em cm (ex: 20)
+	Length int     `json:"length"` // em cm (ex: 20)
+}
+
+type QuoteOptions struct {
+	OwnHand           bool    `json:"own_hand"`
+	Receipt           bool    `json:"receipt"`
+	UseInsuranceValue bool    `json:"use_insurance_value"`
+	InsuranceValue    float64 `json:"insurance_value"`
+	Services          string  `json:"services"` // ex: "1,2,17"
+	AdditionalDays    int     `json:"additional_days"`
+}
+
 func (c *Connector) CalculateQuotes(ctx context.Context, fromCEP, toCEP string, weight float64, height, width, length int) ([]ShippingOption, error) {
+	return c.CalculateQuotesAdvanced(ctx, fromCEP, toCEP, PackageInfo{
+		Format: "box",
+		Weight: weight,
+		Height: height,
+		Width:  width,
+		Length: length,
+	}, QuoteOptions{
+		Services: "1,2,17",
+	})
+}
+
+func (c *Connector) CalculateQuotesAdvanced(ctx context.Context, fromCEP, toCEP string, pkg PackageInfo, opts QuoteOptions) ([]ShippingOption, error) {
 	if c.token == "" {
 		return nil, fmt.Errorf("token do SuperFrete nao configurado")
 	}
@@ -77,17 +106,39 @@ func (c *Connector) CalculateQuotes(ctx context.Context, fromCEP, toCEP string, 
 		return nil, fmt.Errorf("CEPs invalidos para calculo: origem=%s destino=%s", fromCEP, toCEP)
 	}
 
-	if weight <= 0 {
-		weight = 0.3 // 300g padrão para peças 3D
+	if pkg.Weight <= 0 {
+		pkg.Weight = 0.3 // 300g padrão
 	}
-	if height <= 0 {
-		height = 10
+	if pkg.Height <= 0 {
+		pkg.Height = 20
 	}
-	if width <= 0 {
-		width = 15
+	if pkg.Width <= 0 {
+		pkg.Width = 20
 	}
-	if length <= 0 {
-		length = 20
+	if pkg.Length <= 0 {
+		pkg.Length = 20
+	}
+	formatClean := strings.TrimSpace(strings.ToLower(pkg.Format))
+	if formatClean == "" || formatClean == "1" || formatClean == "caixa" || formatClean == "pacote" {
+		formatClean = "box"
+	} else if formatClean == "2" || formatClean == "rolo" || formatClean == "cilindro" || formatClean == "prisma" {
+		formatClean = "roll"
+	} else if formatClean == "3" || formatClean == "envelope" {
+		formatClean = "envelope"
+	}
+
+	services := strings.TrimSpace(opts.Services)
+	if services == "" {
+		services = "1,2,17" // 1: PAC, 2: SEDEX, 17: Mini Envios
+	}
+
+	optionsMap := map[string]any{
+		"own_hand":            opts.OwnHand,
+		"receipt":             opts.Receipt,
+		"use_insurance_value": opts.UseInsuranceValue,
+	}
+	if opts.UseInsuranceValue && opts.InsuranceValue > 0 {
+		optionsMap["insurance_value"] = opts.InsuranceValue
 	}
 
 	payload := map[string]any{
@@ -97,17 +148,14 @@ func (c *Connector) CalculateQuotes(ctx context.Context, fromCEP, toCEP string, 
 		"to": map[string]string{
 			"postal_code": toClean,
 		},
-		"services": "1,2,17", // 1: PAC, 2: SEDEX, 17: Mini Envios
-		"options": map[string]any{
-			"own_hand":            false,
-			"receipt":             false,
-			"use_insurance_value": false,
-		},
+		"services": services,
+		"options":  optionsMap,
 		"package": map[string]any{
-			"height": height,
-			"width":  width,
-			"length": length,
-			"weight": weight,
+			"format": formatClean,
+			"height": pkg.Height,
+			"width":  pkg.Width,
+			"length": pkg.Length,
+			"weight": pkg.Weight,
 		},
 	}
 
@@ -176,6 +224,9 @@ func (c *Connector) CalculateQuotes(ctx context.Context, fromCEP, toCEP string, 
 		}
 		if deliveryDays <= 0 {
 			deliveryDays = 5
+		}
+		if opts.AdditionalDays > 0 {
+			deliveryDays += opts.AdditionalDays
 		}
 
 		discountVal := 0.0

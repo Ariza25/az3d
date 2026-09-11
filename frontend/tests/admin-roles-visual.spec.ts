@@ -60,7 +60,7 @@ const observability = {
   carrier_errors: 0,
   mercado_pago_configured: true,
   mercado_pago_webhook_secret: true,
-  correios_base_configured: true,
+  superfrete_configured: true,
   checked_at: '2026-08-28T18:00:00Z',
 };
 

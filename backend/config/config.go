@@ -30,8 +30,6 @@ type Config struct {
 	MaxUploadBytes             int64
 	RequireStrongSecrets       bool
 	CredentialEncryptionKey    string
-	CorreiosAPIBaseURL         string
-	CorreiosTokenBaseURL       string
 	TrackingSyncIntervalMin    int
 	MarketplaceSyncIntervalMin int
 	GoogleOAuthClientID        string
@@ -89,8 +87,6 @@ func LoadConfig() *Config {
 		MaxUploadBytes:             int64(getEnvInt("MAX_UPLOAD_MB", 5)) * 1024 * 1024,
 		RequireStrongSecrets:       getEnvBool("REQUIRE_STRONG_SECRETS", false),
 		CredentialEncryptionKey:    getEnv("CREDENTIAL_ENCRYPTION_KEY", ""),
-		CorreiosAPIBaseURL:         getEnv("CORREIOS_API_BASE_URL", "https://api.correios.com.br/srorastro"),
-		CorreiosTokenBaseURL:       getEnv("CORREIOS_TOKEN_BASE_URL", "https://api.correios.com.br/token"),
 		TrackingSyncIntervalMin:    getEnvIntAllowZero("TRACKING_SYNC_INTERVAL_MINUTES", 0),
 		MarketplaceSyncIntervalMin: getEnvIntAllowZero("MARKETPLACE_SYNC_INTERVAL_MINUTES", 1),
 		GoogleOAuthClientID:        getEnv("GOOGLE_OAUTH_CLIENT_ID", ""),

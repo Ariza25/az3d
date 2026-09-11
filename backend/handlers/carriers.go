@@ -31,6 +31,27 @@ func (h *CarrierHandler) GetCarrierAccounts(c *gin.Context) {
 		return
 	}
 
+	for i := range accounts {
+		if accounts[i].EncryptedCredentials != "" && h.cfg.CredentialEncryptionKey != "" {
+			if decrypted, err := utils.DecryptString(accounts[i].EncryptedCredentials, h.cfg.CredentialEncryptionKey); err == nil {
+				var creds map[string]any
+				if json.Unmarshal([]byte(decrypted), &creds) == nil {
+					safeCreds := make(map[string]any)
+					for k, v := range creds {
+						if k == "access_token" || k == "token_password" || k == "token" {
+							if s, ok := v.(string); ok && strings.TrimSpace(s) != "" {
+								safeCreds[k] = "••••••••"
+							}
+						} else {
+							safeCreds[k] = v
+						}
+					}
+					accounts[i].Settings = safeCreds
+				}
+			}
+		}
+	}
+
 	c.JSON(http.StatusOK, accounts)
 }
 
@@ -50,22 +71,7 @@ func (h *CarrierHandler) SaveCarrierAccount(c *gin.Context) {
 	}
 	authType := strings.TrimSpace(input.AuthType)
 	if authType == "" {
-		authType = "contract_credentials"
-	}
-
-	var encryptedCredentials string
-	if len(input.Credentials) > 0 {
-		raw, err := json.Marshal(input.Credentials)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Credenciais invalidas"})
-			return
-		}
-		encrypted, err := utils.EncryptString(string(raw), h.cfg.CredentialEncryptionKey)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-		encryptedCredentials = encrypted
+		authType = "bearer_token"
 	}
 
 	var account models.TenantCarrierAccount
@@ -79,6 +85,54 @@ func (h *CarrierHandler) SaveCarrierAccount(c *gin.Context) {
 			TenantID: tenantID,
 			Provider: provider,
 		}
+	}
+
+	// Recuperar credenciais existentes para mesclagem se necessário
+	existingCreds := make(map[string]any)
+	if account.EncryptedCredentials != "" && h.cfg.CredentialEncryptionKey != "" {
+		if decrypted, err := utils.DecryptString(account.EncryptedCredentials, h.cfg.CredentialEncryptionKey); err == nil {
+			_ = json.Unmarshal([]byte(decrypted), &existingCreds)
+		}
+	}
+
+	credsToSave := make(map[string]any)
+	for k, v := range existingCreds {
+		credsToSave[k] = v
+	}
+
+	if input.Credentials != nil {
+		for k, v := range input.Credentials {
+			strVal, isStr := v.(string)
+			if isStr {
+				strVal = strings.TrimSpace(strVal)
+				if strVal == "" || strings.HasPrefix(strVal, "••••") {
+					// Manter valor anterior se mascarado ou vazio
+					continue
+				}
+				credsToSave[k] = strVal
+			} else {
+				credsToSave[k] = v
+			}
+		}
+	}
+
+	if clean := cleanCEP(input.OriginCEP); clean != "" {
+		credsToSave["origin_cep"] = clean
+	}
+
+	var encryptedCredentials string
+	if len(credsToSave) > 0 {
+		raw, err := json.Marshal(credsToSave)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Credenciais invalidas"})
+			return
+		}
+		encrypted, err := utils.EncryptString(string(raw), h.cfg.CredentialEncryptionKey)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		encryptedCredentials = encrypted
 	}
 
 	account.AccountName = firstNonEmpty(input.AccountName, carrierLabel(provider))
@@ -103,6 +157,19 @@ func (h *CarrierHandler) SaveCarrierAccount(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao salvar conta de transportadora"})
 		return
 	}
+
+	// Adicionar settings na resposta sanitizada
+	safeSettings := make(map[string]any)
+	for k, v := range credsToSave {
+		if k == "access_token" || k == "token_password" || k == "token" {
+			if s, ok := v.(string); ok && strings.TrimSpace(s) != "" {
+				safeSettings[k] = "••••••••"
+			}
+		} else {
+			safeSettings[k] = v
+		}
+	}
+	account.Settings = safeSettings
 
 	c.JSON(http.StatusOK, account)
 }

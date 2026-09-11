@@ -11,7 +11,6 @@ import (
 	"az3d-backend/config"
 	"az3d-backend/database"
 	"az3d-backend/internal/carriers"
-	"az3d-backend/internal/carriers/correios"
 	"az3d-backend/internal/carriers/superfrete"
 	"az3d-backend/models"
 	"az3d-backend/utils"
@@ -153,14 +152,10 @@ func connectorForAccount(cfg *config.Config, account *models.TenantCarrierAccoun
 	credentials["auth_type"] = account.AuthType
 
 	switch strings.ToLower(account.Provider) {
-	case "superfrete":
+	case "superfrete", "correios":
 		token := firstNonEmpty(stringCredential(credentials, "token", "access_token", "api_key"), cfg.SuperFreteToken)
 		apiBaseURL := firstNonEmpty(stringCredential(credentials, "api_base_url"), cfg.SuperFreteAPIBaseURL)
 		return superfrete.New(apiBaseURL, token), nil
-	case "correios":
-		apiBaseURL := firstNonEmpty(stringCredential(credentials, "api_base_url"), cfg.CorreiosAPIBaseURL)
-		tokenBaseURL := firstNonEmpty(stringCredential(credentials, "token_base_url"), cfg.CorreiosTokenBaseURL)
-		return correios.New(apiBaseURL, tokenBaseURL, credentials), nil
 	default:
 		return nil, fmt.Errorf("provider de transportadora nao suportado: %s", account.Provider)
 	}

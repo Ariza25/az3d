@@ -53,7 +53,7 @@ func (h *ShipmentHandler) SaveShipment(c *gin.Context) {
 
 	carrier := strings.ToLower(strings.TrimSpace(input.Carrier))
 	if carrier == "" {
-		carrier = "correios"
+		carrier = "superfrete"
 	}
 	trackingCode := strings.ToUpper(strings.TrimSpace(input.TrackingCode))
 	if trackingCode == "" {

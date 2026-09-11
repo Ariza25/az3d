@@ -648,6 +648,7 @@ export interface TenantCarrierAccount {
   sync_tracking: boolean;
   last_sync_at?: string;
   last_error?: string;
+  settings?: Record<string, any>;
   created_at?: string;
   updated_at?: string;
 }
@@ -788,7 +789,6 @@ export interface ObservabilityHealth {
   carrier_errors: number;
   mercado_pago_configured: boolean;
   mercado_pago_webhook_secret: boolean;
-  correios_base_configured: boolean;
   superfrete_configured?: boolean;
   checked_at: string;
 }

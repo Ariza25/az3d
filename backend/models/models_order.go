@@ -18,9 +18,10 @@ type TenantCarrierAccount struct {
 	IsConnected          bool       `gorm:"default:false" json:"is_connected"`
 	SyncTracking         bool       `gorm:"default:true" json:"sync_tracking"`
 	LastSyncAt           *time.Time `json:"last_sync_at,omitempty"`
-	LastError            string     `gorm:"type:text" json:"last_error,omitempty"`
-	CreatedAt            time.Time  `json:"created_at"`
-	UpdatedAt            time.Time  `json:"updated_at"`
+	LastError            string         `gorm:"type:text" json:"last_error,omitempty"`
+	Settings             map[string]any `gorm:"-" json:"settings,omitempty"`
+	CreatedAt            time.Time      `json:"created_at"`
+	UpdatedAt            time.Time      `json:"updated_at"`
 }
 
 type OrderShipment struct {

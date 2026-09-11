@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"net/http"
 	"strconv"
@@ -95,18 +96,31 @@ func CalculateShippingQuote(c *gin.Context) {
 		}
 	}
 
-	// 1. Resolver CEP de origem e token específico das configurações do Tenant
+	// 1. Resolver CEP de origem, token e configurações de pacote/expedição do Tenant
 	originCEP := ""
+	pkgFormat := "box"
+	pkgHeight := 20
+	pkgWidth := 20
+	pkgLength := 20
+	pkgWeight := 0.3
+	ownHand := false
+	receipt := false
+	useInsurance := false
+	insuranceValue := 0.0
+	additionalDays := 0
+	services := "1,2,17"
 
 	// 1a. Buscar na conta de transportadora ativa do tenant (priorizando superfrete)
 	var carrierAcct models.TenantCarrierAccount
-	if err := database.DB.Where("tenant_id = ? AND is_active = ? AND origin_cep <> ''", tenantID, true).
+	if err := database.DB.Where("tenant_id = ? AND is_active = ?", tenantID, true).
 		Order("CASE WHEN provider = 'superfrete' THEN 0 ELSE 1 END").
-		First(&carrierAcct).Error; err == nil && carrierAcct.OriginCEP != "" {
-		originCEP = cleanDigits(carrierAcct.OriginCEP)
+		First(&carrierAcct).Error; err == nil {
+		if carrierAcct.OriginCEP != "" {
+			originCEP = cleanDigits(carrierAcct.OriginCEP)
+		}
 	}
 
-	// Se a conta tiver credenciais criptografadas com token próprio, descriptografa
+	// Se a conta tiver credenciais criptografadas com configurações e token próprio, descriptografa
 	if carrierAcct.ID > 0 && carrierAcct.EncryptedCredentials != "" && cfg.CredentialEncryptionKey != "" {
 		if decrypted, err := utils.DecryptString(carrierAcct.EncryptedCredentials, cfg.CredentialEncryptionKey); err == nil {
 			var creds map[string]any
@@ -120,6 +134,47 @@ func CalculateShippingQuote(c *gin.Context) {
 					if c, ok := creds["origin_cep"].(string); ok && strings.TrimSpace(c) != "" {
 						originCEP = cleanDigits(c)
 					}
+				}
+				if f, ok := creds["package_format"].(string); ok && strings.TrimSpace(f) != "" {
+					pkgFormat = strings.TrimSpace(f)
+				}
+				if h := parseAnyInt(creds["package_height"]); h > 0 {
+					pkgHeight = h
+				} else if h := parseAnyInt(creds["height"]); h > 0 {
+					pkgHeight = h
+				}
+				if w := parseAnyInt(creds["package_width"]); w > 0 {
+					pkgWidth = w
+				} else if w := parseAnyInt(creds["width"]); w > 0 {
+					pkgWidth = w
+				}
+				if l := parseAnyInt(creds["package_length"]); l > 0 {
+					pkgLength = l
+				} else if l := parseAnyInt(creds["length"]); l > 0 {
+					pkgLength = l
+				}
+				if wg := parseAnyFloat(creds["package_weight"]); wg > 0 {
+					pkgWeight = wg
+				} else if wgg := parseAnyFloat(creds["package_weight_grams"]); wgg > 0 {
+					pkgWeight = wgg / 1000.0
+				}
+				if oh, ok := creds["own_hand"].(bool); ok {
+					ownHand = oh
+				}
+				if rc, ok := creds["receipt"].(bool); ok {
+					receipt = rc
+				}
+				if ins, ok := creds["use_insurance_value"].(bool); ok {
+					useInsurance = ins
+				}
+				if iv := parseAnyFloat(creds["insurance_value"]); iv > 0 {
+					insuranceValue = iv
+				}
+				if ad := parseAnyInt(creds["additional_days"]); ad > 0 {
+					additionalDays = ad
+				}
+				if s, ok := creds["services"].(string); ok && strings.TrimSpace(s) != "" {
+					services = strings.TrimSpace(s)
 				}
 			}
 		}
@@ -149,10 +204,37 @@ func CalculateShippingQuote(c *gin.Context) {
 		originCEP = "01310100"
 	}
 
+	// Se seguro estiver ativo e nenhum valor declarado fixado, usar valor do produto
+	if useInsurance && insuranceValue <= 0 && input.ProductID != nil && *input.ProductID > 0 {
+		var prod models.Product
+		if err := database.DB.Select("price").First(&prod, *input.ProductID).Error; err == nil && prod.Price > 0 {
+			insuranceValue = prod.Price
+		}
+	}
+
 	// 2. Tentar cotação oficial em tempo real via API do SuperFrete
 	if token != "" {
 		sfClient := superfrete.New(cfg.SuperFreteAPIBaseURL, token)
-		sfOptions, err := sfClient.CalculateQuotes(c.Request.Context(), originCEP, zipDigits, 0.3, 10, 15, 20)
+		sfOptions, err := sfClient.CalculateQuotesAdvanced(
+			c.Request.Context(),
+			originCEP,
+			zipDigits,
+			superfrete.PackageInfo{
+				Format: pkgFormat,
+				Weight: pkgWeight,
+				Height: pkgHeight,
+				Width:  pkgWidth,
+				Length: pkgLength,
+			},
+			superfrete.QuoteOptions{
+				OwnHand:           ownHand,
+				Receipt:           receipt,
+				UseInsuranceValue: useInsurance,
+				InsuranceValue:    insuranceValue,
+				Services:          services,
+				AdditionalDays:    additionalDays,
+			},
+		)
 		if err == nil && len(sfOptions) > 0 {
 			options := make([]models.ShippingQuoteOption, 0, len(sfOptions))
 			for _, opt := range sfOptions {
@@ -238,5 +320,48 @@ func ParseSTLFile(c *gin.Context) {
 
 	sliceResult := stlparser.CalculateWeightAndHours(mesh, material, infill)
 	c.JSON(http.StatusOK, sliceResult)
+}
+
+func parseAnyInt(val any) int {
+	if val == nil {
+		return 0
+	}
+	switch v := val.(type) {
+	case int:
+		return v
+	case int64:
+		return int(v)
+	case float64:
+		return int(v)
+	case string:
+		var parsed int
+		if _, err := fmt.Sscanf(strings.TrimSpace(v), "%d", &parsed); err == nil {
+			return parsed
+		}
+	}
+	return 0
+}
+
+func parseAnyFloat(val any) float64 {
+	if val == nil {
+		return 0
+	}
+	switch v := val.(type) {
+	case float64:
+		return v
+	case float32:
+		return float64(v)
+	case int:
+		return float64(v)
+	case int64:
+		return float64(v)
+	case string:
+		var parsed float64
+		s := strings.ReplaceAll(strings.TrimSpace(v), ",", ".")
+		if _, err := fmt.Sscanf(s, "%f", &parsed); err == nil {
+			return parsed
+		}
+	}
+	return 0
 }
 
