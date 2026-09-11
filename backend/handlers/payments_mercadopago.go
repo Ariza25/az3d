@@ -460,6 +460,137 @@ func createMercadoPagoPreference(ctx context.Context, order models.Order, seller
 	return &preference, nil
 }
 
+type mercadoPagoDirectPaymentResponse struct {
+	ID                 int64   `json:"id"`
+	Status             string  `json:"status"`
+	StatusDetail       string  `json:"status_detail"`
+	DateApproved       string  `json:"date_approved"`
+	DateOfExpiration   string  `json:"date_of_expiration"`
+	PaymentMethodID    string  `json:"payment_method_id"`
+	PaymentTypeID      string  `json:"payment_type_id"`
+	TransactionAmount  float64 `json:"transaction_amount"`
+	PointOfInteraction struct {
+		Type            string `json:"type"`
+		TransactionData struct {
+			QRCode       string `json:"qr_code"`
+			QRCodeBase64 string `json:"qr_code_base64"`
+			TicketURL    string `json:"ticket_url"`
+		} `json:"transaction_data"`
+	} `json:"point_of_interaction"`
+}
+
+func createMercadoPagoDirectPayment(ctx context.Context, order models.Order, input models.CreateOrderInput, sellerAccessToken string) (*mercadoPagoDirectPaymentResponse, error) {
+	accessToken := strings.TrimSpace(sellerAccessToken)
+	if accessToken == "" {
+		return nil, fmt.Errorf("access token OAuth do tenant nao configurado")
+	}
+
+	var user models.User
+	_ = database.DB.First(&user, order.UserID).Error
+
+	var tenant models.Tenant
+	_ = database.DB.First(&tenant, order.TenantID).Error
+
+	apiPublicBaseURL := strings.TrimRight(getEnv("API_PUBLIC_BASE_URL", "http://localhost:8080"), "/")
+	mpBaseURL := strings.TrimRight(getEnv("MERCADO_PAGO_API_BASE_URL", "https://api.mercadopago.com"), "/")
+
+	payerName := firstNonEmpty(order.RecipientName, user.Name, "Cliente AZ3D")
+	nameParts := strings.Fields(payerName)
+	firstName := nameParts[0]
+	lastName := "Cliente"
+	if len(nameParts) > 1 {
+		lastName = strings.Join(nameParts[1:], " ")
+	}
+
+	cpfDigits := ""
+	for _, ch := range input.PayerCPF {
+		if ch >= '0' && ch <= '9' {
+			cpfDigits += string(ch)
+		}
+	}
+	if len(cpfDigits) != 11 && len(cpfDigits) != 14 {
+		cpfDigits = "19119119100"
+	}
+
+	paymentMethod := strings.ToLower(strings.TrimSpace(input.PaymentMethod))
+	if paymentMethod == "" {
+		paymentMethod = "pix"
+	}
+
+	payload := map[string]any{
+		"transaction_amount": order.TotalAmount,
+		"description":        fmt.Sprintf("Pedido #%d - %s", order.ID, firstNonEmpty(tenant.Name, "AZ3D Store")),
+		"external_reference": mercadoPagoExternalReference(order.ID),
+		"payer": map[string]any{
+			"email":      firstNonEmpty(user.Email, "cliente@az3d.com.br"),
+			"first_name": firstName,
+			"last_name":  lastName,
+			"identification": map[string]any{
+				"type":   "CPF",
+				"number": cpfDigits,
+			},
+		},
+	}
+
+	if apiPublicBaseURL != "" {
+		payload["notification_url"] = fmt.Sprintf("%s/api/webhooks/payments/mercadopago/%d", apiPublicBaseURL, order.TenantID)
+	}
+
+	if paymentMethod == "pix" {
+		payload["payment_method_id"] = "pix"
+	} else if paymentMethod == "credit_card" {
+		if input.CardToken == "" {
+			return nil, fmt.Errorf("token do cartao de credito obrigatorio")
+		}
+		payload["token"] = input.CardToken
+		installments := input.Installments
+		if installments <= 0 {
+			installments = 1
+		}
+		payload["installments"] = installments
+		if input.PaymentMethodID != "" {
+			payload["payment_method_id"] = input.PaymentMethodID
+		}
+		if input.IssuerID != "" {
+			payload["issuer_id"] = input.IssuerID
+		}
+	} else {
+		payload["payment_method_id"] = paymentMethod
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+
+	endpoint := mpBaseURL + "/v1/payments"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("X-Idempotency-Key", fmt.Sprintf("az3d_pay_%d_%d", order.ID, time.Now().UnixNano()))
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	resBody, _ := io.ReadAll(res.Body)
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return nil, fmt.Errorf("Mercado Pago retornou HTTP %d: %s", res.StatusCode, string(resBody))
+	}
+
+	var paymentRes mercadoPagoDirectPaymentResponse
+	if err := json.Unmarshal(resBody, &paymentRes); err != nil {
+		return nil, fmt.Errorf("resposta invalida do Mercado Pago: %w", err)
+	}
+
+	return &paymentRes, nil
+}
+
 func (h *OrderHandler) ReceiveMercadoPagoWebhook(c *gin.Context) {
 	tenantIDValue, err := strconv.ParseUint(strings.TrimSpace(c.Param("tenant_id")), 10, 64)
 	if err != nil || tenantIDValue == 0 {

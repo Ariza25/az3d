@@ -5,6 +5,7 @@ import {
   User,
   CreateOrderPayload,
   CreateOrderResponse,
+  OrderPaymentStatusResponse,
   Order,
   Tenant,
   ProductInput,
@@ -387,6 +388,14 @@ export const api = {
       headers: getHeaders(tenantId, CUSTOMER_TOKEN_KEY, accessToken),
     });
     if (!res.ok) throw new Error('Erro ao carregar histórico de pedidos');
+    return res.json();
+  },
+
+  getOrderPaymentStatus: async (orderId: number, tenantId?: number, accessToken?: string): Promise<OrderPaymentStatusResponse> => {
+    const res = await fetch(`${API_BASE_URL}/orders/${orderId}/payment-status`, {
+      headers: getHeaders(tenantId, CUSTOMER_TOKEN_KEY, accessToken),
+    });
+    if (!res.ok) throw new Error('Erro ao consultar status de pagamento');
     return res.json();
   },
 

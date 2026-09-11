@@ -75,9 +75,13 @@ type Order struct {
 	State           string          `gorm:"size:40" json:"state"`
 	Notes           string          `gorm:"type:text" json:"notes"`
 	PaymentProvider string          `gorm:"size:40" json:"payment_provider"`
+	PaymentMethod   string          `gorm:"size:40;default:'pix'" json:"payment_method"`
 	PaymentStatus   string          `gorm:"size:40;index" json:"payment_status"`
 	PaymentID       string          `gorm:"size:120;index" json:"payment_id"`
 	PaymentDetail   string          `gorm:"size:120" json:"payment_detail"`
+	PixQRCode       string          `gorm:"type:text" json:"pix_qr_code,omitempty"`
+	PixQRCodeBase64 string          `gorm:"type:text" json:"pix_qr_code_base64,omitempty"`
+	PixExpiration   *time.Time      `json:"pix_expiration,omitempty"`
 	MPPreferenceID  string          `gorm:"size:120;index" json:"mp_preference_id"`
 	MPInitPoint     string          `gorm:"type:text" json:"mp_init_point"`
 	MPSandboxPoint  string          `gorm:"type:text" json:"mp_sandbox_init_point"`
@@ -112,6 +116,12 @@ type CreateOrderInput struct {
 	City            string                 `json:"city"`
 	State           string                 `json:"state"`
 	Notes           string                 `json:"notes"`
+	PaymentMethod   string                 `json:"payment_method"` // "pix", "credit_card", "mercadopago_pro"
+	PayerCPF        string                 `json:"payer_cpf"`
+	CardToken       string                 `json:"card_token"`
+	Installments    int                    `json:"installments"`
+	PaymentMethodID string                 `json:"payment_method_id"`
+	IssuerID        string                 `json:"issuer_id"`
 }
 
 type TenantCarrierAccountInput struct {

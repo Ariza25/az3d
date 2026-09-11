@@ -102,12 +102,15 @@ func main() {
 		api.GET("/payments/mercadopago/oauth/callback", mercadoPagoHandler.OAuthCallback)
 		api.GET("/marketplaces/mercadolivre/oauth/callback", marketplaceHandler.MercadoLivreOAuthCallback)
 
+		api.GET("/orders/:id/payment-status", orderHandler.GetOrderPaymentStatus)
+
 		protected := api.Group("")
 		protected.Use(middleware.AuthMiddleware(cfg.JWTSecret))
 		{
 			protected.GET("/auth/me", authHandler.Me)
 			protected.POST("/orders", orderHandler.CreateOrder)
 			protected.GET("/orders/my-orders", orderHandler.GetMyOrders)
+			protected.GET("/orders/:id/payment-status", orderHandler.GetOrderPaymentStatus)
 			protected.GET("/favorites", productHandler.GetMyFavorites)
 			protected.POST("/products/:id/reviews", productHandler.UpsertProductReview)
 			protected.POST("/products/:id/favorite", productHandler.AddProductFavorite)

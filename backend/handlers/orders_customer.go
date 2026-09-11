@@ -3,7 +3,9 @@ package handlers
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"az3d-backend/database"
 	"az3d-backend/models"
@@ -190,6 +192,68 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 
 	database.DB.Preload("Items.Product").First(&order, order.ID)
 
+	paymentMethod := strings.ToLower(strings.TrimSpace(input.PaymentMethod))
+	if paymentMethod == "" {
+		paymentMethod = "pix"
+	}
+	order.PaymentMethod = paymentMethod
+
+	if paymentMethod == "pix" || paymentMethod == "credit_card" {
+		directPayment, err := createMercadoPagoDirectPayment(c.Request.Context(), order, input, paymentAccessToken)
+		if err != nil {
+			_ = cancelOrderAndReleaseStock(order.ID, "Falha ao criar pagamento direto Mercado Pago: "+err.Error())
+			c.JSON(http.StatusBadGateway, gin.H{"error": "Nao foi possivel processar pagamento no Mercado Pago: " + err.Error()})
+			return
+		}
+
+		order.PaymentID = strconv.FormatInt(directPayment.ID, 10)
+		order.PaymentStatus = mapDirectPaymentStatus(directPayment.Status)
+		order.PaymentDetail = directPayment.StatusDetail
+
+		if paymentMethod == "pix" {
+			order.PixQRCode = directPayment.PointOfInteraction.TransactionData.QRCode
+			order.PixQRCodeBase64 = directPayment.PointOfInteraction.TransactionData.QRCodeBase64
+			if directPayment.DateOfExpiration != "" {
+				if t, err := time.Parse(time.RFC3339, directPayment.DateOfExpiration); err == nil {
+					order.PixExpiration = &t
+				}
+			}
+			if order.PixExpiration == nil {
+				exp := time.Now().Add(30 * time.Minute)
+				order.PixExpiration = &exp
+			}
+		}
+
+		if directPayment.Status == "approved" {
+			order.Status = "confirmed"
+			now := time.Now().UTC()
+			order.PaidAt = &now
+		}
+
+		if err := database.DB.Save(&order).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao salvar dados do pagamento"})
+			return
+		}
+
+		c.JSON(http.StatusCreated, gin.H{
+			"message": "Pedido criado com sucesso!",
+			"order":   order,
+			"payment": gin.H{
+				"provider":           "mercadopago",
+				"payment_method":     paymentMethod,
+				"payment_id":         order.PaymentID,
+				"status":             order.PaymentStatus,
+				"status_detail":      order.PaymentDetail,
+				"pix_qr_code":        order.PixQRCode,
+				"pix_qr_code_base64": order.PixQRCodeBase64,
+				"pix_expiration":     order.PixExpiration,
+				"ticket_url":         directPayment.PointOfInteraction.TransactionData.TicketURL,
+			},
+		})
+		return
+	}
+
+	// Fallback para Checkout Pro Preference (Modal ou Redirect)
 	paymentPreference, err := createMercadoPagoPreference(c.Request.Context(), order, paymentAccessToken)
 	if err != nil {
 		_ = cancelOrderAndReleaseStock(order.ID, "Falha ao criar preferencia Mercado Pago")
@@ -206,16 +270,34 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"message": "Pedido criado. Redirecione o comprador para o Mercado Pago para concluir o pagamento.",
+		"message": "Pedido criado com sucesso!",
 		"order":   order,
 		"payment": gin.H{
 			"provider":             "mercadopago",
+			"payment_method":       "mercadopago_pro",
 			"preference_id":        paymentPreference.ID,
 			"checkout_url":         paymentPreference.InitPoint,
 			"sandbox_checkout_url": paymentPreference.SandboxInitPoint,
 			"status":               order.PaymentStatus,
 		},
 	})
+}
+
+func mapDirectPaymentStatus(status string) string {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "approved":
+		return "paid"
+	case "pending", "in_process", "in_mediation", "authorized":
+		return "pending"
+	case "rejected":
+		return "rejected"
+	case "cancelled":
+		return "cancelled"
+	case "refunded", "charged_back":
+		return "refunded"
+	default:
+		return "pending"
+	}
 }
 
 type stockError struct {
@@ -228,6 +310,29 @@ func (e stockError) Error() string {
 
 func errInsufficientStock(message string) error {
 	return stockError{message: message}
+}
+
+func (h *OrderHandler) GetOrderPaymentStatus(c *gin.Context) {
+	tenantID := getTenantID(c)
+	orderID := c.Param("id")
+
+	var order models.Order
+	if err := database.DB.Select("id, tenant_id, status, payment_status, payment_id, payment_detail, paid_at, pix_expiration").
+		Where("id = ? AND tenant_id = ?", orderID, tenantID).
+		First(&order).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Pedido nao encontrado"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"order_id":       order.ID,
+		"status":         order.Status,
+		"payment_status": order.PaymentStatus,
+		"payment_id":     order.PaymentID,
+		"payment_detail": order.PaymentDetail,
+		"paid_at":        order.PaidAt,
+		"is_paid":        order.PaymentStatus == "paid" || order.Status == "confirmed",
+	})
 }
 
 func (h *OrderHandler) GetMyOrders(c *gin.Context) {

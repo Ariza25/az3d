@@ -210,6 +210,12 @@ export interface CreateOrderPayload {
   city?: string;
   state?: string;
   notes?: string;
+  payment_method?: 'pix' | 'credit_card' | 'mercadopago_pro' | string;
+  payer_cpf?: string;
+  card_token?: string;
+  installments?: number;
+  payment_method_id?: string;
+  issuer_id?: string;
 }
 
 export interface OrderItem {
@@ -239,9 +245,13 @@ export interface Order {
   state?: string;
   notes?: string;
   payment_provider?: string;
+  payment_method?: string;
   payment_status?: string;
   payment_id?: string;
   payment_detail?: string;
+  pix_qr_code?: string;
+  pix_qr_code_base64?: string;
+  pix_expiration?: string;
   mp_preference_id?: string;
   mp_init_point?: string;
   mp_sandbox_init_point?: string;
@@ -255,11 +265,28 @@ export interface CreateOrderResponse {
   order: Order;
   payment?: {
     provider: string;
-    preference_id: string;
-    checkout_url: string;
+    payment_method?: string;
+    payment_id?: string;
+    preference_id?: string;
+    checkout_url?: string;
     sandbox_checkout_url?: string;
     status: string;
+    status_detail?: string;
+    pix_qr_code?: string;
+    pix_qr_code_base64?: string;
+    pix_expiration?: string;
+    ticket_url?: string;
   };
+}
+
+export interface OrderPaymentStatusResponse {
+  order_id: number;
+  status: string;
+  payment_status: string;
+  payment_id?: string;
+  payment_detail?: string;
+  paid_at?: string;
+  is_paid: boolean;
 }
 
 export interface TenantSettings {

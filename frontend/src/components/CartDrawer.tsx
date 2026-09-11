@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, Layers, MapPin, Minus, Plus, ReceiptText, ShoppingBag, Truck, Trash2, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, CreditCard, Layers, MapPin, Minus, Plus, QrCode, ReceiptText, ShieldCheck, ShoppingBag, Truck, Trash2, X } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
-import { Order, TenantSettings } from '../types';
+import { CreateOrderResponse, Order, TenantSettings } from '../types';
 import { money } from '../shared/storePresentation';
 import { FreightCalculatorWidget } from './FreightCalculatorWidget';
+import { TransparentPaymentModal } from './TransparentPaymentModal';
 
 interface CartDrawerProps {
   onOpenLogin: () => void;
@@ -42,6 +43,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
   const [state, setState] = useState('');
   const [shippingAddress, setShippingAddress] = useState('');
   const [notes, setNotes] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'pix' | 'mercadopago_pro'>('pix');
+  const [payerCPF, setPayerCPF] = useState('');
+  const [activePaymentResponse, setActivePaymentResponse] = useState<CreateOrderResponse | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
   const [lastOrder, setLastOrder] = useState<Order | null>(null);
@@ -174,17 +178,25 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
         city,
         state,
         notes,
+        payment_method: paymentMethod,
+        payer_cpf: payerCPF.replace(/\D/g, ''),
       }, tenantSettings?.tenant_id, token);
 
-      const checkoutUrl = result.payment?.checkout_url || result.payment?.sandbox_checkout_url;
       clearCart();
+      setLastOrder(result.order);
+
+      if (paymentMethod === 'pix' || result.payment?.pix_qr_code) {
+        setActivePaymentResponse(result);
+        return;
+      }
+
+      const checkoutUrl = result.payment?.checkout_url || result.payment?.sandbox_checkout_url;
       if (checkoutUrl) {
         window.location.href = checkoutUrl;
         return;
       }
 
       setOrderSuccess(result.message);
-      setLastOrder(result.order);
     } catch (err: any) {
       setErrorMessage(err.message || 'Erro ao registrar pedido');
     } finally {
@@ -466,6 +478,74 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
                       </div>
                     </section>
 
+                    <section className="space-y-3">
+                      <div>
+                        <h3 className="text-sm font-bold text-white">Forma de Pagamento</h3>
+                        <p className="mt-0.5 text-xs text-slate-500">Pague direto no site com a segurança do Mercado Pago.</p>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setPaymentMethod('pix')}
+                          className={`flex min-h-20 flex-col justify-center rounded-2xl border p-3.5 text-left transition ${
+                            paymentMethod === 'pix'
+                              ? 'border-teal-400 bg-teal-950/30 text-white ring-1 ring-teal-400/50'
+                              : 'border-chumbo-700 bg-chumbo-900/60 text-slate-300 hover:border-chumbo-600'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="flex items-center gap-1.5 font-bold text-sm text-teal-300">
+                              <QrCode className="h-4 w-4" /> PIX
+                            </span>
+                            <span className="rounded-full bg-teal-500/20 px-1.5 py-0.5 text-[9px] font-bold text-teal-300">
+                              Instantâneo
+                            </span>
+                          </div>
+                          <span className="mt-1 text-[11px] text-slate-400">QR Code na tela</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setPaymentMethod('mercadopago_pro')}
+                          className={`flex min-h-20 flex-col justify-center rounded-2xl border p-3.5 text-left transition ${
+                            paymentMethod === 'mercadopago_pro'
+                              ? 'border-blue-400 bg-blue-950/30 text-white ring-1 ring-blue-400/50'
+                              : 'border-chumbo-700 bg-chumbo-900/60 text-slate-300 hover:border-chumbo-600'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="flex items-center gap-1.5 font-bold text-sm text-blue-300">
+                              <CreditCard className="h-4 w-4" /> Cartão / Saldo
+                            </span>
+                          </div>
+                          <span className="mt-1 text-[11px] text-slate-400">Mercado Pago</span>
+                        </button>
+                      </div>
+
+                      {paymentMethod === 'pix' && (
+                        <div className="rounded-xl border border-chumbo-800 bg-chumbo-900/40 p-3 space-y-2">
+                          <label className="block">
+                            <span className="mb-1 block text-xs font-semibold text-slate-300">
+                              CPF do Pagador <span className="text-[10px] text-slate-500">(exigido para o PIX)</span>
+                            </span>
+                            <input
+                              type="text"
+                              maxLength={14}
+                              value={payerCPF}
+                              onChange={(e) => setPayerCPF(e.target.value)}
+                              placeholder="000.000.000-00"
+                              className="w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3 py-2 text-xs font-mono text-white placeholder-slate-600 outline-none focus:border-teal-400"
+                            />
+                          </label>
+                          <p className="text-[10px] text-slate-400 flex items-center gap-1">
+                            <ShieldCheck className="h-3 w-3 text-teal-400 shrink-0" />
+                            O QR Code será gerado diretamente aqui na tela logo após clicar em finalizar.
+                          </p>
+                        </div>
+                      )}
+                    </section>
+
                     <label className="block">
                       <span className="mb-1.5 block text-xs font-semibold text-slate-300">Observações <span className="font-normal text-slate-500">(opcional)</span></span>
                       <textarea
@@ -526,18 +606,43 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
                     type="button"
                     onClick={handleCheckout}
                     disabled={isSubmitting || (!canShip && !canPickup)}
-                    className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-white py-3.5 text-sm font-extrabold text-chumbo-950 shadow-xl transition-colors hover:bg-slate-200 disabled:opacity-50"
+                    className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-teal-400 to-emerald-400 py-3.5 text-sm font-extrabold text-chumbo-950 shadow-xl shadow-teal-500/10 transition-all hover:from-teal-300 hover:to-emerald-300 disabled:opacity-50"
                   >
-                    <span>{isSubmitting ? 'Abrindo Mercado Pago...' : 'Ir para o pagamento'}</span>
+                    <span>
+                      {isSubmitting
+                        ? 'Processando...'
+                        : paymentMethod === 'pix'
+                          ? 'Gerar PIX e Finalizar Pedido'
+                          : 'Pagar com Mercado Pago'}
+                    </span>
                     <ArrowRight className="h-4 w-4" />
                   </button>
-                  <p className="mt-2 text-center text-[10px] leading-4 text-slate-500">Você revisará o pagamento com segurança no Mercado Pago.</p>
+                  <p className="mt-2 text-center text-[10px] leading-4 text-slate-500">
+                    Processado com segurança via Mercado Pago Transparente.
+                  </p>
                 </footer>
               )}
             </>
           )}
         </section>
       </div>
+
+      {/* Modal de Pagamento Transparente PIX */}
+      {activePaymentResponse && (
+        <TransparentPaymentModal
+          orderResponse={activePaymentResponse}
+          tenantId={tenantSettings?.tenant_id}
+          token={token || undefined}
+          onClose={() => {
+            setActivePaymentResponse(null);
+            setIsCartOpen(false);
+          }}
+          onPaymentSuccess={(updatedOrder) => {
+            setLastOrder(updatedOrder);
+            setOrderSuccess('Pagamento aprovado com sucesso!');
+          }}
+        />
+      )}
     </div>
   );
 };
