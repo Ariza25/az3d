@@ -65,6 +65,7 @@ jobs:
           region: ${{ env.REGION }}
           service: ${{ env.SERVICE }}
           image: ${{ env.IMAGE }}
+          flags: '--port=8080 --cpu-boost'
 
       - name: Show deployed service URL
         run: echo "Backend deployed to ${{ steps.deploy.outputs.url }}"

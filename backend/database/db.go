@@ -3,6 +3,7 @@ package database
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"az3d-backend/config"
 
@@ -62,10 +63,20 @@ func OpenExistingDB(cfg *config.Config) (*gorm.DB, error) {
 			cfg.DBHost, cfg.DBUser, cfg.DBPassword, cfg.DBName, cfg.DBPort, cfg.DBSSLMode,
 		)
 	}
-	return gorm.Open(postgres.Open(dsn), &gorm.Config{
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 		Logger:                                   logger.Default.LogMode(logger.Warn),
 		DisableForeignKeyConstraintWhenMigrating: true,
 	})
+	if err != nil {
+		return nil, err
+	}
+	if sqlDB, err := db.DB(); err == nil {
+		sqlDB.SetMaxOpenConns(25)
+		sqlDB.SetMaxIdleConns(10)
+		sqlDB.SetConnMaxLifetime(10 * time.Minute)
+		sqlDB.SetConnMaxIdleTime(5 * time.Minute)
+	}
+	return db, nil
 }
 
 func InitDB(cfg *config.Config) *gorm.DB {
@@ -119,6 +130,13 @@ func InitDB(cfg *config.Config) *gorm.DB {
 	}
 
 	log.Println("=> Conexão com PostgreSQL estabelecida com sucesso!")
+
+	if sqlDB, err := db.DB(); err == nil {
+		sqlDB.SetMaxOpenConns(25)
+		sqlDB.SetMaxIdleConns(10)
+		sqlDB.SetConnMaxLifetime(10 * time.Minute)
+		sqlDB.SetConnMaxIdleTime(5 * time.Minute)
+	}
 
 	if err := runAutoMigrate(db); err != nil {
 		log.Fatalf("Erro na migração do banco de dados: %v", err)
