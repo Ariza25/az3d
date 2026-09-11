@@ -65,15 +65,24 @@ export const TransparentPaymentModal: React.FC<Props> = ({
     const pollInterval = setInterval(async () => {
       try {
         const status = await api.getOrderPaymentStatus(order.id, effectiveTenantId, token);
-        if (isMounted && (status.is_paid || status.payment_status === 'paid' || status.status === 'confirmed')) {
+        const isConfirmed = status.is_paid ||
+          status.payment_status === 'paid' ||
+          status.payment_status === 'approved' ||
+          status.payment_status === 'accredited' ||
+          status.status === 'confirmed' ||
+          status.status === 'paid' ||
+          !!status.paid_at;
+
+        if (isMounted && isConfirmed) {
           setIsPaid(true);
           setIsPolling(false);
           clearInterval(pollInterval);
           if (onPaymentSuccess) {
             onPaymentSuccess({
               ...order,
-              status: 'confirmed',
-              payment_status: 'paid',
+              status: status.status || 'paid',
+              payment_status: status.payment_status || 'approved',
+              paid_at: status.paid_at || new Date().toISOString(),
             });
           }
         }

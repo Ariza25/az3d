@@ -338,6 +338,12 @@ func (h *OrderHandler) GetOrderPaymentStatus(c *gin.Context) {
 		}
 	}
 
+	statusLower := strings.ToLower(strings.TrimSpace(order.Status))
+	paymentStatusLower := strings.ToLower(strings.TrimSpace(order.PaymentStatus))
+	isPaid := paymentStatusLower == "paid" || paymentStatusLower == "approved" || paymentStatusLower == "accredited" ||
+		statusLower == "confirmed" || statusLower == "paid" ||
+		order.PaidAt != nil
+
 	c.JSON(http.StatusOK, gin.H{
 		"order_id":       order.ID,
 		"status":         order.Status,
@@ -345,7 +351,7 @@ func (h *OrderHandler) GetOrderPaymentStatus(c *gin.Context) {
 		"payment_id":     order.PaymentID,
 		"payment_detail": order.PaymentDetail,
 		"paid_at":        order.PaidAt,
-		"is_paid":        order.PaymentStatus == "paid" || order.Status == "confirmed",
+		"is_paid":        isPaid,
 	})
 }
 
@@ -359,12 +365,15 @@ func (h *OrderHandler) GetMyOrders(c *gin.Context) {
 	tenantID := getTenantID(c)
 
 	var orders []models.Order
-	if err := database.DB.
+	query := database.DB.
+		Preload("Items.Product.ColorImages").
 		Preload("Items.Product").
 		Preload("Shipments.Events", func(db *gorm.DB) *gorm.DB { return db.Order("occurred_at desc") }).
-		Where("user_id = ? AND tenant_id = ?", userID, tenantID).
-		Order("created_at desc").
-		Find(&orders).Error; err != nil {
+		Where("user_id = ?", userID)
+	if tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+	if err := query.Order("created_at desc").Find(&orders).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar historico de pedidos"})
 		return
 	}
