@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import { LoadingProvider } from './context/LoadingContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { AdminApp } from './apps/admin/AdminApp';
 import { StoreApp } from './apps/store/StoreApp';
 import { ADMIN_TOKEN_KEY, CUSTOMER_TOKEN_KEY } from './services/api';
@@ -40,19 +41,21 @@ export function App() {
   }, []);
 
   return (
-    <LoadingProvider>
-      {currentApp === 'admin' ? (
-        <AuthProvider scope="admin">
-          <AdminApp />
-        </AuthProvider>
-      ) : (
-        <AuthProvider scope="customer">
-          <CartProvider>
-            <StoreApp />
-          </CartProvider>
-        </AuthProvider>
-      )}
-    </LoadingProvider>
+    <ThemeProvider>
+      <LoadingProvider>
+        {currentApp === 'admin' ? (
+          <AuthProvider scope="admin">
+            <AdminApp />
+          </AuthProvider>
+        ) : (
+          <AuthProvider scope="customer">
+            <CartProvider>
+              <StoreApp />
+            </CartProvider>
+          </AuthProvider>
+        )}
+      </LoadingProvider>
+    </ThemeProvider>
   );
 }
 

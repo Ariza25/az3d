@@ -110,6 +110,7 @@ func main() {
 		protected.Use(middleware.AuthMiddleware(cfg.JWTSecret))
 		{
 			protected.GET("/auth/me", authHandler.Me)
+			protected.PUT("/auth/me", authHandler.UpdateMe)
 			protected.POST("/orders", orderHandler.CreateOrder)
 			protected.GET("/orders/my-orders", orderHandler.GetMyOrders)
 			protected.GET("/orders/:id/payment-status", orderHandler.GetOrderPaymentStatus)

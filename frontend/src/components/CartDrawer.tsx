@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, CreditCard, Layers, Lock, MapPin, Minus, Plus, QrCode, ReceiptText, ShieldCheck, ShoppingBag, Truck, Trash2, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowRight, BookmarkCheck, CheckCircle2, CreditCard, Layers, Lock, MapPin, Minus, Plus, QrCode, ReceiptText, ShieldCheck, ShoppingBag, Truck, Trash2, X } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
@@ -12,6 +12,26 @@ interface CartDrawerProps {
   onOpenLogin: () => void;
   tenantSettings?: TenantSettings | null;
 }
+
+interface SavedCard {
+  id: string;
+  cardNumber: string;
+  cardNumberMasked: string;
+  cardholderName: string;
+  expiry: string;
+  cpf: string;
+  brand: string;
+}
+
+const detectCardBrand = (num: string): string => {
+  const clean = num.replace(/\D/g, '');
+  if (/^4/.test(clean)) return 'Visa';
+  if (/^5[1-5]/.test(clean) || /^2[2-7]/.test(clean)) return 'Mastercard';
+  if (/^3[47]/.test(clean)) return 'Amex';
+  if (/^(4011|4389|4514|4576|5041|5066|5090|6277|6362|6363)/.test(clean)) return 'Elo';
+  if (/^606282/.test(clean)) return 'Hipercard';
+  return 'Cartão';
+};
 
 const ORDER_STATUS_LABELS: Record<string, string> = {
   pending_confirmation: 'Aguardando confirmacao',
@@ -34,7 +54,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
     setIsCartOpen,
   } = useCart();
 
-  const { isAuthenticated, token } = useAuth();
+  const { isAuthenticated, token, user } = useAuth();
   const [deliveryMethod, setDeliveryMethod] = useState<'shipping' | 'pickup'>('shipping');
   const [recipientName, setRecipientName] = useState('');
   const [recipientPhone, setRecipientPhone] = useState('');
@@ -50,6 +70,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
   const [cardExpiry, setCardExpiry] = useState('');
   const [cardCVV, setCardCVV] = useState('');
   const [installments, setInstallments] = useState(1);
+  const [savedCards, setSavedCards] = useState<SavedCard[]>([]);
+  const [selectedSavedCardId, setSelectedSavedCardId] = useState<string>('new');
+  const [shouldSaveCard, setShouldSaveCard] = useState<boolean>(true);
   const [activePaymentResponse, setActivePaymentResponse] = useState<CreateOrderResponse | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
@@ -111,6 +134,100 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
     { value: 'shipping' as const, label: 'Entrega', enabled: canShip },
     { value: 'pickup' as const, label: 'Retirada', enabled: canPickup },
   ], [canShip, canPickup]);
+
+  useEffect(() => {
+    if (user?.id) {
+      if (!recipientName && user.name) setRecipientName(user.name);
+      if (!recipientPhone && user.phone) setRecipientPhone(user.phone);
+
+      // Load default address if available
+      try {
+        let addrs: any[] = [];
+        if (user.addresses) {
+          addrs = typeof user.addresses === 'string' ? JSON.parse(user.addresses) : user.addresses;
+        }
+        if (addrs.length === 0) {
+          const storedAddr = localStorage.getItem(`az3d_saved_addresses_${user.id}`);
+          if (storedAddr) addrs = JSON.parse(storedAddr);
+        }
+        if (addrs.length > 0) {
+          const defaultAddr = addrs.find((a) => a.is_default) || addrs[0];
+          if (!zipCode && defaultAddr.cep) setZipCode(defaultAddr.cep);
+          if (!city && defaultAddr.city) setCity(defaultAddr.city);
+          if (!state && defaultAddr.state) setState(defaultAddr.state);
+          if (!shippingAddress && defaultAddr.street) {
+            setShippingAddress(`${defaultAddr.street}, ${defaultAddr.number}${defaultAddr.complement ? ` - ${defaultAddr.complement}` : ''}, ${defaultAddr.neighborhood}`);
+          }
+        }
+      } catch {
+        // ignore
+      }
+
+      // Load saved cards
+      try {
+        let parsed: any[] = [];
+        if (user.saved_cards) {
+          parsed = typeof user.saved_cards === 'string' ? JSON.parse(user.saved_cards) : user.saved_cards;
+        }
+        if (parsed.length === 0) {
+          const stored = localStorage.getItem(`az3d_saved_cards_${user.id}`);
+          if (stored) parsed = JSON.parse(stored);
+        }
+
+        if (parsed && parsed.length > 0) {
+          const normalized: SavedCard[] = parsed.map((c: any) => ({
+            id: c.id || String(Date.now()),
+            cardNumber: c.cardNumber || `•••• •••• •••• ${c.last_four || c.lastFour || '4242'}`,
+            cardNumberMasked: c.cardNumberMasked || `•••• •••• •••• ${c.last_four || c.lastFour || '4242'}`,
+            cardholderName: c.cardholderName || c.holder_name || '',
+            expiry: c.expiry || (c.expiry_month && c.expiry_year ? `${c.expiry_month}/${c.expiry_year}` : ''),
+            cpf: c.cpf || '',
+            brand: c.brand || detectCardBrand(c.cardNumber || ''),
+          }));
+
+          setSavedCards(normalized);
+          const first = normalized[0];
+          setSelectedSavedCardId(first.id);
+          setCardNumber(first.cardNumber);
+          setCardholderName(first.cardholderName);
+          setCardExpiry(first.expiry);
+          if (first.cpf) setPayerCPF(first.cpf);
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }, [user]);
+
+  const handleSelectSavedCard = (cardId: string) => {
+    setSelectedSavedCardId(cardId);
+    if (cardId === 'new') {
+      setCardNumber('');
+      setCardholderName('');
+      setCardExpiry('');
+      setCardCVV('');
+    } else {
+      const found = savedCards.find((c) => c.id === cardId);
+      if (found) {
+        setCardNumber(found.cardNumber);
+        setCardholderName(found.cardholderName);
+        setCardExpiry(found.expiry);
+        if (found.cpf) setPayerCPF(found.cpf);
+        setCardCVV('');
+      }
+    }
+  };
+
+  const handleDeleteSavedCard = (cardId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user?.id) return;
+    const updated = savedCards.filter((c) => c.id !== cardId);
+    setSavedCards(updated);
+    localStorage.setItem(`az3d_saved_cards_${user.id}`, JSON.stringify(updated));
+    if (selectedSavedCardId === cardId) {
+      handleSelectSavedCard(updated.length > 0 ? updated[0].id : 'new');
+    }
+  };
 
   useEffect(() => {
     if (deliveryMethod === 'shipping' && !canShip && canPickup) setDeliveryMethod('pickup');
@@ -270,6 +387,25 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
         card_cvv: paymentMethod === 'credit_card' ? cardCVV.trim() : undefined,
         installments: paymentMethod === 'credit_card' ? installments : 1,
       }, tenantSettings?.tenant_id, token);
+
+      if (paymentMethod === 'credit_card' && shouldSaveCard && user?.id) {
+        const cleanCard = cardNumber.replace(/\D/g, '');
+        const last4 = cleanCard.slice(-4);
+        const cardBrand = detectCardBrand(cleanCard);
+        const newCardEntry: SavedCard = {
+          id: `card_${Date.now()}`,
+          cardNumber: cardNumber,
+          cardNumberMasked: `•••• ${last4}`,
+          cardholderName: cardholderName.trim().toUpperCase(),
+          expiry: cardExpiry,
+          cpf: payerCPF,
+          brand: cardBrand,
+        };
+        const existing = savedCards.filter((c) => c.cardNumber.replace(/\D/g, '') !== cleanCard);
+        const updatedCards = [newCardEntry, ...existing].slice(0, 5);
+        setSavedCards(updatedCards);
+        localStorage.setItem(`az3d_saved_cards_${user.id}`, JSON.stringify(updatedCards));
+      }
 
       clearCart();
       setLastOrder(result.order);
@@ -633,78 +769,183 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
 
                       {paymentMethod === 'credit_card' && (
                         <div className="rounded-2xl border border-chumbo-800 bg-chumbo-900/40 p-4 space-y-3.5">
-                          <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-300">
-                              Número do Cartão
-                            </label>
-                            <div className="relative flex items-center">
-                              <input
-                                type="text"
-                                maxLength={19}
-                                value={cardNumber}
-                                onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
-                                placeholder="0000 0000 0000 0000"
-                                className="w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3.5 py-2.5 pr-10 text-xs font-mono text-white placeholder-slate-600 outline-none focus:border-laser-400"
-                              />
-                              <CreditCard className="absolute right-3 h-4 w-4 text-slate-500 pointer-events-none" />
-                            </div>
-                          </div>
+                          {/* Saved Cards Selector for Logged In Customer */}
+                          {isAuthenticated && savedCards.length > 0 && (
+                            <div className="space-y-2 pb-2 border-b border-chumbo-800">
+                              <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                Seus Cartões Salvos
+                              </span>
+                              <div className="grid grid-cols-1 gap-2">
+                                {savedCards.map((card) => {
+                                  const isSelected = selectedSavedCardId === card.id;
+                                  return (
+                                    <div
+                                      key={card.id}
+                                      onClick={() => handleSelectSavedCard(card.id)}
+                                      className={`flex items-center justify-between rounded-xl border p-3 cursor-pointer transition ${
+                                        isSelected
+                                          ? 'border-laser-400 bg-laser-950/40 text-white ring-1 ring-laser-400/60'
+                                          : 'border-chumbo-750 bg-chumbo-950 text-slate-300 hover:border-chumbo-600'
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-2.5 min-w-0">
+                                        <CreditCard className={`h-4 w-4 shrink-0 ${isSelected ? 'text-laser-400' : 'text-slate-500'}`} />
+                                        <div className="min-w-0">
+                                          <div className="flex items-center gap-2">
+                                            <strong className="text-xs font-mono font-bold text-white">{card.cardNumberMasked}</strong>
+                                            <span className="rounded bg-chumbo-800 px-1.5 py-0.5 text-[9px] font-bold text-laser-300">
+                                              {card.brand}
+                                            </span>
+                                          </div>
+                                          <span className="text-[10px] text-slate-400 truncate block">
+                                            {card.cardholderName} · Exp {card.expiry}
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => handleDeleteSavedCard(card.id, e)}
+                                        className="rounded-lg p-1.5 text-slate-500 hover:bg-rose-500/10 hover:text-rose-400 transition"
+                                        title="Remover cartão salvo"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </button>
+                                    </div>
+                                  );
+                                })}
 
-                          <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-300">
-                              Nome Impresso no Cartão
-                            </label>
-                            <input
-                              type="text"
-                              value={cardholderName}
-                              onChange={(e) => setCardholderName(e.target.value.toUpperCase())}
-                              placeholder="NOME COMO NO CARTÃO"
-                              className="w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3.5 py-2.5 text-xs font-bold uppercase text-white placeholder-slate-600 outline-none focus:border-laser-400"
-                            />
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <label className="mb-1 block text-xs font-semibold text-slate-300">
-                                Validade (MM/AA)
-                              </label>
-                              <input
-                                type="text"
-                                maxLength={5}
-                                value={cardExpiry}
-                                onChange={(e) => setCardExpiry(formatExpiry(e.target.value))}
-                                placeholder="MM/AA"
-                                className="w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3.5 py-2.5 text-xs font-mono text-center text-white placeholder-slate-600 outline-none focus:border-laser-400"
-                              />
+                                <button
+                                  type="button"
+                                  onClick={() => handleSelectSavedCard('new')}
+                                  className={`flex items-center justify-center gap-1.5 rounded-xl border border-dashed py-2.5 text-xs font-bold transition ${
+                                    selectedSavedCardId === 'new'
+                                      ? 'border-laser-400 bg-laser-950/20 text-laser-300'
+                                      : 'border-chumbo-750 text-slate-400 hover:border-chumbo-600 hover:text-white'
+                                  }`}
+                                >
+                                  <Plus className="h-3.5 w-3.5" />
+                                  <span>Usar outro cartão de crédito</span>
+                                </button>
+                              </div>
                             </div>
-                            <div>
-                              <label className="mb-1 block text-xs font-semibold text-slate-300">
-                                CVV (Segurança)
-                              </label>
-                              <input
-                                type="password"
-                                maxLength={4}
-                                value={cardCVV}
-                                onChange={(e) => setCardCVV(e.target.value.replace(/\D/g, ''))}
-                                placeholder="123"
-                                className="w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3.5 py-2.5 text-xs font-mono text-center text-white placeholder-slate-600 outline-none focus:border-laser-400"
-                              />
-                            </div>
-                          </div>
+                          )}
 
-                          <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-300">
-                              CPF do Titular do Cartão
-                            </label>
-                            <input
-                              type="text"
-                              maxLength={14}
-                              value={payerCPF}
-                              onChange={(e) => setPayerCPF(formatCPF(e.target.value))}
-                              placeholder="000.000.000-00"
-                              className="w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3.5 py-2.5 text-xs font-mono text-white placeholder-slate-600 outline-none focus:border-laser-400"
-                            />
-                          </div>
+                          {/* Full Form if entering new card */}
+                          {selectedSavedCardId === 'new' ? (
+                            <>
+                              <div>
+                                <label className="mb-1 block text-xs font-semibold text-slate-300">
+                                  Número do Cartão
+                                </label>
+                                <div className="relative flex items-center">
+                                  <input
+                                    type="text"
+                                    maxLength={19}
+                                    value={cardNumber}
+                                    onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
+                                    placeholder="0000 0000 0000 0000"
+                                    className="w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3.5 py-2.5 pr-10 text-xs font-mono text-white placeholder-slate-600 outline-none focus:border-laser-400"
+                                  />
+                                  <CreditCard className="absolute right-3 h-4 w-4 text-slate-500 pointer-events-none" />
+                                </div>
+                              </div>
+
+                              <div>
+                                <label className="mb-1 block text-xs font-semibold text-slate-300">
+                                  Nome Impresso no Cartão
+                                </label>
+                                <input
+                                  type="text"
+                                  value={cardholderName}
+                                  onChange={(e) => setCardholderName(e.target.value.toUpperCase())}
+                                  placeholder="NOME COMO NO CARTÃO"
+                                  className="w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3.5 py-2.5 text-xs font-bold uppercase text-white placeholder-slate-600 outline-none focus:border-laser-400"
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <label className="mb-1 block text-xs font-semibold text-slate-300">
+                                    Validade (MM/AA)
+                                  </label>
+                                  <input
+                                    type="text"
+                                    maxLength={5}
+                                    value={cardExpiry}
+                                    onChange={(e) => setCardExpiry(formatExpiry(e.target.value))}
+                                    placeholder="MM/AA"
+                                    className="w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3.5 py-2.5 text-xs font-mono text-center text-white placeholder-slate-600 outline-none focus:border-laser-400"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="mb-1 block text-xs font-semibold text-slate-300">
+                                    CVV (Segurança)
+                                  </label>
+                                  <input
+                                    type="password"
+                                    maxLength={4}
+                                    value={cardCVV}
+                                    onChange={(e) => setCardCVV(e.target.value.replace(/\D/g, ''))}
+                                    placeholder="123"
+                                    className="w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3.5 py-2.5 text-xs font-mono text-center text-white placeholder-slate-600 outline-none focus:border-laser-400"
+                                  />
+                                </div>
+                              </div>
+
+                              <div>
+                                <label className="mb-1 block text-xs font-semibold text-slate-300">
+                                  CPF do Titular do Cartão
+                                </label>
+                                <input
+                                  type="text"
+                                  maxLength={14}
+                                  value={payerCPF}
+                                  onChange={(e) => setPayerCPF(formatCPF(e.target.value))}
+                                  placeholder="000.000.000-00"
+                                  className="w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3.5 py-2.5 text-xs font-mono text-white placeholder-slate-600 outline-none focus:border-laser-400"
+                                />
+                              </div>
+
+                              {isAuthenticated && (
+                                <label className="flex items-center gap-2 cursor-pointer pt-1">
+                                  <input
+                                    type="checkbox"
+                                    checked={shouldSaveCard}
+                                    onChange={(e) => setShouldSaveCard(e.target.checked)}
+                                    className="h-4 w-4 rounded border-chumbo-700 bg-chumbo-950 text-laser-400 focus:ring-laser-400"
+                                  />
+                                  <span className="text-xs text-slate-300 flex items-center gap-1">
+                                    <BookmarkCheck className="h-3.5 w-3.5 text-laser-400" />
+                                    Salvar este cartão para próximas compras
+                                  </span>
+                                </label>
+                              )}
+                            </>
+                          ) : (
+                            /* Simplified CVV input when using saved card */
+                            <div className="space-y-3 pt-1">
+                              <div>
+                                <label className="mb-1 block text-xs font-semibold text-slate-300">
+                                  Confirmar Código de Segurança (CVV)
+                                </label>
+                                <div className="relative flex items-center max-w-[140px]">
+                                  <input
+                                    type="password"
+                                    maxLength={4}
+                                    autoFocus
+                                    value={cardCVV}
+                                    onChange={(e) => setCardCVV(e.target.value.replace(/\D/g, ''))}
+                                    placeholder="123"
+                                    className="w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3.5 py-2.5 text-xs font-mono text-center text-white placeholder-slate-600 outline-none focus:border-laser-400"
+                                  />
+                                  <Lock className="absolute right-3 h-3.5 w-3.5 text-slate-500 pointer-events-none" />
+                                </div>
+                                <span className="text-[10px] text-slate-400 mt-1 block">
+                                  Digite os 3 dígitos do verso do seu cartão salvo.
+                                </span>
+                              </div>
+                            </div>
+                          )}
 
                           <div>
                             <label className="mb-1 block text-xs font-semibold text-slate-300">

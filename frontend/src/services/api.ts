@@ -352,6 +352,25 @@ export const api = {
     return data;
   },
 
+  updateMe: async (payload: Partial<User>, tokenKey: string = CUSTOMER_TOKEN_KEY): Promise<User> => {
+    const body: Record<string, unknown> = { ...payload };
+    if (typeof payload.addresses === 'object') {
+      body.addresses = JSON.stringify(payload.addresses);
+    }
+    if (typeof payload.saved_cards === 'object') {
+      body.saved_cards = JSON.stringify(payload.saved_cards);
+    }
+
+    const res = await fetch(`${API_BASE_URL}/auth/me`, {
+      method: 'PUT',
+      headers: getHeaders(undefined, tokenKey),
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro ao atualizar perfil do usuário');
+    return data;
+  },
+
   startGoogleOAuth: async (
     scope: 'customer' | 'admin' | 'seller',
     options: { tenantId?: number; returnTo?: string; storeName?: string } = {}

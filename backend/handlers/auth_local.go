@@ -206,6 +206,57 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	c.JSON(http.StatusOK, user)
 }
 
+// PUT /api/auth/me
+func (h *AuthHandler) UpdateMe(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Nao autenticado"})
+		return
+	}
+
+	var input models.UpdateProfileInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Dados invalidos"})
+		return
+	}
+
+	var user models.User
+	if err := database.DB.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Usuario nao encontrado"})
+		return
+	}
+
+	if strings.TrimSpace(input.Name) != "" {
+		user.Name = strings.TrimSpace(input.Name)
+	}
+	if strings.TrimSpace(input.Email) != "" {
+		newEmail := strings.TrimSpace(input.Email)
+		var count int64
+		database.DB.Model(&models.User{}).Where("email = ? AND id != ?", newEmail, user.ID).Count(&count)
+		if count > 0 {
+			c.JSON(http.StatusConflict, gin.H{"error": "Email ja esta em uso por outro usuario"})
+			return
+		}
+		user.Email = newEmail
+	}
+	if input.Phone != "" {
+		user.Phone = strings.TrimSpace(input.Phone)
+	}
+	if input.Addresses != "" {
+		user.Addresses = input.Addresses
+	}
+	if input.SavedCards != "" {
+		user.SavedCards = input.SavedCards
+	}
+
+	if err := database.DB.Save(&user).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao atualizar dados do usuario"})
+		return
+	}
+
+	c.JSON(http.StatusOK, user)
+}
+
 func uniqueTenantSlug(name string) string {
 	base := slugify(name)
 	if base == "" {

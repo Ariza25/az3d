@@ -87,6 +87,9 @@ type User struct {
 	Name         string         `gorm:"size:100;not null" json:"name"`
 	Username     string         `gorm:"size:80;uniqueIndex:idx_users_username,where:username <> ''" json:"username"`
 	Email        string         `gorm:"size:100;not null;uniqueIndex" json:"email"`
+	Phone        string         `gorm:"size:30" json:"phone,omitempty"`
+	Addresses    string         `gorm:"type:text" json:"addresses,omitempty"`
+	SavedCards   string         `gorm:"type:text" json:"saved_cards,omitempty"`
 	Password     string         `gorm:"size:255;not null" json:"-"`
 	Role         string         `gorm:"size:20;default:'customer'" json:"role"` // customer, admin, tenant_admin, master_admin
 	GoogleID     string         `gorm:"size:255;index" json:"google_id,omitempty"`
@@ -95,6 +98,14 @@ type User struct {
 	CreatedAt    time.Time      `json:"created_at"`
 	UpdatedAt    time.Time      `json:"updated_at"`
 	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
+}
+
+type UpdateProfileInput struct {
+	Name       string `json:"name"`
+	Email      string `json:"email"`
+	Phone      string `json:"phone"`
+	Addresses  string `json:"addresses"`
+	SavedCards string `json:"saved_cards"`
 }
 
 type RegisterInput struct {

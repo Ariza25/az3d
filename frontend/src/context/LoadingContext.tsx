@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
-import { Layers } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 interface LoadingContextType {
   isLoading: boolean;
@@ -89,19 +89,27 @@ export const LoadingProvider: React.FC<{ children: React.ReactNode }> = ({ child
           role="status"
           aria-live="polite"
           aria-label="Carregando"
-          className="fixed inset-0 z-[99999] flex flex-col items-center justify-center bg-black/65 backdrop-blur-[3px] transition-all duration-200 animate-in fade-in"
+          className="fixed inset-0 z-[99999] flex flex-col items-center justify-center bg-black/70 backdrop-blur-sm transition-all duration-200 animate-in fade-in"
         >
-          <div className="flex flex-col items-center justify-center gap-4 rounded-3xl border border-chumbo-800 bg-chumbo-950/95 p-6 shadow-2xl shadow-black/80 backdrop-blur-md min-w-[200px]">
+          <div className="flex flex-col items-center justify-center gap-4 rounded-3xl border border-chumbo-800/90 bg-chumbo-950/95 p-7 shadow-2xl shadow-black/90 backdrop-blur-xl min-w-[220px]">
+            {/* Spinning Indicator */}
             <div className="relative flex items-center justify-center">
-              <div className="h-12 w-12 rounded-full border-3 border-laser-500/20 border-t-laser-400 animate-spin" />
-              <Layers className="absolute h-5 w-5 text-laser-400 animate-pulse" />
+              <div className="h-14 w-14 rounded-full border-[3px] border-chumbo-800 border-t-laser-400 border-r-laser-400/50 animate-spin" />
+              <div className="absolute h-10 w-10 rounded-full border-2 border-laser-500/20 border-b-laser-400 animate-spin" style={{ animationDirection: 'reverse', animationDuration: '0.8s' }} />
+              <Loader2 className="absolute h-5 w-5 text-laser-400 animate-spin" />
             </div>
-            <div className="text-center">
-              <span className="block text-xs font-bold tracking-wide text-white">
-                {loadingMessage}
-              </span>
-              <span className="mt-0.5 block text-[10px] font-mono uppercase tracking-widest text-slate-500">
-                AZ3D
+
+            <div className="text-center space-y-1">
+              <div className="flex items-center justify-center gap-1.5 text-xs font-extrabold tracking-wide text-white">
+                <span>{loadingMessage}</span>
+                <span className="flex gap-0.5">
+                  <span className="h-1 w-1 rounded-full bg-laser-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="h-1 w-1 rounded-full bg-laser-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="h-1 w-1 rounded-full bg-laser-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                </span>
+              </div>
+              <span className="block text-[10px] font-mono font-bold tracking-widest text-slate-500 uppercase">
+                AZ3D PLATFORM
               </span>
             </div>
           </div>

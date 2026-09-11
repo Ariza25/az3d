@@ -13,6 +13,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string, tenantId?: number) => Promise<void>;
   registerSeller: (name: string, email: string, password: string, storeName: string) => Promise<void>;
+  updateProfile: (data: Partial<User>) => Promise<User>;
   logout: () => void;
 }
 
@@ -92,6 +93,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode; scope?: AuthSco
     localStorage.setItem('az3d_tenant_id', String(response.user.tenant_id || 1));
   };
 
+  const updateProfile = async (data: Partial<User>): Promise<User> => {
+    const updated = await api.updateMe(data, tokenKey);
+    setUser(updated);
+    return updated;
+  };
+
   const logout = () => {
     localStorage.removeItem(tokenKey);
     setToken(null);
@@ -109,6 +116,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode; scope?: AuthSco
         login,
         register,
         registerSeller,
+        updateProfile,
         logout,
       }}
     >

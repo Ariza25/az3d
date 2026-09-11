@@ -7,6 +7,7 @@ import { ProductModal } from '../../components/ProductModal';
 import { CartDrawer } from '../../components/CartDrawer';
 import { LoginModal } from '../../components/LoginModal';
 import { RegisterModal } from '../../components/RegisterModal';
+import { UserSettingsModal } from '../../components/UserSettingsModal';
 import { Footer } from '../../components/Footer';
 import { FavoritesModal } from '../../components/FavoritesModal';
 import { Product, TenantSettings } from '../../types';
@@ -82,6 +83,7 @@ export const StoreApp: React.FC = () => {
   const [isLoginOpen, setIsLoginOpen] = useState<boolean>(false);
   const [isRegisterOpen, setIsRegisterOpen] = useState<boolean>(false);
   const [isFavoritesOpen, setIsFavoritesOpen] = useState<boolean>(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [loginContext, setLoginContext] = useState<'default' | 'cart'>('default');
   const [cartNotice, setCartNotice] = useState<{ title: string; text: string } | null>(null);
 
@@ -245,6 +247,7 @@ export const StoreApp: React.FC = () => {
         activeTenant={activeTenant}
         onOpenAdmin={openAdmin}
         onOpenFavorites={() => setIsFavoritesOpen(true)}
+        onOpenSettings={() => setIsSettingsOpen(true)}
         tenantSettings={tenantSettings}
       />
 
@@ -355,6 +358,11 @@ export const StoreApp: React.FC = () => {
           setIsRegisterOpen(false);
           setIsLoginOpen(true);
         }}
+      />
+
+      <UserSettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
       />
 
       {cartNotice && (

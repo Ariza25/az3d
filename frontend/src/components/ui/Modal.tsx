@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
+import { ThemeToggle } from '../ThemeToggle';
 
 export interface ModalProps {
   isOpen: boolean;
@@ -75,13 +76,16 @@ export const Modal: React.FC<ModalProps> = ({
                   {subtitle && <p className="text-xs text-slate-400">{subtitle}</p>}
                 </div>
               </div>
-              <button
-                onClick={onClose}
-                className="rounded-xl p-2 text-slate-400 hover:bg-chumbo-800 hover:text-white transition-colors"
-                aria-label="Fechar"
-              >
-                <X className="h-5 w-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                <ThemeToggle />
+                <button
+                  onClick={onClose}
+                  className="rounded-xl p-2 text-slate-400 hover:bg-chumbo-800 hover:text-white transition-colors"
+                  aria-label="Fechar"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
             </div>
           </header>
         )}
@@ -119,13 +123,16 @@ export const Modal: React.FC<ModalProps> = ({
                 {subtitle && <p className="text-xs text-slate-400">{subtitle}</p>}
               </div>
             </div>
-            <button
-              onClick={onClose}
-              className="rounded-xl p-2 text-slate-400 hover:bg-chumbo-800 hover:text-white transition-colors"
-              aria-label="Fechar"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <button
+                onClick={onClose}
+                className="rounded-xl p-2 text-slate-400 hover:bg-chumbo-800 hover:text-white transition-colors"
+                aria-label="Fechar"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
           </header>
         )}
 
