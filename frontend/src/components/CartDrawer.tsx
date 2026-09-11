@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, CreditCard, Layers, MapPin, Minus, Plus, QrCode, ReceiptText, ShieldCheck, ShoppingBag, Truck, Trash2, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, CreditCard, Layers, Lock, MapPin, Minus, Plus, QrCode, ReceiptText, ShieldCheck, ShoppingBag, Truck, Trash2, X } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
@@ -43,8 +43,13 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
   const [state, setState] = useState('');
   const [shippingAddress, setShippingAddress] = useState('');
   const [notes, setNotes] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'pix' | 'mercadopago_pro'>('pix');
+  const [paymentMethod, setPaymentMethod] = useState<'pix' | 'credit_card'>('pix');
   const [payerCPF, setPayerCPF] = useState('');
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardholderName, setCardholderName] = useState('');
+  const [cardExpiry, setCardExpiry] = useState('');
+  const [cardCVV, setCardCVV] = useState('');
+  const [installments, setInstallments] = useState(1);
   const [activePaymentResponse, setActivePaymentResponse] = useState<CreateOrderResponse | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
@@ -58,6 +63,47 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
 
   const freightAmount = (deliveryMethod === 'shipping' && selectedFreight) ? selectedFreight.price : 0;
   const cartGrandTotal = totalPrice + freightAmount;
+
+  const installmentOptions = useMemo(() => {
+    const total = cartGrandTotal;
+    const maxInstallments = Math.min(12, Math.max(1, Math.floor(total / 10)));
+    const list = [];
+    for (let i = 1; i <= Math.max(1, maxInstallments); i++) {
+      const val = total / i;
+      list.push({
+        times: i,
+        label: `${i}x de ${money(val)} ${i === 1 ? 'à vista' : 'sem juros'}`,
+      });
+    }
+    return list;
+  }, [cartGrandTotal]);
+
+  const formatCardNumber = (val: string) => {
+    const digits = val.replace(/\D/g, '').slice(0, 16);
+    return digits.replace(/(\d{4})(?=\d)/g, '$1 ');
+  };
+
+  const formatExpiry = (val: string) => {
+    const digits = val.replace(/\D/g, '').slice(0, 4);
+    if (digits.length >= 3) {
+      return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+    }
+    return digits;
+  };
+
+  const formatCPF = (val: string) => {
+    const digits = val.replace(/\D/g, '').slice(0, 11);
+    if (digits.length > 9) {
+      return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+    }
+    if (digits.length > 6) {
+      return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+    }
+    if (digits.length > 3) {
+      return `${digits.slice(0, 3)}.${digits.slice(3)}`;
+    }
+    return digits;
+  };
 
   const canShip = tenantSettings?.delivery_ship_enabled ?? true;
   const canPickup = tenantSettings?.delivery_pickup_enabled ?? true;
@@ -160,10 +206,47 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
       return;
     }
 
+    if (paymentMethod === 'pix') {
+      if (!payerCPF.replace(/\D/g, '')) {
+        setErrorMessage('Informe o CPF para gerar o PIX.');
+        return;
+      }
+    } else if (paymentMethod === 'credit_card') {
+      const cleanCard = cardNumber.replace(/\D/g, '');
+      if (cleanCard.length < 13) {
+        setErrorMessage('Informe um número de cartão de crédito válido.');
+        return;
+      }
+      if (!cardholderName.trim()) {
+        setErrorMessage('Informe o nome do titular impresso no cartão.');
+        return;
+      }
+      const [mStr, yStr] = cardExpiry.split('/');
+      const m = parseInt(mStr, 10);
+      const y = parseInt(yStr, 10);
+      if (!m || !y || m < 1 || m > 12) {
+        setErrorMessage('Informe a validade correta do cartão (MM/AA).');
+        return;
+      }
+      if (cardCVV.trim().length < 3) {
+        setErrorMessage('Informe o código de segurança (CVV) do cartão.');
+        return;
+      }
+      if (!payerCPF.replace(/\D/g, '')) {
+        setErrorMessage('Informe o CPF do titular do cartão.');
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     setErrorMessage(null);
 
     try {
+      const [mStr, yStr] = cardExpiry.split('/');
+      const expMonth = mStr ? parseInt(mStr, 10) : undefined;
+      let expYear = yStr ? parseInt(yStr, 10) : undefined;
+      if (expYear && expYear < 100) expYear += 2000;
+
       const result = await api.createOrder({
         items: cart.map((item) => ({
           product_id: item.product.id,
@@ -180,25 +263,19 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
         notes,
         payment_method: paymentMethod,
         payer_cpf: payerCPF.replace(/\D/g, ''),
+        card_number: paymentMethod === 'credit_card' ? cardNumber.replace(/\D/g, '') : undefined,
+        cardholder_name: paymentMethod === 'credit_card' ? cardholderName.trim().toUpperCase() : undefined,
+        card_exp_month: paymentMethod === 'credit_card' ? expMonth : undefined,
+        card_exp_year: paymentMethod === 'credit_card' ? expYear : undefined,
+        card_cvv: paymentMethod === 'credit_card' ? cardCVV.trim() : undefined,
+        installments: paymentMethod === 'credit_card' ? installments : 1,
       }, tenantSettings?.tenant_id, token);
 
       clearCart();
       setLastOrder(result.order);
-
-      if (paymentMethod === 'pix' || result.payment?.pix_qr_code) {
-        setActivePaymentResponse(result);
-        return;
-      }
-
-      const checkoutUrl = result.payment?.checkout_url || result.payment?.sandbox_checkout_url;
-      if (checkoutUrl) {
-        window.location.href = checkoutUrl;
-        return;
-      }
-
-      setOrderSuccess(result.message);
+      setActivePaymentResponse(result);
     } catch (err: any) {
-      setErrorMessage(err.message || 'Erro ao registrar pedido');
+      setErrorMessage(err.message || 'Erro ao processar pagamento');
     } finally {
       setIsSubmitting(false);
     }
@@ -481,13 +558,16 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
                     <section className="space-y-3">
                       <div>
                         <h3 className="text-sm font-bold text-white">Forma de Pagamento</h3>
-                        <p className="mt-0.5 text-xs text-slate-500">Pague direto no site com a segurança do Mercado Pago.</p>
+                        <p className="mt-0.5 text-xs text-slate-500">Checkout 100% transparente direto no nosso site.</p>
                       </div>
 
                       <div className="grid grid-cols-2 gap-3">
                         <button
                           type="button"
-                          onClick={() => setPaymentMethod('pix')}
+                          onClick={() => {
+                            setPaymentMethod('pix');
+                            setErrorMessage(null);
+                          }}
                           className={`flex min-h-20 flex-col justify-center rounded-2xl border p-3.5 text-left transition ${
                             paymentMethod === 'pix'
                               ? 'border-teal-400 bg-teal-950/30 text-white ring-1 ring-teal-400/50'
@@ -507,41 +587,146 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
 
                         <button
                           type="button"
-                          onClick={() => setPaymentMethod('mercadopago_pro')}
+                          onClick={() => {
+                            setPaymentMethod('credit_card');
+                            setErrorMessage(null);
+                          }}
                           className={`flex min-h-20 flex-col justify-center rounded-2xl border p-3.5 text-left transition ${
-                            paymentMethod === 'mercadopago_pro'
-                              ? 'border-blue-400 bg-blue-950/30 text-white ring-1 ring-blue-400/50'
+                            paymentMethod === 'credit_card'
+                              ? 'border-laser-400 bg-laser-950/30 text-white ring-1 ring-laser-400/50'
                               : 'border-chumbo-700 bg-chumbo-900/60 text-slate-300 hover:border-chumbo-600'
                           }`}
                         >
                           <div className="flex items-center justify-between">
-                            <span className="flex items-center gap-1.5 font-bold text-sm text-blue-300">
-                              <CreditCard className="h-4 w-4" /> Cartão / Saldo
+                            <span className="flex items-center gap-1.5 font-bold text-sm text-laser-300">
+                              <CreditCard className="h-4 w-4" /> Cartão
+                            </span>
+                            <span className="rounded-full bg-laser-500/20 px-1.5 py-0.5 text-[9px] font-bold text-laser-300">
+                              Até 12x
                             </span>
                           </div>
-                          <span className="mt-1 text-[11px] text-slate-400">Mercado Pago</span>
+                          <span className="mt-1 text-[11px] text-slate-400">Direto no site</span>
                         </button>
                       </div>
 
                       {paymentMethod === 'pix' && (
-                        <div className="rounded-xl border border-chumbo-800 bg-chumbo-900/40 p-3 space-y-2">
+                        <div className="rounded-2xl border border-chumbo-800 bg-chumbo-900/40 p-3.5 space-y-3">
                           <label className="block">
                             <span className="mb-1 block text-xs font-semibold text-slate-300">
-                              CPF do Pagador <span className="text-[10px] text-slate-500">(exigido para o PIX)</span>
+                              CPF do Pagador <span className="text-[10px] text-slate-500">(exigido pelo Banco Central para o PIX)</span>
                             </span>
                             <input
                               type="text"
                               maxLength={14}
                               value={payerCPF}
-                              onChange={(e) => setPayerCPF(e.target.value)}
+                              onChange={(e) => setPayerCPF(formatCPF(e.target.value))}
                               placeholder="000.000.000-00"
-                              className="w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3 py-2 text-xs font-mono text-white placeholder-slate-600 outline-none focus:border-teal-400"
+                              className="w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3.5 py-2.5 text-xs font-mono text-white placeholder-slate-600 outline-none focus:border-teal-400"
                             />
                           </label>
-                          <p className="text-[10px] text-slate-400 flex items-center gap-1">
-                            <ShieldCheck className="h-3 w-3 text-teal-400 shrink-0" />
-                            O QR Code será gerado diretamente aqui na tela logo após clicar em finalizar.
-                          </p>
+                          <div className="flex items-center gap-2 text-[11px] text-teal-300/90 bg-teal-950/40 border border-teal-500/20 rounded-xl p-2.5">
+                            <ShieldCheck className="h-4 w-4 text-teal-400 shrink-0" />
+                            <span>O QR Code PIX será gerado instantaneamente na sua tela com confirmação automática.</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {paymentMethod === 'credit_card' && (
+                        <div className="rounded-2xl border border-chumbo-800 bg-chumbo-900/40 p-4 space-y-3.5">
+                          <div>
+                            <label className="mb-1 block text-xs font-semibold text-slate-300">
+                              Número do Cartão
+                            </label>
+                            <div className="relative flex items-center">
+                              <input
+                                type="text"
+                                maxLength={19}
+                                value={cardNumber}
+                                onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
+                                placeholder="0000 0000 0000 0000"
+                                className="w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3.5 py-2.5 pr-10 text-xs font-mono text-white placeholder-slate-600 outline-none focus:border-laser-400"
+                              />
+                              <CreditCard className="absolute right-3 h-4 w-4 text-slate-500 pointer-events-none" />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="mb-1 block text-xs font-semibold text-slate-300">
+                              Nome Impresso no Cartão
+                            </label>
+                            <input
+                              type="text"
+                              value={cardholderName}
+                              onChange={(e) => setCardholderName(e.target.value.toUpperCase())}
+                              placeholder="NOME COMO NO CARTÃO"
+                              className="w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3.5 py-2.5 text-xs font-bold uppercase text-white placeholder-slate-600 outline-none focus:border-laser-400"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="mb-1 block text-xs font-semibold text-slate-300">
+                                Validade (MM/AA)
+                              </label>
+                              <input
+                                type="text"
+                                maxLength={5}
+                                value={cardExpiry}
+                                onChange={(e) => setCardExpiry(formatExpiry(e.target.value))}
+                                placeholder="MM/AA"
+                                className="w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3.5 py-2.5 text-xs font-mono text-center text-white placeholder-slate-600 outline-none focus:border-laser-400"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-xs font-semibold text-slate-300">
+                                CVV (Segurança)
+                              </label>
+                              <input
+                                type="password"
+                                maxLength={4}
+                                value={cardCVV}
+                                onChange={(e) => setCardCVV(e.target.value.replace(/\D/g, ''))}
+                                placeholder="123"
+                                className="w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3.5 py-2.5 text-xs font-mono text-center text-white placeholder-slate-600 outline-none focus:border-laser-400"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="mb-1 block text-xs font-semibold text-slate-300">
+                              CPF do Titular do Cartão
+                            </label>
+                            <input
+                              type="text"
+                              maxLength={14}
+                              value={payerCPF}
+                              onChange={(e) => setPayerCPF(formatCPF(e.target.value))}
+                              placeholder="000.000.000-00"
+                              className="w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3.5 py-2.5 text-xs font-mono text-white placeholder-slate-600 outline-none focus:border-laser-400"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="mb-1 block text-xs font-semibold text-slate-300">
+                              Opções de Parcelamento
+                            </label>
+                            <select
+                              value={installments}
+                              onChange={(e) => setInstallments(parseInt(e.target.value, 10))}
+                              className="w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3.5 py-2.5 text-xs font-semibold text-white outline-none focus:border-laser-400"
+                            >
+                              {installmentOptions.map((opt) => (
+                                <option key={opt.times} value={opt.times}>
+                                  {opt.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="flex items-center gap-2 text-[10px] text-slate-400 bg-chumbo-950 border border-chumbo-800/80 rounded-xl p-2.5">
+                            <Lock className="h-3.5 w-3.5 text-laser-400 shrink-0" />
+                            <span>Criptografia 256-bit ponta a ponta. Pagamento processado de forma 100% segura diretamente no nosso site.</span>
+                          </div>
                         </div>
                       )}
                     </section>
@@ -606,19 +791,19 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
                     type="button"
                     onClick={handleCheckout}
                     disabled={isSubmitting || (!canShip && !canPickup)}
-                    className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-teal-400 to-emerald-400 py-3.5 text-sm font-extrabold text-chumbo-950 shadow-xl shadow-teal-500/10 transition-all hover:from-teal-300 hover:to-emerald-300 disabled:opacity-50"
+                    className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-laser-400 to-emerald-400 py-3.5 text-sm font-extrabold text-chumbo-950 shadow-xl shadow-laser-500/10 transition-all hover:from-laser-300 hover:to-emerald-300 disabled:opacity-50"
                   >
                     <span>
                       {isSubmitting
-                        ? 'Processando...'
+                        ? 'Processando pagamento...'
                         : paymentMethod === 'pix'
-                          ? 'Gerar PIX e Finalizar Pedido'
-                          : 'Pagar com Mercado Pago'}
+                          ? `Gerar PIX e Pagar (${money(cartGrandTotal)})`
+                          : `Pagar com Cartão (${money(cartGrandTotal)})`}
                     </span>
                     <ArrowRight className="h-4 w-4" />
                   </button>
                   <p className="mt-2 text-center text-[10px] leading-4 text-slate-500">
-                    Processado com segurança via Mercado Pago Transparente.
+                    Processado com segurança via Checkout Transparente.
                   </p>
                 </footer>
               )}

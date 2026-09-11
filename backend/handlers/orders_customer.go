@@ -228,6 +228,15 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 			order.Status = "confirmed"
 			now := time.Now().UTC()
 			order.PaidAt = &now
+		} else if directPayment.Status == "rejected" {
+			rejectionMsg := translateMPRejectionDetail(directPayment.StatusDetail)
+			_ = cancelOrderAndReleaseStock(order.ID, "Pagamento no cartão recusado: "+rejectionMsg)
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":         rejectionMsg,
+				"status":        "rejected",
+				"status_detail": directPayment.StatusDetail,
+			})
+			return
 		}
 
 		if err := database.DB.Save(&order).Error; err != nil {

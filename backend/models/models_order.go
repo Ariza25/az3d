@@ -116,9 +116,14 @@ type CreateOrderInput struct {
 	City            string                 `json:"city"`
 	State           string                 `json:"state"`
 	Notes           string                 `json:"notes"`
-	PaymentMethod   string                 `json:"payment_method"` // "pix", "credit_card", "mercadopago_pro"
+	PaymentMethod   string                 `json:"payment_method"` // "pix", "credit_card"
 	PayerCPF        string                 `json:"payer_cpf"`
 	CardToken       string                 `json:"card_token"`
+	CardNumber      string                 `json:"card_number"`
+	CardholderName  string                 `json:"cardholder_name"`
+	CardExpMonth    int                    `json:"card_exp_month"`
+	CardExpYear     int                    `json:"card_exp_year"`
+	CardCVV         string                 `json:"card_cvv"`
 	Installments    int                    `json:"installments"`
 	PaymentMethodID string                 `json:"payment_method_id"`
 	IssuerID        string                 `json:"issuer_id"`

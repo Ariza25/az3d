@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle2, Clock, Copy, ExternalLink, Loader2, QrCode, ShieldCheck, Sparkles, X } from 'lucide-react';
+import { CheckCircle2, Clock, Copy, Loader2, QrCode, ShieldCheck, Sparkles, X } from 'lucide-react';
 import { CreateOrderResponse, Order } from '../types';
 import { api } from '../services/api';
 
@@ -230,23 +230,49 @@ export const TransparentPaymentModal: React.FC<Props> = ({
             </div>
           </div>
         ) : (
-          /* Estado 3: Checkout Pro Modal / Redirect Fallback */
-          <div className="space-y-5 text-center py-2">
-            <h3 className="text-xl font-bold text-white">Finalizar Pagamento</h3>
-            <p className="text-xs text-slate-400">
-              Pedido #{order.id} registrado no valor de <strong className="text-white">R$ {order.total_amount.toFixed(2).replace('.', ',')}</strong>.
-            </p>
+          /* Estado 3: Pagamento Cartão em Processamento / Análise */
+          <div className="space-y-6 text-center py-4">
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-blue-500/20 text-blue-400 ring-8 ring-blue-500/10">
+              <Clock className="h-10 w-10 animate-pulse" />
+            </div>
 
-            {payment?.checkout_url && (
-              <a
-                href={payment.checkout_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-laser-500 py-3 text-sm font-bold text-chumbo-950 hover:bg-laser-400"
-              >
-                <ExternalLink className="h-4 w-4" /> Abrir Checkout Mercado Pago
-              </a>
-            )}
+            <div>
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-blue-950/80 border border-blue-500/40 px-3 py-1 text-xs font-bold text-blue-300">
+                <ShieldCheck className="h-3.5 w-3.5" /> Pagamento com Cartão
+              </div>
+              <h3 className="mt-2 text-2xl font-black text-white">Processando Pedido #{order.id}</h3>
+              <p className="mt-1 text-xs text-slate-400">
+                Estamos validando a transação de <strong className="text-white">R$ {order.total_amount.toFixed(2).replace('.', ',')}</strong> com o banco emissor.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-chumbo-800 bg-chumbo-900/60 p-4 text-left text-xs space-y-2">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Número do Pedido:</span>
+                <span className="font-mono font-bold text-white">#{order.id}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Destinatário:</span>
+                <span className="text-white">{order.recipient_name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Forma de Pagamento:</span>
+                <span className="font-semibold text-slate-200">Cartão de Crédito</span>
+              </div>
+            </div>
+
+            {/* Status em Tempo Real */}
+            <div className="flex items-center justify-center gap-2 rounded-xl border border-chumbo-800/80 bg-chumbo-900/40 py-2.5 text-xs text-slate-400">
+              {isPolling && <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-400" />}
+              <span>Aguardando resposta do banco emissor...</span>
+            </div>
+
+            <button
+              onClick={onClose}
+              className="w-full rounded-2xl bg-chumbo-800 py-3 text-sm font-bold text-white hover:bg-chumbo-700 transition"
+            >
+              Acompanhar em Meus Pedidos
+            </button>
           </div>
         )}
       </div>

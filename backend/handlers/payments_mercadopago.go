@@ -479,6 +479,129 @@ type mercadoPagoDirectPaymentResponse struct {
 	} `json:"point_of_interaction"`
 }
 
+type mpCardTokenRequest struct {
+	CardNumber      string               `json:"card_number"`
+	Cardholder      mpCardholderInfo     `json:"cardholder"`
+	SecurityCode    string               `json:"security_code"`
+	ExpirationMonth int                  `json:"expiration_month"`
+	ExpirationYear  int                  `json:"expiration_year"`
+}
+
+type mpCardholderInfo struct {
+	Name           string               `json:"name"`
+	Identification mpIdentificationInfo `json:"identification"`
+}
+
+type mpIdentificationInfo struct {
+	Type   string `json:"type"`
+	Number string `json:"number"`
+}
+
+type mpCardTokenResponse struct {
+	ID string `json:"id"`
+}
+
+func tokenizeMercadoPagoCard(ctx context.Context, input models.CreateOrderInput, cpfDigits, mpBaseURL, accessToken string) (string, error) {
+	cleanCardNumber := strings.ReplaceAll(strings.ReplaceAll(input.CardNumber, " ", ""), "-", "")
+	if len(cleanCardNumber) < 13 {
+		return "", fmt.Errorf("número de cartão de crédito inválido")
+	}
+	cleanCVV := strings.TrimSpace(input.CardCVV)
+	if len(cleanCVV) < 3 {
+		return "", fmt.Errorf("código de segurança (CVV) inválido")
+	}
+	if input.CardExpMonth < 1 || input.CardExpMonth > 12 {
+		return "", fmt.Errorf("mês de validade do cartão inválido")
+	}
+	expYear := input.CardExpYear
+	if expYear < 100 {
+		expYear += 2000
+	}
+	if expYear < time.Now().Year() {
+		return "", fmt.Errorf("ano de validade do cartão expirado")
+	}
+
+	cardholderName := strings.TrimSpace(input.CardholderName)
+	if cardholderName == "" {
+		cardholderName = strings.TrimSpace(input.RecipientName)
+	}
+	if cardholderName == "" {
+		cardholderName = "CLIENTE AZ3D"
+	}
+
+	reqPayload := mpCardTokenRequest{
+		CardNumber: cleanCardNumber,
+		Cardholder: mpCardholderInfo{
+			Name: cardholderName,
+			Identification: mpIdentificationInfo{
+				Type:   "CPF",
+				Number: cpfDigits,
+			},
+		},
+		SecurityCode:    cleanCVV,
+		ExpirationMonth: input.CardExpMonth,
+		ExpirationYear:  expYear,
+	}
+
+	reqBytes, err := json.Marshal(reqPayload)
+	if err != nil {
+		return "", err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, mpBaseURL+"/v1/card_tokens", bytes.NewReader(reqBytes))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("falha ao comunicar com processadora de cartão: %w", err)
+	}
+	defer res.Body.Close()
+
+	resBody, _ := io.ReadAll(res.Body)
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return "", fmt.Errorf("dados do cartão recusados: %s", string(resBody))
+	}
+
+	var tokenRes mpCardTokenResponse
+	if err := json.Unmarshal(resBody, &tokenRes); err != nil || tokenRes.ID == "" {
+		return "", fmt.Errorf("falha ao tokenizar cartão de crédito")
+	}
+
+	return tokenRes.ID, nil
+}
+
+func translateMPRejectionDetail(detail string) string {
+	switch detail {
+	case "cc_rejected_bad_filled_card_number":
+		return "Número do cartão incorreto."
+	case "cc_rejected_bad_filled_date":
+		return "Data de validade do cartão incorreta."
+	case "cc_rejected_bad_filled_security_code":
+		return "Código de segurança (CVV) incorreto."
+	case "cc_rejected_insufficient_amount":
+		return "Saldo insuficiente no cartão de crédito."
+	case "cc_rejected_call_for_authorize":
+		return "Transação não autorizada. Entre em contato com seu banco emissor para liberar a compra."
+	case "cc_rejected_card_disabled":
+		return "Cartão bloqueado ou desabilitado. Contate a operadora do cartão."
+	case "cc_rejected_max_attempts":
+		return "Limite de tentativas excedido no cartão. Tente novamente mais tarde."
+	case "cc_rejected_duplicated_payment":
+		return "Pagamento duplicado recentemente detectado."
+	case "cc_rejected_high_risk":
+		return "Pagamento recusado pela análise de segurança do emissor."
+	default:
+		if detail != "" {
+			return fmt.Sprintf("Pagamento não autorizado (%s).", detail)
+		}
+		return "Pagamento não autorizado pelo emissor do cartão."
+	}
+}
+
 func createMercadoPagoDirectPayment(ctx context.Context, order models.Order, input models.CreateOrderInput, sellerAccessToken string) (*mercadoPagoDirectPaymentResponse, error) {
 	accessToken := strings.TrimSpace(sellerAccessToken)
 	if accessToken == "" {
@@ -539,10 +662,18 @@ func createMercadoPagoDirectPayment(ctx context.Context, order models.Order, inp
 	if paymentMethod == "pix" {
 		payload["payment_method_id"] = "pix"
 	} else if paymentMethod == "credit_card" {
-		if input.CardToken == "" {
-			return nil, fmt.Errorf("token do cartao de credito obrigatorio")
+		cardToken := strings.TrimSpace(input.CardToken)
+		if cardToken == "" && strings.TrimSpace(input.CardNumber) != "" {
+			generatedToken, err := tokenizeMercadoPagoCard(ctx, input, cpfDigits, mpBaseURL, accessToken)
+			if err != nil {
+				return nil, err
+			}
+			cardToken = generatedToken
 		}
-		payload["token"] = input.CardToken
+		if cardToken == "" {
+			return nil, fmt.Errorf("dados do cartão de crédito obrigatórios para pagamento transparente")
+		}
+		payload["token"] = cardToken
 		installments := input.Installments
 		if installments <= 0 {
 			installments = 1

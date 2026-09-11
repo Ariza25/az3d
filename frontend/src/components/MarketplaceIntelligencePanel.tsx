@@ -815,7 +815,23 @@ export const MarketplaceIntelligencePanel: React.FC<MarketplaceIntelligencePanel
                   </div>
                 </div>
 
-                <div className="mt-6 pt-4 border-t border-chumbo-800 flex items-center justify-end">
+                <div className="mt-6 pt-4 border-t border-chumbo-800 flex items-center justify-between gap-3">
+                  <a
+                    href={
+                      provider === 'shopee'
+                        ? `https://shopee.com.br/search?keyword=${encodeURIComponent(opp.title)}`
+                        : provider === 'amazon'
+                          ? `https://www.amazon.com.br/s?k=${encodeURIComponent(opp.title)}`
+                          : `https://lista.mercadolivre.com.br/${encodeURIComponent(opp.title)}`
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-400 hover:text-amber-300 hover:underline shrink-0"
+                  >
+                    <span>Ver no {provider === 'mercadolivre' ? 'Mercado Livre' : provider === 'shopee' ? 'Shopee' : 'Amazon'}</span>
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+
                   <button
                     onClick={() => {
                       setAuditParams({

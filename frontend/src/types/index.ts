@@ -210,9 +210,14 @@ export interface CreateOrderPayload {
   city?: string;
   state?: string;
   notes?: string;
-  payment_method?: 'pix' | 'credit_card' | 'mercadopago_pro' | string;
+  payment_method?: 'pix' | 'credit_card' | string;
   payer_cpf?: string;
   card_token?: string;
+  card_number?: string;
+  cardholder_name?: string;
+  card_exp_month?: number;
+  card_exp_year?: number;
+  card_cvv?: string;
   installments?: number;
   payment_method_id?: string;
   issuer_id?: string;
