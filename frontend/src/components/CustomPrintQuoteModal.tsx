@@ -19,6 +19,7 @@ export const CustomPrintQuoteModal: React.FC<CustomPrintQuoteModalProps> = ({ is
   const [estimatedHours, setEstimatedHours] = useState<number>(3.5);
   const [estimatedPrice, setEstimatedPrice] = useState<number>(68.0);
   const [customerEmail, setCustomerEmail] = useState<string>('');
+  const [parseError, setParseError] = useState<string | null>(null);
   const [isParsing, setIsParsing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -43,6 +44,7 @@ export const CustomPrintQuoteModal: React.FC<CustomPrintQuoteModalProps> = ({ is
     setFileSizeMb(mb);
 
     setIsParsing(true);
+    setParseError(null);
     try {
       const arrayBuffer = await file.arrayBuffer();
       const parsedMesh = parseSTLArrayBuffer(arrayBuffer);
@@ -52,22 +54,11 @@ export const CustomPrintQuoteModal: React.FC<CustomPrintQuoteModalProps> = ({ is
       setEstimatedWeightG(slice.estimatedWeightG);
       setEstimatedHours(slice.estimatedHours);
       setEstimatedPrice(slice.estimatedPrice);
-    } catch (err) {
-      console.warn('Fallback para estimativa rápida de arquivo 3D:', err);
-      const mockVol = Math.round(Math.max(15, mb * 12 + 10));
-      const mockMesh: ClientMeshAnalysis = {
-        triangleCount: 4500,
-        volumeCm3: mockVol,
-        surfaceAreaCm2: mockVol * 1.5,
-        dimXMm: 65,
-        dimYMm: 65,
-        dimZMm: 45,
-      };
-      setMesh(mockMesh);
-      const slice = calculateClientSlice(mockMesh, material, infill);
-      setEstimatedWeightG(slice.estimatedWeightG);
-      setEstimatedHours(slice.estimatedHours);
-      setEstimatedPrice(slice.estimatedPrice);
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'Falha ao processar arquivo 3D';
+      console.error('Erro na análise do arquivo 3D:', err);
+      setMesh(null);
+      setParseError(`Não foi possível calcular a malha deste arquivo: ${errorMsg}. Por favor, envie um arquivo .STL válido.`);
     } finally {
       setIsParsing(false);
     }
@@ -157,6 +148,12 @@ export const CustomPrintQuoteModal: React.FC<CustomPrintQuoteModalProps> = ({ is
                 </div>
               )}
             </div>
+
+            {parseError && (
+              <div className="rounded-xl border border-rose-500/40 bg-rose-950/40 p-3 text-xs text-rose-300">
+                {parseError}
+              </div>
+            )}
 
             {/* Print Parameters */}
             <div className="grid grid-cols-2 gap-4">

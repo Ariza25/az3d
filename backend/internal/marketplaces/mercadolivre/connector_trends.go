@@ -100,32 +100,30 @@ func (c *Connector) FetchTrends(ctx context.Context, categoryID string) ([]MLTre
 		URL     string `json:"url"`
 	}
 
-	// Try fetching from public ML endpoint
 	err := c.getJSON(ctx, endpoint, "", &rawTrends)
-	if err == nil && len(rawTrends) > 0 {
-		trends := make([]MLTrendKeyword, 0, len(rawTrends))
-		for idx, t := range rawTrends {
-			status := "stable"
-			if idx < 5 {
-				status = "hot"
-			} else if idx < 15 {
-				status = "rising"
-			}
-			trends = append(trends, MLTrendKeyword{
-				Keyword:     t.Keyword,
-				URL:         t.URL,
-				Category:    categoryID,
-				Rank:        idx + 1,
-				Status:      status,
-				SearchVol:   15000 - (idx * 450),
-				VolumeTrend: generateTrendCurve(idx + 1),
-			})
-		}
-		return trends, nil
+	if err != nil {
+		return nil, fmt.Errorf("falha ao consultar tendências do Mercado Livre: %w", err)
 	}
 
-	// Fallback to domain-specific 3D printing & custom product trends
-	return generate3DPickerTrends(categoryID), nil
+	trends := make([]MLTrendKeyword, 0, len(rawTrends))
+	for idx, t := range rawTrends {
+		status := "stable"
+		if idx < 5 {
+			status = "hot"
+		} else if idx < 15 {
+			status = "rising"
+		}
+		trends = append(trends, MLTrendKeyword{
+			Keyword:     t.Keyword,
+			URL:         t.URL,
+			Category:    categoryID,
+			Rank:        idx + 1,
+			Status:      status,
+			SearchVol:   15000 - (idx * 450),
+			VolumeTrend: generateTrendCurve(idx + 1),
+		})
+	}
+	return trends, nil
 }
 
 // FetchSearchInsights performs search query analysis for market benchmarking
@@ -238,8 +236,15 @@ func (c *Connector) FetchSearchInsights(ctx context.Context, query string) (MLSe
 		}, nil
 	}
 
-	// High fidelity fallback search insights
-	return generateMockSearchInsight(query), nil
+	if err != nil {
+		return MLSearchInsight{}, fmt.Errorf("falha ao consultar dados de busca no Mercado Livre: %w", err)
+	}
+
+	return MLSearchInsight{
+		Query:        query,
+		TotalResults: rawResp.Paging.Total,
+		TopSellers:   []MLCompetitorItem{},
+	}, nil
 }
 
 // AuditListing generates an e-commerce SEO & quality health audit for a listing
@@ -421,110 +426,11 @@ func GetProductOpportunities(category string) []MLProductOpportunity {
 	return filtered
 }
 
-// Helper generators for fallback data
+// Helper generators for trend curve
 func generateTrendCurve(rank int) []int {
 	base := 100 - (rank * 3)
 	if base < 30 {
 		base = 30
 	}
 	return []int{base - 10, base - 5, base - 2, base + 4, base + 8, base + 15}
-}
-
-func generate3DPickerTrends(categoryID string) []MLTrendKeyword {
-	keywords := []struct {
-		kw  string
-		cat string
-	}{
-		{"suporte headset gamer 3d", "Organização"},
-		{"vaso biconico sucumbenta", "Decoração"},
-		{"suporte bateria makita dewalt", "Utilitários"},
-		{"porta controle ps5 xbox", "Geek/Games"},
-		{"dice tower rpg dragao", "Colecionáveis"},
-		{"luminaria led playstation", "Geek/Games"},
-		{"organizador de cabos mesa", "Organização"},
-		{"suporte alexa echo dot 4 5", "Geek/Games"},
-		{"gabarito marcenaria 3d", "Utilitários"},
-		{"action figure dragon ball 3d", "Colecionáveis"},
-		{"suporte placa de video sag", "Geek/Games"},
-		{"filamento pla 1kg 1.75mm", "Insumos 3D"},
-	}
-
-	trends := make([]MLTrendKeyword, 0, len(keywords))
-	for idx, item := range keywords {
-		status := "stable"
-		if idx < 3 {
-			status = "hot"
-		} else if idx < 7 {
-			status = "rising"
-		}
-		trends = append(trends, MLTrendKeyword{
-			Keyword:     item.kw,
-			Category:    item.cat,
-			Rank:        idx + 1,
-			Status:      status,
-			SearchVol:   28500 - (idx * 1800),
-			VolumeTrend: generateTrendCurve(idx + 1),
-		})
-	}
-	return trends
-}
-
-func generateMockSearchInsight(query string) MLSearchInsight {
-	recPrice := 79.90
-	estCost := 16.50
-	estProfit := 52.20
-
-	if strings.Contains(strings.ToLower(query), "vaso") {
-		recPrice = 59.90
-		estCost = 11.80
-		estProfit = 39.70
-	} else if strings.Contains(strings.ToLower(query), "rpg") || strings.Contains(strings.ToLower(query), "dice") {
-		recPrice = 129.90
-		estCost = 26.00
-		estProfit = 85.00
-	}
-
-	profitMargin := math.Round((estProfit / recPrice) * 100)
-
-	return MLSearchInsight{
-		Query:               query,
-		TotalResults:        482,
-		MinPrice:            29.90,
-		MaxPrice:            189.90,
-		AvgPrice:            recPrice + 8.50,
-		MedianSold:          42,
-		FreeShippingRatio:   0.68,
-		MercadoLiderRatio:   0.45,
-		FullRatio:           0.32,
-		RecommendedPrice:    recPrice,
-		EstimatedPrintCost:  estCost,
-		EstimatedProfit:     estProfit,
-		ProfitMarginPercent: profitMargin,
-		TopSellers: []MLCompetitorItem{
-			{
-				ID:           "MLB1001",
-				Title:        query + " Premium Impressão 3D Alta Qualidade PLA",
-				Price:        recPrice,
-				SoldQuantity: 184,
-				Permalink:    "https://mercadolivre.com.br",
-				Thumbnail:    "https://http2.mlstatic.com/D_Q_NP_889345-MLA123456-F.jpg",
-				Condition:    "new",
-				FreeShipping: true,
-				MercadoLider: true,
-				FullShipping: true,
-			},
-			{
-				ID:           "MLB1002",
-				Title:        "Kit 2 Unidades " + query + " Personalizado 3D",
-				Price:        recPrice * 1.75,
-				SoldQuantity: 96,
-				Permalink:    "https://mercadolivre.com.br",
-				Thumbnail:    "https://http2.mlstatic.com/D_Q_NP_889345-MLA123457-F.jpg",
-				Condition:    "new",
-				FreeShipping: true,
-				MercadoLider: true,
-				FullShipping: false,
-			},
-		},
-	}
 }

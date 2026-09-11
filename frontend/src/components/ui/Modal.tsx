@@ -63,7 +63,7 @@ export const Modal: React.FC<ModalProps> = ({
       <div className="min-h-screen bg-chumbo-950 text-white flex flex-col">
         {(title || icon) && (
           <header className="sticky top-0 z-40 border-b border-chumbo-800 bg-chumbo-950/90 backdrop-blur-md">
-            <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8 py-3.5 sm:py-4">
+            <div className="mx-auto flex max-w-[1720px] items-center justify-between px-4 sm:px-6 lg:px-8 py-3.5 sm:py-4">
               <div className="flex items-center gap-3">
                 {icon && <div className="text-laser-400">{icon}</div>}
                 <div>
@@ -85,10 +85,10 @@ export const Modal: React.FC<ModalProps> = ({
             </div>
           </header>
         )}
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 sm:px-6 lg:px-8 py-6 sm:py-8">{children}</main>
+        <main className="mx-auto w-full max-w-[1720px] flex-1 px-4 sm:px-6 lg:px-8 py-6 sm:py-8">{children}</main>
         {footer && (
           <footer className="border-t border-chumbo-800 bg-chumbo-900/50">
-            <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4">{footer}</div>
+            <div className="mx-auto max-w-[1720px] px-4 sm:px-6 lg:px-8 py-4">{footer}</div>
           </footer>
         )}
       </div>

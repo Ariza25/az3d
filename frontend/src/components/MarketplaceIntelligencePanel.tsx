@@ -713,7 +713,11 @@ export const MarketplaceIntelligencePanel: React.FC<MarketplaceIntelligencePanel
                       </div>
 
                       <a
-                        href={item.permalink}
+                        href={
+                          item.permalink && !['https://mercadolivre.com.br', 'https://www.mercadolivre.com.br', 'https://www.mercadolivre.com.br/'].includes(item.permalink.trim())
+                            ? item.permalink
+                            : `https://lista.mercadolivre.com.br/${encodeURIComponent(item.title || searchQuery || 'impressao 3d')}`
+                        }
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center gap-1 text-xs font-semibold text-amber-400 hover:text-amber-300 shrink-0"
