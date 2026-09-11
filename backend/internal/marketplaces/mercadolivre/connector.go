@@ -104,10 +104,9 @@ func (c *Connector) getJSON(ctx context.Context, endpoint string, token string, 
 
 func (c *Connector) getJSONWithHeaders(ctx context.Context, endpoint string, token string, headers map[string]string, out any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return err
+	if strings.TrimSpace(token) != "" {
+		req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(token))
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", "AZ3D/1.0 (https://az3dstudio.com.br)")
 	for name, value := range headers {

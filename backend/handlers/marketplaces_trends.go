@@ -47,8 +47,16 @@ func (h *MarketplaceHandler) GetMLTrends(c *gin.Context) {
 		return
 	}
 
+	tenantID := getTenantID(c)
+	var token string
+	if tenantID > 0 {
+		if account, err := getOrCreateMercadoLivreAccount(tenantID); err == nil && account.IsConnected && account.AccessToken != "" {
+			token = account.AccessToken
+		}
+	}
+
 	conn := mercadolivre.New()
-	trends, err := conn.FetchTrends(c.Request.Context(), categoryID)
+	trends, err := conn.FetchTrendsWithToken(c.Request.Context(), categoryID, token)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Falha ao buscar tendências do Mercado Livre: " + err.Error()})
 		return
@@ -91,8 +99,16 @@ func (h *MarketplaceHandler) GetMLSearchInsights(c *gin.Context) {
 		return
 	}
 
+	tenantID := getTenantID(c)
+	var token string
+	if tenantID > 0 {
+		if account, err := getOrCreateMercadoLivreAccount(tenantID); err == nil && account.IsConnected && account.AccessToken != "" {
+			token = account.AccessToken
+		}
+	}
+
 	conn := mercadolivre.New()
-	insights, err := conn.FetchSearchInsights(c.Request.Context(), query)
+	insights, err := conn.FetchSearchInsightsWithToken(c.Request.Context(), query, token)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Falha ao analisar concorrência do Mercado Livre: " + err.Error()})
 		return
