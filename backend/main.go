@@ -75,11 +75,13 @@ func main() {
 	r.Static("/uploads", "./uploads")
 
 	api := r.Group("/api")
+	api.Use(middleware.RateLimiterMiddleware(180, 40))
 	{
 		api.GET("/tenants", tenantHandler.GetTenants)
 		api.GET("/tenants/:identifier", tenantHandler.GetTenantByIdentifier)
 
 		auth := api.Group("/auth")
+		auth.Use(middleware.RateLimiterMiddleware(25, 10))
 		{
 			auth.POST("/customer/register", authHandler.CustomerRegister)
 			auth.POST("/customer/login", authHandler.CustomerLogin)

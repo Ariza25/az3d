@@ -255,4 +255,8 @@ test('tenant admin recebe somente a gestão da própria loja', async ({ page }, 
   await page.getByRole('button', { name: /Produtos/ }).click();
   await expect(page.getByRole('button', { name: 'Novo Produto 3D' })).toBeVisible();
   expect(requests.some((path) => path.startsWith('/api/admin/platform/'))).toBe(false);
+
+  await page.getByRole('button', { name: /Configurações/ }).click();
+  await expect(page.getByText('Parâmetros de Frete SuperFrete')).toBeVisible();
+  await page.screenshot({ path: `test-results/playwright/admin-tenant-settings-${testInfo.project.name}.png`, fullPage: true });
 });

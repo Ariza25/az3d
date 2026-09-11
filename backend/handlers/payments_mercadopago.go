@@ -570,7 +570,7 @@ func createMercadoPagoDirectPayment(ctx context.Context, order models.Order, inp
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+accessToken)
-	req.Header.Set("X-Idempotency-Key", fmt.Sprintf("az3d_pay_%d_%d", order.ID, time.Now().UnixNano()))
+	req.Header.Set("X-Idempotency-Key", fmt.Sprintf("az3d_pay_order_%d", order.ID))
 
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
