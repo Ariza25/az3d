@@ -3,6 +3,7 @@ import { ExternalLink, RefreshCw, Save, ShieldCheck, Store } from 'lucide-react'
 import { ExternalMarketplaceOrder, MarketplaceAccount, MarketplaceProductMapping, Product, TenantMarketplaceSettings } from '../types';
 import { api } from '../services/api';
 import { getAppPathname, withBasePath } from '../shared/basePath';
+import { getMarketplaceVariantColor, getMarketplaceFamilyTitle } from '../shared/storePresentation';
 
 const PROVIDER = 'mercadolivre';
 const defaultAccount: Partial<MarketplaceAccount> = { provider: PROVIDER, account_name: 'Mercado Livre', marketplace: 'MLB', is_active: true, is_connected: false, sync_catalog: true, sync_orders: true, sync_stock: true, sync_status: 'pending_credentials' };
@@ -79,7 +80,41 @@ export const MarketplaceConnectionsPanel: React.FC<Props> = ({ tenantId, product
       <div className="mt-4 flex flex-wrap gap-2"><button onClick={save} disabled={busy !== null} className="flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-xs font-bold text-chumbo-950 disabled:opacity-50"><Save className="h-4 w-4" /> Salvar</button><button onClick={() => runSync('catalog')} disabled={busy !== null || !account.is_connected} className="flex items-center gap-2 rounded-xl border border-chumbo-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${busy === 'catalog' ? 'animate-spin' : ''}`} /> Reconciliar catálogo</button><button onClick={() => runSync('orders')} disabled={busy !== null || !account.is_connected} className="flex items-center gap-2 rounded-xl border border-chumbo-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${busy === 'orders' ? 'animate-spin' : ''}`} /> Reconciliar pedidos</button></div>
     </section>
     <div className="grid gap-4 lg:grid-cols-2">
-      <section className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4"><h4 className="font-bold text-white">Catálogo importado <span className="ml-2 text-xs text-slate-500">{importedProducts.length}</span></h4><div className="mt-3 max-h-80 space-y-2 overflow-y-auto">{importedProducts.map((product) => { const mapping = mappedItems.find((item) => item.product_id === product.id); return <div key={product.id} className="flex items-center gap-3 rounded-xl bg-chumbo-900/70 p-3 text-xs"><img src={product.image_url} className="h-10 w-10 rounded-lg object-cover" alt="" /><div className="min-w-0 flex-1"><strong className="block truncate text-white">{product.title}</strong><span className="text-slate-500">{product.variants?.length || 0} variação(ões) · {currencyBRL(product.price)}</span></div>{mapping?.external_url && <a href={mapping.external_url} target="_blank" rel="noreferrer" title="Abrir anúncio"><ExternalLink className="h-4 w-4 text-yellow-300" /></a>}</div>})}{!importedProducts.length && <p className="py-8 text-center text-xs text-slate-500">Nenhum produto importado.</p>}</div></section>
+      <section className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
+        <div className="flex items-center justify-between">
+          <h4 className="font-bold text-white">Catálogo importado <span className="ml-2 text-xs text-slate-500">{importedProducts.length}</span></h4>
+          <span className="text-[11px] font-medium text-cyan-400/90">Agrupados por cor na vitrine</span>
+        </div>
+        <div className="mt-3 max-h-80 space-y-2 overflow-y-auto">
+          {importedProducts.map((product) => {
+            const mapping = mappedItems.find((item) => item.product_id === product.id);
+            const color = getMarketplaceVariantColor(product);
+            const familyTitle = getMarketplaceFamilyTitle(product);
+            const siblingsCount = importedProducts.filter((p) => getMarketplaceFamilyTitle(p) === familyTitle).length;
+            const subtitle = product.variants && product.variants.length > 0
+              ? `${product.variants.length} variação(ões)`
+              : siblingsCount > 1
+                ? `${color ? `Cor: ${color} · ` : ''}${siblingsCount} cores agrupadas na vitrine`
+                : '0 variação(ões)';
+
+            return (
+              <div key={product.id} className="flex items-center gap-3 rounded-xl bg-chumbo-900/70 p-3 text-xs">
+                <img src={product.image_url} className="h-10 w-10 rounded-lg object-cover" alt="" />
+                <div className="min-w-0 flex-1">
+                  <strong className="block truncate text-white">{product.title}</strong>
+                  <span className="text-slate-400">{subtitle} · {currencyBRL(product.price)}</span>
+                </div>
+                {mapping?.external_url && (
+                  <a href={mapping.external_url} target="_blank" rel="noreferrer" title="Abrir anúncio no Mercado Livre">
+                    <ExternalLink className="h-4 w-4 text-yellow-300 transition-colors hover:text-yellow-200" />
+                  </a>
+                )}
+              </div>
+            );
+          })}
+          {!importedProducts.length && <p className="py-8 text-center text-xs text-slate-500">Nenhum produto importado.</p>}
+        </div>
+      </section>
       <section className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4"><h4 className="font-bold text-white">Pedidos externos <span className="ml-2 text-xs text-slate-500">{orders.length}</span></h4><div className="mt-3 max-h-80 space-y-2 overflow-y-auto">{orders.slice(0, 30).map((order) => <div key={order.id} className="rounded-xl bg-chumbo-900/70 p-3 text-xs"><div className="flex justify-between gap-3"><strong className="text-white">#{order.external_order_id}</strong><span className="font-bold text-emerald-300">{currencyBRL(order.gross_amount)}</span></div><p className="mt-1 text-slate-500">{order.external_status} · {order.items?.length || 0} item(ns)</p></div>)}{!orders.length && <p className="py-8 text-center text-xs text-slate-500">Nenhum pedido importado.</p>}</div></section>
     </div>
   </div>;

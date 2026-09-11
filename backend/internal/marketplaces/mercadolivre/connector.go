@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -33,9 +34,13 @@ var catalogSearchStatuses = []string{"", "paused", "closed", "pending", "not_yet
 type APIError struct {
 	Operation  string
 	StatusCode int
+	Detail     string
 }
 
 func (e *APIError) Error() string {
+	if e.Detail != "" {
+		return fmt.Sprintf("mercado livre %s retornou HTTP %d (%s)", e.Operation, e.StatusCode, e.Detail)
+	}
 	return fmt.Sprintf("mercado livre %s retornou HTTP %d", e.Operation, e.StatusCode)
 }
 
@@ -104,6 +109,7 @@ func (c *Connector) getJSONWithHeaders(ctx context.Context, endpoint string, tok
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "AZ3D/1.0 (https://az3dstudio.com.br)")
 	for name, value := range headers {
 		req.Header.Set(name, value)
 	}
@@ -118,7 +124,17 @@ func (c *Connector) getJSONWithHeaders(ctx context.Context, endpoint string, tok
 		if parsed, parseErr := url.Parse(endpoint); parseErr == nil && parsed.Path != "" {
 			operation = parsed.Path
 		}
-		return &APIError{Operation: operation, StatusCode: res.StatusCode}
+		var detail string
+		body, _ := io.ReadAll(res.Body)
+		bodyStr := string(body)
+		if strings.Contains(bodyStr, "PA_UNAUTHORIZED_RESULT_FROM_POLICIES") || strings.Contains(bodyStr, "PolicyAgent") {
+			detail = "Acesso negado por política do Mercado Livre (verifique pendências cadastrais/endereço no painel do Mercado Livre)"
+		} else if strings.Contains(bodyStr, "access_denied") {
+			detail = "Acesso negado às informações do anúncio pelo Mercado Livre"
+		} else if strings.Contains(bodyStr, "not allowed") {
+			detail = "Formato de ID inválido para o Mercado Livre"
+		}
+		return &APIError{Operation: operation, StatusCode: res.StatusCode, Detail: detail}
 	}
 	if res.StatusCode == http.StatusNoContent {
 		return nil

@@ -160,6 +160,18 @@ func (c *Connector) fetchItems(ctx context.Context, baseURL string, token string
 	items := []mp.CatalogItem{}
 	missingIDs := []string{}
 
+	validIDs := make([]string, 0, len(itemIDs))
+	for _, id := range itemIDs {
+		id = strings.TrimSpace(id)
+		if strings.HasPrefix(strings.ToUpper(id), "MLB") {
+			validIDs = append(validIDs, id)
+		}
+	}
+	itemIDs = validIDs
+	if len(itemIDs) == 0 {
+		return items, nil
+	}
+
 	for start := 0; start < len(itemIDs); start += 20 {
 		end := start + 20
 		if end > len(itemIDs) {
