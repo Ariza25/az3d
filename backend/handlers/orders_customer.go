@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -80,14 +79,15 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 			}
 
 			unitPrice := product.Price
-			var variant models.ProductVariant
-			if err := tx.Where("tenant_id = ? AND product_id = ? AND color_name = ? AND is_active = ?", tenantID, product.ID, color, true).First(&variant).Error; err == nil && variant.Price > 0 {
-				unitPrice = variant.Price
+			var variants []models.ProductVariant
+			if err := tx.Where("tenant_id = ? AND product_id = ? AND color_name = ? AND is_active = ?", tenantID, product.ID, color, true).Limit(1).Find(&variants).Error; err == nil && len(variants) > 0 && variants[0].Price > 0 {
+				unitPrice = variants[0].Price
 			}
 
-			var colorStock models.ProductColorStock
-			colorStockErr := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("tenant_id = ? AND product_id = ? AND color_name = ?", tenantID, product.ID, color).First(&colorStock).Error
-			if colorStockErr == nil {
+			var colorStocks []models.ProductColorStock
+			colorStockErr := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("tenant_id = ? AND product_id = ? AND color_name = ?", tenantID, product.ID, color).Limit(1).Find(&colorStocks).Error
+			if colorStockErr == nil && len(colorStocks) > 0 {
+				colorStock := colorStocks[0]
 				if colorStock.StockQty < itemInput.Quantity {
 					return errInsufficientStock("Estoque insuficiente para a cor " + color)
 				}
@@ -104,7 +104,7 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 				if err := tx.Save(&product).Error; err != nil {
 					return err
 				}
-			} else if errors.Is(colorStockErr, gorm.ErrRecordNotFound) {
+			} else if colorStockErr == nil && len(colorStocks) == 0 {
 				if product.StockQty < itemInput.Quantity {
 					return errInsufficientStock("Estoque insuficiente para o produto " + product.Title)
 				}
@@ -113,8 +113,7 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 				if err := tx.Save(&product).Error; err != nil {
 					return err
 				}
-				colorStock.StockQty = product.StockQty
-			} else {
+			} else if colorStockErr != nil {
 				return colorStockErr
 			}
 
@@ -322,15 +321,21 @@ func errInsufficientStock(message string) error {
 }
 
 func (h *OrderHandler) GetOrderPaymentStatus(c *gin.Context) {
-	tenantID := getTenantID(c)
 	orderID := c.Param("id")
+	tenantID := getTenantID(c)
 
 	var order models.Order
-	if err := database.DB.Select("id, tenant_id, status, payment_status, payment_id, payment_detail, paid_at, pix_expiration").
-		Where("id = ? AND tenant_id = ?", orderID, tenantID).
-		First(&order).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Pedido nao encontrado"})
-		return
+	query := database.DB.Select("id, tenant_id, user_id, status, payment_status, payment_id, payment_detail, paid_at, pix_expiration").Where("id = ?", orderID)
+	if tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	if err := query.First(&order).Error; err != nil {
+		// Fallback se o tenantID enviado no header for diferente do pedido gravado
+		if errFallback := database.DB.Select("id, tenant_id, user_id, status, payment_status, payment_id, payment_detail, paid_at, pix_expiration").Where("id = ?", orderID).First(&order).Error; errFallback != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Pedido nao encontrado"})
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{

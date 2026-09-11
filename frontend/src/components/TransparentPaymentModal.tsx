@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle2, Clock, Copy, Loader2, QrCode, ShieldCheck, Sparkles, X } from 'lucide-react';
+import { CheckCircle2, Clock, Copy, ExternalLink, Loader2, QrCode, ShieldCheck, Sparkles, X } from 'lucide-react';
 import { CreateOrderResponse, Order } from '../types';
 import { api } from '../services/api';
 
@@ -19,7 +19,9 @@ export const TransparentPaymentModal: React.FC<Props> = ({
   onPaymentSuccess,
 }) => {
   const { order, payment } = orderResponse;
-  const isPix = payment?.payment_method === 'pix' || !!payment?.pix_qr_code;
+  const rawMethod = (payment?.payment_method || order.payment_method || '').toLowerCase().trim();
+  const hasPixData = Boolean(payment?.pix_qr_code || order.pix_qr_code || payment?.pix_qr_code_base64 || order.pix_qr_code_base64);
+  const isPix = rawMethod === 'pix' || hasPixData;
   const isApprovedInitial = order.payment_status === 'paid' || order.status === 'confirmed';
 
   const [copied, setCopied] = useState(false);
@@ -27,12 +29,17 @@ export const TransparentPaymentModal: React.FC<Props> = ({
   const [isPolling, setIsPolling] = useState(!isApprovedInitial);
   const [timeLeftSeconds, setTimeLeftSeconds] = useState(30 * 60); // 30 minutos padrão
 
+  const pixCode = payment?.pix_qr_code || order.pix_qr_code || '';
+  const pixExpiration = payment?.pix_expiration || order.pix_expiration;
+  const ticketUrl = payment?.ticket_url || payment?.checkout_url || order.mp_init_point;
+  const effectiveTenantId = tenantId || order.tenant_id;
+
   // Timer regressivo do PIX
   useEffect(() => {
     if (isPaid || !isPix) return;
 
-    if (payment?.pix_expiration) {
-      const expTime = new Date(payment.pix_expiration).getTime();
+    if (pixExpiration) {
+      const expTime = new Date(pixExpiration).getTime();
       const diffSecs = Math.max(0, Math.floor((expTime - Date.now()) / 1000));
       setTimeLeftSeconds(diffSecs > 0 ? diffSecs : 30 * 60);
     }
@@ -48,7 +55,7 @@ export const TransparentPaymentModal: React.FC<Props> = ({
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [payment?.pix_expiration, isPaid, isPix]);
+  }, [pixExpiration, isPaid, isPix]);
 
   // Polling automático para detecção instantânea do pagamento
   useEffect(() => {
@@ -57,7 +64,7 @@ export const TransparentPaymentModal: React.FC<Props> = ({
     let isMounted = true;
     const pollInterval = setInterval(async () => {
       try {
-        const status = await api.getOrderPaymentStatus(order.id, tenantId, token);
+        const status = await api.getOrderPaymentStatus(order.id, effectiveTenantId, token);
         if (isMounted && (status.is_paid || status.payment_status === 'paid' || status.status === 'confirmed')) {
           setIsPaid(true);
           setIsPolling(false);
@@ -79,11 +86,11 @@ export const TransparentPaymentModal: React.FC<Props> = ({
       isMounted = false;
       clearInterval(pollInterval);
     };
-  }, [order.id, tenantId, token, isPaid, onPaymentSuccess, order]);
+  }, [order.id, effectiveTenantId, token, isPaid, onPaymentSuccess, order]);
 
   const copyPixCode = () => {
-    if (!payment?.pix_qr_code) return;
-    navigator.clipboard.writeText(payment.pix_qr_code);
+    if (!pixCode) return;
+    navigator.clipboard.writeText(pixCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 3000);
   };
@@ -94,11 +101,14 @@ export const TransparentPaymentModal: React.FC<Props> = ({
     return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   };
 
-  const qrCodeImageSrc = payment?.pix_qr_code_base64
-    ? payment.pix_qr_code_base64.startsWith('data:')
-      ? payment.pix_qr_code_base64
-      : `data:image/png;base64,${payment.pix_qr_code_base64}`
-    : `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(payment?.pix_qr_code || '')}`;
+  const base64Code = payment?.pix_qr_code_base64 || order.pix_qr_code_base64;
+  const qrCodeImageSrc = base64Code
+    ? base64Code.startsWith('data:')
+      ? base64Code
+      : `data:image/png;base64,${base64Code}`
+    : pixCode
+      ? `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(pixCode)}`
+      : '';
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-md animate-fade-in">
@@ -106,7 +116,8 @@ export const TransparentPaymentModal: React.FC<Props> = ({
         {/* Botão de Fechar */}
         <button
           onClick={onClose}
-          className="absolute right-4 top-4 rounded-full p-2 text-slate-400 hover:bg-chumbo-900 hover:text-white"
+          className="absolute right-4 top-4 rounded-full p-2 text-slate-400 hover:bg-chumbo-900 hover:text-white transition"
+          aria-label="Fechar modal de pagamento"
         >
           <X className="h-5 w-5" />
         </button>
@@ -135,7 +146,11 @@ export const TransparentPaymentModal: React.FC<Props> = ({
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Destinatário:</span>
-                <span className="text-white">{order.recipient_name}</span>
+                <span className="text-white">{order.recipient_name || 'Cliente'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Forma de Pagamento:</span>
+                <span className="font-semibold text-emerald-400">{isPix ? 'PIX Instantâneo' : 'Cartão de Crédito'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Status da Produção:</span>
@@ -155,71 +170,107 @@ export const TransparentPaymentModal: React.FC<Props> = ({
           <div className="space-y-5">
             <div className="text-center">
               <div className="inline-flex items-center gap-1.5 rounded-full bg-teal-950/60 border border-teal-500/30 px-3 py-1 text-xs font-bold text-teal-400">
-                <QrCode className="h-3.5 w-3.5" /> Pague com PIX Instantâneo
+                <QrCode className="h-3.5 w-3.5" /> Pagamento com PIX
               </div>
               <h3 className="mt-2 text-xl font-bold text-white">
                 Total: R$ {order.total_amount.toFixed(2).replace('.', ',')}
               </h3>
               <p className="mt-0.5 text-xs text-slate-400">
-                Abra o app do seu banco e escaneie o QR Code ou copie o código.
+                Abra o app do seu banco e escaneie o QR Code ou copie a chave abaixo.
               </p>
             </div>
 
             {/* QR Code Container */}
-            <div className="flex flex-col items-center justify-center rounded-2xl border border-chumbo-800 bg-chumbo-900/40 p-5">
-              <div className="rounded-xl bg-white p-3 shadow-lg">
-                <img
-                  src={qrCodeImageSrc}
-                  alt="QR Code PIX"
-                  className="h-48 w-48 object-contain"
-                />
-              </div>
+            {qrCodeImageSrc ? (
+              <div className="flex flex-col items-center justify-center rounded-2xl border border-chumbo-800 bg-chumbo-900/40 p-5">
+                <div className="rounded-xl bg-white p-3 shadow-lg">
+                  <img
+                    src={qrCodeImageSrc}
+                    alt="QR Code PIX"
+                    className="h-48 w-48 object-contain"
+                  />
+                </div>
 
-              {/* Timer */}
-              <div className="mt-3 flex items-center gap-1.5 text-xs font-mono text-amber-400">
-                <Clock className="h-3.5 w-3.5" />
-                <span>Expira em: <strong>{formatTime(timeLeftSeconds)}</strong></span>
+                {/* Timer */}
+                <div className="mt-3 flex items-center gap-1.5 text-xs font-mono text-amber-400">
+                  <Clock className="h-3.5 w-3.5" />
+                  <span>Expira em: <strong>{formatTime(timeLeftSeconds)}</strong></span>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center rounded-2xl border border-chumbo-800 bg-chumbo-900/40 p-6 text-center space-y-3">
+                <Loader2 className="h-8 w-8 animate-spin text-teal-400" />
+                <p className="text-xs text-slate-300">Gerando chave PIX com o banco emissor...</p>
+                {ticketUrl && (
+                  <a
+                    href={ticketUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-teal-500/20 border border-teal-500/40 px-3.5 py-2 text-xs font-bold text-teal-300 hover:bg-teal-500/30 transition"
+                  >
+                    <span>Abrir comprovante no Mercado Pago</span>
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                )}
+              </div>
+            )}
 
             {/* Botão Copia e Cola */}
-            <div className="space-y-2">
-              <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                Código PIX Copia e Cola
-              </label>
-              <div className="relative flex items-center">
-                <input
-                  type="text"
-                  readOnly
-                  value={payment?.pix_qr_code || ''}
-                  className="w-full rounded-xl border border-chumbo-800 bg-chumbo-900/80 px-3.5 py-2.5 pr-28 font-mono text-xs text-slate-300 select-all focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={copyPixCode}
-                  className={`absolute right-1.5 flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
-                    copied
-                      ? 'bg-emerald-500 text-chumbo-950'
-                      : 'bg-white text-chumbo-950 hover:bg-slate-200'
-                  }`}
-                >
-                  {copied ? (
-                    <>
-                      <CheckCircle2 className="h-3.5 w-3.5" /> Copiado!
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-3.5 w-3.5" /> Copiar
-                    </>
-                  )}
-                </button>
+            {pixCode && (
+              <div className="space-y-2">
+                <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                  Código PIX Copia e Cola
+                </label>
+                <div className="relative flex items-center">
+                  <input
+                    type="text"
+                    readOnly
+                    value={pixCode}
+                    className="w-full rounded-xl border border-chumbo-800 bg-chumbo-900/80 px-3.5 py-2.5 pr-28 font-mono text-xs text-slate-300 select-all focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={copyPixCode}
+                    className={`absolute right-1.5 flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                      copied
+                        ? 'bg-emerald-500 text-chumbo-950'
+                        : 'bg-white text-chumbo-950 hover:bg-slate-200'
+                    }`}
+                  >
+                    {copied ? (
+                      <>
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Copiado!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3.5 w-3.5" /> Copiar
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Resumo do Pedido */}
+            <div className="rounded-2xl border border-chumbo-800 bg-chumbo-900/60 p-3.5 text-left text-xs space-y-1.5">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Número do Pedido:</span>
+                <span className="font-mono font-bold text-white">#{order.id}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Destinatário:</span>
+                <span className="text-white">{order.recipient_name || 'Cliente'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Forma de Pagamento:</span>
+                <span className="font-semibold text-teal-300">PIX Instantâneo</span>
               </div>
             </div>
 
             {/* Status em Tempo Real */}
             <div className="flex items-center justify-center gap-2 rounded-xl border border-chumbo-800/80 bg-chumbo-900/40 py-2.5 text-xs text-slate-400">
               {isPolling && <Loader2 className="h-3.5 w-3.5 animate-spin text-teal-400" />}
-              <span>Aguardando confirmação bancária...</span>
+              <span>Aguardando confirmação bancária do PIX...</span>
             </div>
 
             <div className="flex items-center justify-between text-[11px] text-slate-500 border-t border-chumbo-800/60 pt-3">
@@ -253,7 +304,7 @@ export const TransparentPaymentModal: React.FC<Props> = ({
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Destinatário:</span>
-                <span className="text-white">{order.recipient_name}</span>
+                <span className="text-white">{order.recipient_name || 'Cliente'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Forma de Pagamento:</span>

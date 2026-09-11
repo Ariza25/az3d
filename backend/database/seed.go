@@ -92,14 +92,15 @@ func neutralizeDefaultProductionPasswords(db *gorm.DB) error {
 	}
 
 	for _, account := range accounts {
-		var user models.User
-		err := db.Where("username = ? OR email = ?", account.username, account.email).First(&user).Error
+		var users []models.User
+		err := db.Where("username = ? OR email = ?", account.username, account.email).Limit(1).Find(&users).Error
 		if err != nil {
-			if err == gorm.ErrRecordNotFound {
-				continue
-			}
 			return err
 		}
+		if len(users) == 0 {
+			continue
+		}
+		user := users[0]
 		if !utils.CheckPasswordHash(account.defaultPassword, user.Password) {
 			continue
 		}

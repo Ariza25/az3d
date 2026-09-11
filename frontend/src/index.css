@@ -111,16 +111,16 @@ html.light .filter-input:focus,
   border-color: #0284c7;
 }
 
-/* Light Theme Global Utility Overrides (Ice White & Soft Gray) */
+/* Light Theme Global Utility Overrides (Clean Ice White & Ultra-Soft Gray) */
 html.light body,
 [data-theme="light"] body {
-  background-color: #f8fafc;
+  background-color: #fafbfc;
   color: #0f172a;
 }
 
 html.light .bg-chumbo-950,
 [data-theme="light"] .bg-chumbo-950 {
-  background-color: #f8fafc !important;
+  background-color: #ffffff !important;
 }
 
 html.light .bg-chumbo-900,
@@ -130,34 +130,58 @@ html.light .bg-chumbo-900,
 
 html.light .bg-chumbo-850,
 [data-theme="light"] .bg-chumbo-850 {
-  background-color: #f1f5f9 !important;
+  background-color: #f8fafc !important;
 }
 
 html.light .bg-chumbo-800,
 [data-theme="light"] .bg-chumbo-800 {
-  background-color: #e2e8f0 !important;
+  background-color: #f3f6f9 !important;
+}
+
+html.light .bg-chumbo-750,
+[data-theme="light"] .bg-chumbo-750 {
+  background-color: #f1f5f9 !important;
 }
 
 html.light .bg-chumbo-700,
 [data-theme="light"] .bg-chumbo-700 {
-  background-color: #cbd5e1 !important;
+  background-color: #edf2f7 !important;
+}
+
+html.light .bg-chumbo-600,
+[data-theme="light"] .bg-chumbo-600 {
+  background-color: #e2e8f0 !important;
 }
 
 html.light .hover\:bg-chumbo-800:hover,
 [data-theme="light"] .hover\:bg-chumbo-800:hover {
-  background-color: #e2e8f0 !important;
+  background-color: #f3f6f9 !important;
 }
 
 html.light .hover\:bg-chumbo-900:hover,
 [data-theme="light"] .hover\:bg-chumbo-900:hover {
-  background-color: #f1f5f9 !important;
+  background-color: #f8fafc !important;
 }
 
+html.light .hover\:bg-chumbo-700:hover,
+[data-theme="light"] .hover\:bg-chumbo-700:hover {
+  background-color: #e5ebf2 !important;
+}
+
+html.light .border-chumbo-950,
 html.light .border-chumbo-900,
+html.light .border-chumbo-850,
 html.light .border-chumbo-800,
-html.light .border-chumbo-700,
+[data-theme="light"] .border-chumbo-950,
 [data-theme="light"] .border-chumbo-900,
-[data-theme="light"] .border-chumbo-800,
+[data-theme="light"] .border-chumbo-850,
+[data-theme="light"] .border-chumbo-800 {
+  border-color: #eef2f6 !important;
+}
+
+html.light .border-chumbo-750,
+html.light .border-chumbo-700,
+[data-theme="light"] .border-chumbo-750,
 [data-theme="light"] .border-chumbo-700 {
   border-color: #e2e8f0 !important;
 }
@@ -205,4 +229,5 @@ html.light textarea,
 [data-theme="light"] textarea {
   color: #0f172a;
 }
+
 

@@ -1053,11 +1053,11 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
         </section>
       </div>
 
-      {/* Modal de Pagamento Transparente PIX */}
+      {/* Modal de Pagamento Transparente */}
       {activePaymentResponse && (
         <TransparentPaymentModal
           orderResponse={activePaymentResponse}
-          tenantId={tenantSettings?.tenant_id}
+          tenantId={tenantSettings?.tenant_id || activePaymentResponse.order?.tenant_id}
           token={token || undefined}
           onClose={() => {
             setActivePaymentResponse(null);

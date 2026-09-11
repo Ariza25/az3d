@@ -224,6 +224,9 @@ func (c *Connector) fetchItems(ctx context.Context, baseURL string, token string
 			Body       mercadoItem `json:"body"`
 		}
 		if err := c.getJSON(ctx, endpoint.String(), token, &response); err != nil {
+			if IsUnauthorized(err) {
+				return nil, err
+			}
 			log.Printf("[mercadolivre] multiget falhou para %d itens: %v. Tentando busca individual.", len(chunk), err)
 			missingIDs = append(missingIDs, chunk...)
 			continue
@@ -280,6 +283,9 @@ func (c *Connector) fetchItems(ctx context.Context, baseURL string, token string
 			if err := c.getJSON(ctx, endpoint, token, &item); err == nil && item.ID != "" {
 				items = append(items, normalizeItem(item))
 			} else if err != nil {
+				if IsUnauthorized(err) {
+					return nil, err
+				}
 				log.Printf("[mercadolivre] busca individual do item %s falhou: %v", itemID, err)
 			}
 		}
