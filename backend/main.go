@@ -113,7 +113,6 @@ func main() {
 			protected.PUT("/auth/me", authHandler.UpdateMe)
 			protected.POST("/orders", orderHandler.CreateOrder)
 			protected.GET("/orders/my-orders", orderHandler.GetMyOrders)
-			protected.GET("/orders/:id/payment-status", orderHandler.GetOrderPaymentStatus)
 			protected.GET("/favorites", productHandler.GetMyFavorites)
 			protected.POST("/products/:id/reviews", productHandler.UpsertProductReview)
 			protected.POST("/products/:id/favorite", productHandler.AddProductFavorite)
