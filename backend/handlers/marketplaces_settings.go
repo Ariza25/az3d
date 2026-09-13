@@ -534,12 +534,14 @@ func (h *MarketplaceHandler) reconcileMarketplaceAccountIdentity(ctx context.Con
 	if !ok {
 		return false, nil
 	}
-	identity, err := resolver.ResolveAccountIdentity(ctx, marketplaceAccountFromModel(*account))
+	connectorAccount, _ := h.marketplaceConnectorAccount(*account)
+	identity, err := resolver.ResolveAccountIdentity(ctx, connectorAccount)
 	if err != nil && marketplaces.IsUnauthorized(connector, err) {
 		if refreshErr := h.refreshMarketplaceAccountToken(ctx, account, true); refreshErr != nil {
 			return false, refreshErr
 		}
-		identity, err = resolver.ResolveAccountIdentity(ctx, marketplaceAccountFromModel(*account))
+		connectorAccount, _ = h.marketplaceConnectorAccount(*account)
+		identity, err = resolver.ResolveAccountIdentity(ctx, connectorAccount)
 	}
 	if err != nil {
 		return false, err
@@ -592,9 +594,24 @@ func (h *MarketplaceHandler) refreshMarketplaceAccountToken(ctx context.Context,
 		return errors.New(account.LastError)
 	}
 
-	token, err := connector.RefreshAccessToken(ctx, marketplaceAccountFromModel(*account))
+	connectorAccount, err := h.marketplaceConnectorAccount(*account)
+	if err != nil {
+		account.SyncStatus = "config_missing"
+		account.LastError = "Credenciais do aplicativo/parceiro nao configuradas no servidor."
+		_ = database.DB.Save(account).Error
+		return errors.New(account.LastError)
+	}
+
+	token, err := connector.RefreshAccessToken(ctx, connectorAccount)
 	if err != nil {
 		if errors.Is(err, marketplaces.ErrMissingCredentials) || errors.Is(err, marketplaces.ErrNotConfigured) {
+			if account.TokenExpiresAt != nil && time.Now().After(*account.TokenExpiresAt) {
+				account.IsConnected = false
+				account.SyncStatus = "token_expired"
+				account.LastError = "Token de acesso do Mercado Livre expirou. Clique em 'Reconectar conta' no painel para reautorizar."
+				_ = database.DB.Save(account).Error
+				return errors.New(account.LastError)
+			}
 			if strings.TrimSpace(account.AccessToken) != "" {
 				return nil
 			}
@@ -614,7 +631,17 @@ func (h *MarketplaceHandler) refreshMarketplaceAccountToken(ctx context.Context,
 	applyMarketplaceTokenResult(account, token)
 	account.SyncStatus = "connected"
 	account.LastError = ""
+	account.IsConnected = true
 	return database.DB.Save(account).Error
+}
+
+func (h *MarketplaceHandler) marketplaceConnectorAccount(account models.MarketplaceAccount) (marketplaces.Account, error) {
+	switch normalizeProvider(account.Provider) {
+	case mercadoLivreProvider:
+		return h.mercadoLivreConnectorAccount(account)
+	default:
+		return marketplaceAccountFromModel(account), nil
+	}
 }
 
 func marketplaceAccountFromModel(account models.MarketplaceAccount) marketplaces.Account {

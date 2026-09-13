@@ -173,7 +173,8 @@ func (h *MarketplaceHandler) syncMarketplaceOrdersAccount(ctx context.Context, a
 	if err != nil {
 		return err
 	}
-	result, err := connector.FetchOrders(ctx, marketplaceAccountFromModel(*account), marketplaces.OrderSyncInput{Days: days})
+	connectorAccount, _ := h.marketplaceConnectorAccount(*account)
+	result, err := connector.FetchOrders(ctx, connectorAccount, marketplaces.OrderSyncInput{Days: days})
 	if err != nil {
 		return err
 	}

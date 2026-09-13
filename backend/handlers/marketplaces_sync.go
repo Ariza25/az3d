@@ -121,7 +121,8 @@ type marketplaceCatalogSyncOutcome struct {
 func (h *MarketplaceHandler) syncMarketplaceCatalogAccount(ctx context.Context, tenantID uint, account *models.MarketplaceAccount, connector marketplaces.Connector) marketplaceCatalogSyncOutcome {
 	outcome := marketplaceCatalogSyncOutcome{Status: "catalog_synced"}
 	now := time.Now()
-	catalog, catalogErr := connector.FetchCatalog(ctx, marketplaceAccountFromModel(*account))
+	connectorAccount, _ := h.marketplaceConnectorAccount(*account)
+	catalog, catalogErr := connector.FetchCatalog(ctx, connectorAccount)
 
 	events, eventsErr := pendingMarketplaceItemEvents(tenantID, account.Provider)
 	if eventsErr != nil {
@@ -166,7 +167,7 @@ func (h *MarketplaceHandler) syncMarketplaceCatalogAccount(ctx context.Context, 
 	if len(missingIDs) > 0 {
 		if fetcher, ok := connector.(marketplaces.CatalogItemFetcher); ok {
 			var eventCatalog marketplaces.CatalogSyncResult
-			eventCatalog, eventFetchErr = fetcher.FetchCatalogItems(ctx, marketplaceAccountFromModel(*account), missingIDs)
+			eventCatalog, eventFetchErr = fetcher.FetchCatalogItems(ctx, connectorAccount, missingIDs)
 			if eventFetchErr == nil {
 				directItemsFound = len(eventCatalog.Items)
 				items = uniqueMarketplaceCatalogItems(append(items, eventCatalog.Items...))
@@ -509,7 +510,8 @@ func (h *MarketplaceHandler) SyncMarketplaceOrders(c *gin.Context) {
 			continue
 		}
 
-		orderResult, err := connector.FetchOrders(c.Request.Context(), marketplaceAccountFromModel(accounts[i]), marketplaces.OrderSyncInput{Days: input.Days})
+		connectorAccount, _ := h.marketplaceConnectorAccount(accounts[i])
+		orderResult, err := connector.FetchOrders(c.Request.Context(), connectorAccount, marketplaces.OrderSyncInput{Days: input.Days})
 		if err != nil {
 			accounts[i].SyncStatus = "orders_sync_error"
 			if mercadolivre.IsOrderAccessForbidden(err) {

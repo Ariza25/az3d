@@ -183,6 +183,22 @@ func (h *MarketplaceHandler) loadMercadoLivrePlatformConfig() (decryptedMercadoL
 		RedirectURI: strings.TrimSpace(h.cfg.MercadoLivreRedirectURI),
 	}
 	if platform.ClientID == "" || platform.ClientSecret == "" || platform.RedirectURI == "" {
+		var dbConfig models.MercadoLivrePlatformConfig
+		if err := database.DB.Order("id desc").First(&dbConfig).Error; err == nil {
+			if platform.ClientID == "" {
+				platform.ClientID = strings.TrimSpace(dbConfig.ClientID)
+			}
+			if platform.RedirectURI == "" {
+				platform.RedirectURI = strings.TrimSpace(dbConfig.RedirectURI)
+			}
+			if platform.ClientSecret == "" && strings.TrimSpace(dbConfig.EncryptedClientSecret) != "" {
+				if dec, errDec := utils.DecryptString(dbConfig.EncryptedClientSecret, h.credentialEncryptionKey()); errDec == nil {
+					platform.ClientSecret = strings.TrimSpace(dec)
+				}
+			}
+		}
+	}
+	if platform.ClientID == "" || platform.ClientSecret == "" || platform.RedirectURI == "" {
 		return decryptedMercadoLivrePlatformConfig{}, fmt.Errorf("mercado livre platform config is incomplete")
 	}
 	if err := validateOAuthRedirectURI(platform.RedirectURI, h.cfg.Env); err != nil {
