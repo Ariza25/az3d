@@ -13,6 +13,8 @@ import (
 func (h *OrderHandler) GetAllOrders(c *gin.Context) {
 	tenantID := getTenantID(c)
 
+	_ = CancelExpiredPixOrders(database.DB, tenantID)
+
 	var orders []models.Order
 	if err := database.DB.
 		Preload("User").

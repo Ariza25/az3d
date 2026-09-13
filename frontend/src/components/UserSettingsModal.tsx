@@ -4,8 +4,6 @@ import {
   User as UserIcon,
   CreditCard,
   MapPin,
-  Mail,
-  Phone,
   Plus,
   Trash2,
   Edit2,
@@ -461,10 +459,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
             </div>
             <div>
               <h2 className="text-lg font-extrabold text-white flex items-center gap-2">
-                Minha Conta & Configurações
-                <span className="bg-laser-500/20 text-laser-400 text-[10px] font-mono px-2 py-0.5 rounded-full border border-laser-500/30">
-                  {user?.role === 'customer' ? 'Cliente' : 'Administrador'}
-                </span>
+                Meu Perfil
               </h2>
               <p className="text-xs text-slate-400">
                 Gerencie seus cartões de preferência, endereços de entrega e contatos
@@ -547,7 +542,6 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                 <div>
                   <h3 className="text-sm font-bold text-white">{user?.name}</h3>
                   <p className="text-xs text-slate-400">{user?.email}</p>
-                  <p className="text-[11px] text-slate-500 mt-0.5">ID da Conta: #{user?.id}</p>
                 </div>
               </div>
 
@@ -582,9 +576,8 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5 flex items-center justify-between">
-                    <span>E-mail Principal</span>
-                    <Mail className="w-3.5 h-3.5 text-slate-400" />
+                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                    E-mail Principal
                   </label>
                   <input
                     type="email"
@@ -599,9 +592,8 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5 flex items-center justify-between">
-                    <span>Telefone / WhatsApp</span>
-                    <Phone className="w-3.5 h-3.5 text-slate-400" />
+                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                    Telefone / WhatsApp
                   </label>
                   <input
                     type="tel"
@@ -657,7 +649,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                     className="w-full py-3 text-sm font-bold shadow-laser-glow flex items-center justify-center gap-2"
                   >
                     <Save className="w-4 h-4" />
-                    <span>Salvar Alterações do Perfil</span>
+                    <span>Salvar Alterações</span>
                   </Button>
                 </div>
               </div>

@@ -58,6 +58,9 @@ export const FreightCalculatorWidget: React.FC<FreightCalculatorWidgetProps> = (
         deliveryDays: opt.delivery_days,
       }));
 
+      // Garante que o frete mais barato fica sempre em primeiro na lista
+      mappedOptions.sort((a, b) => a.price - b.price);
+
       setOptions(mappedOptions);
       if (mappedOptions.length > 0) {
         handleSelectOption(mappedOptions[0]);

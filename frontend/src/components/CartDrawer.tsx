@@ -454,17 +454,16 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
       : `${totalItems} ${totalItems === 1 ? 'item' : 'itens'}`;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-black/70 backdrop-blur-sm">
-      <div className="absolute inset-0" onClick={closeDrawer} aria-hidden="true" />
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-fade-in">
+      <div className="fixed inset-0" onClick={closeDrawer} aria-hidden="true" />
 
-      <div className="fixed inset-y-0 right-0 flex max-w-full sm:pl-10">
-        <section
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="cart-drawer-title"
-          className="flex w-screen max-w-[36rem] flex-col border-l border-chumbo-800 bg-chumbo-950 shadow-2xl"
-        >
-          <header className="flex min-h-24 items-center justify-between border-b border-chumbo-850 bg-chumbo-900/70 px-5 py-5 sm:px-7">
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="cart-drawer-title"
+        className="relative flex w-full max-w-2xl max-h-[92vh] flex-col rounded-3xl border border-chumbo-700/70 bg-chumbo-950 shadow-2xl overflow-hidden z-10 my-auto"
+      >
+        <header className="flex min-h-20 items-center justify-between border-b border-chumbo-850 bg-chumbo-900/70 px-5 py-4 sm:px-7 shrink-0">
             <div className="flex min-w-0 items-center gap-3">
               {(drawerMode === 'orders' || checkoutStep === 'delivery') ? (
                 <button
@@ -1044,19 +1043,37 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
               </div>
 
               {cart.length > 0 && checkoutStep === 'items' && (
-                <footer className="space-y-4 border-t border-chumbo-850 bg-chumbo-900/85 px-5 py-5 sm:px-7">
-                  <div>
-                    <div className="flex items-center justify-between text-xs text-slate-400">
-                      <span>Subtotal · {totalItems} {totalItems === 1 ? 'item' : 'itens'}</span>
-                      <span className="text-xl font-extrabold text-white">{money(totalPrice)}</span>
+                <footer className="space-y-4 border-t border-chumbo-800 bg-chumbo-900/90 px-5 py-5 sm:px-7">
+                  {selectedFreight ? (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs text-slate-400">
+                        <span>Produtos ({totalItems} {totalItems === 1 ? 'item' : 'itens'})</span>
+                        <span className="font-mono text-slate-300">{money(totalPrice)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-slate-400">
+                        <span>Frete ({selectedFreight.name})</span>
+                        <span className="font-mono font-bold text-laser-400">{money(selectedFreight.price)}</span>
+                      </div>
+                      <div className="flex items-center justify-between pt-2 border-t border-chumbo-800">
+                        <span className="text-sm font-bold text-slate-200">Subtotal com frete</span>
+                        <span className="text-2xl font-extrabold text-white">{money(totalPrice + selectedFreight.price)}</span>
+                      </div>
                     </div>
-                    <p className="mt-1 text-[11px] text-slate-500">Entrega ou retirada é definida no próximo passo.</p>
-                  </div>
+                  ) : (
+                    <div>
+                      <div className="flex items-center justify-between text-xs text-slate-400">
+                        <span>Subtotal · {totalItems} {totalItems === 1 ? 'item' : 'itens'}</span>
+                        <span className="text-2xl font-extrabold text-white">{money(totalPrice)}</span>
+                      </div>
+                      <p className="mt-1 text-[11px] text-slate-500">Calcule o frete acima ou continue para entrega.</p>
+                    </div>
+                  )}
+
                   <button
                     type="button"
                     onClick={continueToDelivery}
                     disabled={!canShip && !canPickup}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-white py-3.5 text-sm font-extrabold text-chumbo-950 shadow-xl transition-colors hover:bg-slate-200 disabled:opacity-50"
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 py-3.5 text-sm font-extrabold shadow-xl transition-colors disabled:opacity-50"
                   >
                     <span>{isAuthenticated ? 'Continuar para entrega' : 'Entrar para continuar'}</span>
                     <ArrowRight className="h-4 w-4" />
@@ -1108,7 +1125,6 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
             </>
           )}
         </section>
-      </div>
 
       {/* Modal de Pagamento Transparente */}
       {activePaymentResponse && (

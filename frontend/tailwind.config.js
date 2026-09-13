@@ -9,18 +9,19 @@ export default {
     extend: {
       colors: {
         chumbo: {
-          950: '#0a0b0d',
-          900: '#111318',
-          850: '#161920',
-          800: '#1c202a',
-          700: '#2a303f',
-          600: '#3d4559',
-          500: '#525d78',
+          950: 'rgb(var(--color-chumbo-950) / <alpha-value>)',
+          900: 'rgb(var(--color-chumbo-900) / <alpha-value>)',
+          850: 'rgb(var(--color-chumbo-850) / <alpha-value>)',
+          800: 'rgb(var(--color-chumbo-800) / <alpha-value>)',
+          750: 'rgb(var(--color-chumbo-750) / <alpha-value>)',
+          700: 'rgb(var(--color-chumbo-700) / <alpha-value>)',
+          600: 'rgb(var(--color-chumbo-600) / <alpha-value>)',
+          500: 'rgb(var(--color-chumbo-500) / <alpha-value>)',
         },
         laser: {
           500: '#06b6d4',
           400: '#22d3ee',
-           glow: 'rgba(6, 182, 212, 0.25)',
+          glow: 'rgba(6, 182, 212, 0.25)',
         }
       },
       fontFamily: {

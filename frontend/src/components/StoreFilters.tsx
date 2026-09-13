@@ -41,7 +41,7 @@ export const StoreFilters: React.FC<StoreFiltersProps> = ({
   return (
     <section className="bg-chumbo-950 pt-3">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="rounded-2xl border border-chumbo-800 bg-chumbo-900/60 p-3 sm:p-4">
+        <div className="rounded-2xl border border-chumbo-800 bg-chumbo-900 p-3 sm:p-4 shadow-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <button
               type="button"

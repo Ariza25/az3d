@@ -279,7 +279,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
                 </div>
               )}
               <div className="flex min-h-0 items-center justify-center p-2 sm:p-4">
-                <div className="relative aspect-square w-full max-w-[560px] overflow-hidden rounded-2xl border border-chumbo-800 bg-chumbo-950/90 shadow-2xl flex items-center justify-center">
+                <div className="relative aspect-square w-full max-w-[580px] overflow-hidden rounded-2xl border border-chumbo-800 bg-chumbo-950 shadow-2xl flex items-center justify-center">
                   {activeMedia?.type === 'video' ? (
                     getYouTubeEmbedUrl(activeMedia.url) ? (
                       <iframe
@@ -294,14 +294,14 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
                         src={activeMedia.url}
                         controls
                         autoPlay
-                        className="h-full w-full rounded-2xl object-contain bg-black"
+                        className="h-full w-full rounded-2xl object-cover bg-black"
                       />
                     )
                   ) : (
                     <img
                       src={activeMedia?.url || activeProduct?.image_url || product.image_url}
                       alt={product.title}
-                      className="h-full w-full object-contain p-4 transition-transform duration-300 hover:scale-105"
+                      className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
                     />
                   )}
                 </div>
@@ -355,7 +355,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
                           key={color.name}
                           onClick={() => selectColor(color.name)}
                           onMouseEnter={() => selectColor(color.name)}
-                          className={`relative h-16 w-16 overflow-hidden rounded-xl border-2 bg-white p-1 transition ${selectedColor === color.name ? 'border-laser-400 shadow-[0_0_0_2px_rgba(34,211,238,0.16)] scale-105' : 'border-chumbo-700 hover:border-chumbo-500'}`}
+                          className={`relative h-16 w-16 overflow-hidden rounded-xl border-2 bg-chumbo-950 p-0.5 transition ${selectedColor === color.name ? 'border-laser-400 shadow-[0_0_0_2px_rgba(34,211,238,0.16)] scale-105' : 'border-chumbo-700 hover:border-chumbo-500'}`}
                           title={color.name}
                           aria-label={`Selecionar cor ${color.name}`}
                           aria-pressed={selectedColor === color.name}

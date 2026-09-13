@@ -311,7 +311,13 @@ export const StoreApp: React.FC = () => {
         />
       </main>
 
-      <Footer />
+      <Footer
+        categories={categories}
+        onSelectCategory={(slug) => {
+          setActiveCategory(slug);
+          setSortBy('featured');
+        }}
+      />
 
       <ProductModal
         product={selectedProduct}

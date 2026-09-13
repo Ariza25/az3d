@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle2, Clock, Copy, ExternalLink, Loader2, QrCode, ShieldCheck, Sparkles, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock, Copy, ExternalLink, Loader2, QrCode, ShieldCheck, Sparkles, X } from 'lucide-react';
 import { CreateOrderResponse, Order } from '../types';
 import { api } from '../services/api';
 
@@ -23,10 +23,12 @@ export const TransparentPaymentModal: React.FC<Props> = ({
   const hasPixData = Boolean(payment?.pix_qr_code || order.pix_qr_code || payment?.pix_qr_code_base64 || order.pix_qr_code_base64);
   const isPix = rawMethod === 'pix' || hasPixData;
   const isApprovedInitial = order.payment_status === 'paid' || order.status === 'confirmed';
+  const isCancelledInitial = order.payment_status === 'cancelled' || order.status === 'cancelled';
 
   const [copied, setCopied] = useState(false);
   const [isPaid, setIsPaid] = useState(isApprovedInitial);
-  const [isPolling, setIsPolling] = useState(!isApprovedInitial);
+  const [isCancelled, setIsCancelled] = useState(isCancelledInitial);
+  const [isPolling, setIsPolling] = useState(!isApprovedInitial && !isCancelledInitial);
   const [timeLeftSeconds, setTimeLeftSeconds] = useState(30 * 60); // 30 minutos padrão
 
   const pixCode = payment?.pix_qr_code || order.pix_qr_code || '';
@@ -36,18 +38,26 @@ export const TransparentPaymentModal: React.FC<Props> = ({
 
   // Timer regressivo do PIX
   useEffect(() => {
-    if (isPaid || !isPix) return;
+    if (isPaid || isCancelled || !isPix) return;
 
     if (pixExpiration) {
       const expTime = new Date(pixExpiration).getTime();
       const diffSecs = Math.max(0, Math.floor((expTime - Date.now()) / 1000));
-      setTimeLeftSeconds(diffSecs > 0 ? diffSecs : 30 * 60);
+      if (diffSecs <= 0) {
+        setTimeLeftSeconds(0);
+        setIsCancelled(true);
+        setIsPolling(false);
+        return;
+      }
+      setTimeLeftSeconds(diffSecs);
     }
 
     const interval = setInterval(() => {
       setTimeLeftSeconds((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
+          setIsCancelled(true);
+          setIsPolling(false);
           return 0;
         }
         return prev - 1;
@@ -55,16 +65,25 @@ export const TransparentPaymentModal: React.FC<Props> = ({
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [pixExpiration, isPaid, isPix]);
+  }, [pixExpiration, isPaid, isCancelled, isPix]);
 
   // Polling automático para detecção instantânea do pagamento
   useEffect(() => {
-    if (isPaid) return;
+    if (isPaid || isCancelled) return;
 
     let isMounted = true;
     const pollInterval = setInterval(async () => {
       try {
         const status = await api.getOrderPaymentStatus(order.id, effectiveTenantId, token);
+        if (status.status === 'cancelled' || status.payment_status === 'cancelled') {
+          if (isMounted) {
+            setIsCancelled(true);
+            setIsPolling(false);
+            clearInterval(pollInterval);
+          }
+          return;
+        }
+
         const isConfirmed = status.is_paid ||
           status.payment_status === 'paid' ||
           status.payment_status === 'approved' ||
@@ -95,7 +114,7 @@ export const TransparentPaymentModal: React.FC<Props> = ({
       isMounted = false;
       clearInterval(pollInterval);
     };
-  }, [order.id, effectiveTenantId, token, isPaid, onPaymentSuccess, order]);
+  }, [order.id, effectiveTenantId, token, isPaid, isCancelled, onPaymentSuccess, order]);
 
   const copyPixCode = () => {
     if (!pixCode) return;
@@ -131,8 +150,31 @@ export const TransparentPaymentModal: React.FC<Props> = ({
           <X className="h-5 w-5" />
         </button>
 
-        {/* Estado 1: Pagamento Aprovado com Sucesso */}
-        {isPaid ? (
+        {/* Estado 0: Cancelado / Expirado */}
+        {isCancelled ? (
+          <div className="space-y-6 text-center py-4">
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-red-500/20 text-red-400 ring-8 ring-red-500/10">
+              <AlertCircle className="h-10 w-10" />
+            </div>
+
+            <div>
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-red-950/80 border border-red-500/40 px-3 py-1 text-xs font-bold text-red-300">
+                PIX Expirado
+              </div>
+              <h3 className="mt-2 text-2xl font-black text-white">Pedido #{order.id} Cancelado</h3>
+              <p className="mt-1 text-xs text-slate-400">
+                O prazo de pagamento deste pedido expirou e ele foi cancelado automaticamente. O estoque reservado foi liberado.
+              </p>
+            </div>
+
+            <button
+              onClick={onClose}
+              className="w-full rounded-2xl bg-chumbo-800 py-3 text-sm font-bold text-white hover:bg-chumbo-700 transition"
+            >
+              Voltar para a Loja
+            </button>
+          </div>
+        ) : isPaid ? (
           <div className="space-y-6 text-center py-4">
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 ring-8 ring-emerald-500/10">
               <CheckCircle2 className="h-12 w-12" />

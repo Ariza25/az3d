@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"context"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -320,9 +322,116 @@ func errInsufficientStock(message string) error {
 	return stockError{message: message}
 }
 
+// CancelExpiredPixOrders cancela automaticamente pedidos pendentes via PIX cujo prazo de expiração passou,
+// devolvendo os itens ao estoque correspondente.
+func CancelExpiredPixOrders(db *gorm.DB, tenantIDs ...uint) error {
+	now := time.Now()
+	query := db.Model(&models.Order{}).
+		Preload("Items").
+		Where("LOWER(payment_method) = ? AND status IN (?, ?) AND payment_status IN (?, ?) AND pix_expiration IS NOT NULL AND pix_expiration < ?",
+			"pix", "pending_payment", "pending_confirmation", "pending", "in_process", now)
+
+	if len(tenantIDs) > 0 && tenantIDs[0] > 0 {
+		query = query.Where("tenant_id = ?", tenantIDs[0])
+	}
+
+	var expiredOrders []models.Order
+	if err := query.Find(&expiredOrders).Error; err != nil {
+		return err
+	}
+
+	if len(expiredOrders) == 0 {
+		return nil
+	}
+
+	for _, order := range expiredOrders {
+		_ = db.Transaction(func(tx *gorm.DB) error {
+			var current models.Order
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Preload("Items").First(&current, order.ID).Error; err != nil {
+				return err
+			}
+
+			currPayStatus := strings.ToLower(strings.TrimSpace(current.PaymentStatus))
+			currStatus := strings.ToLower(strings.TrimSpace(current.Status))
+			if currPayStatus == "paid" || currPayStatus == "approved" || currStatus == "paid" || currStatus == "confirmed" || currStatus == "cancelled" {
+				return nil
+			}
+
+			current.Status = "cancelled"
+			current.PaymentStatus = "cancelled"
+			current.PaymentDetail = "Cancelado automaticamente por expiração do PIX"
+			if err := tx.Save(&current).Error; err != nil {
+				return err
+			}
+
+			// Devolve os itens do pedido cancelado para o estoque
+			for _, item := range current.Items {
+				color := strings.TrimSpace(item.Color)
+				if color == "" {
+					color = "Preto Slate"
+				}
+
+				var colorStocks []models.ProductColorStock
+				colorStockErr := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+					Where("tenant_id = ? AND product_id = ? AND color_name = ?", current.TenantID, item.ProductID, color).
+					Limit(1).Find(&colorStocks).Error
+
+				if colorStockErr == nil && len(colorStocks) > 0 {
+					colorStock := colorStocks[0]
+					colorStock.StockQty += item.Quantity
+					_ = tx.Save(&colorStock).Error
+
+					var totalColorStock int64
+					if err := tx.Model(&models.ProductColorStock{}).Where("tenant_id = ? AND product_id = ?", current.TenantID, item.ProductID).Select("COALESCE(SUM(stock_qty), 0)").Scan(&totalColorStock).Error; err == nil {
+						var product models.Product
+						if err := tx.Where("tenant_id = ?", current.TenantID).First(&product, item.ProductID).Error; err == nil {
+							product.StockQty = int(totalColorStock)
+							product.InStock = product.StockQty > 0
+							_ = tx.Save(&product).Error
+						}
+					}
+					_ = createStockMovement(tx, current.TenantID, item.ProductID, &current.ID, color, "cancellation_return", item.Quantity, colorStock.StockQty, "Devolução por expiração de PIX")
+				} else {
+					var product models.Product
+					if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("tenant_id = ?", current.TenantID).First(&product, item.ProductID).Error; err == nil {
+						product.StockQty += item.Quantity
+						product.InStock = product.StockQty > 0
+						_ = tx.Save(&product).Error
+						_ = createStockMovement(tx, current.TenantID, item.ProductID, &current.ID, color, "cancellation_return", item.Quantity, product.StockQty, "Devolução por expiração de PIX")
+					}
+				}
+			}
+			return nil
+		})
+	}
+
+	return nil
+}
+
+// StartExpiredPixJob executa uma rotina periódica em segundo plano para cancelar pedidos PIX expirados
+func StartExpiredPixJob(ctx context.Context) {
+	go func() {
+		ticker := time.NewTicker(1 * time.Minute)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := CancelExpiredPixOrders(database.DB); err != nil {
+					log.Printf("[expired-pix-job] erro ao processar cancelamento de PIX: %v", err)
+				}
+			}
+		}
+	}()
+}
+
 func (h *OrderHandler) GetOrderPaymentStatus(c *gin.Context) {
 	orderID := c.Param("id")
 	tenantID := getTenantID(c)
+
+	_ = CancelExpiredPixOrders(database.DB, tenantID)
 
 	var order models.Order
 	query := database.DB.Select("id, tenant_id, user_id, status, payment_status, payment_id, payment_detail, paid_at, pix_expiration").Where("id = ?", orderID)
@@ -363,6 +472,8 @@ func (h *OrderHandler) GetMyOrders(c *gin.Context) {
 	}
 	userID := userIDVal.(uint)
 	tenantID := getTenantID(c)
+
+	_ = CancelExpiredPixOrders(database.DB, tenantID)
 
 	var orders []models.Order
 	query := database.DB.

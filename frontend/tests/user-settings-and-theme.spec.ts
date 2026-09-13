@@ -178,7 +178,7 @@ test('abre aba de configurações e gerencia perfil, email e telefone', async ({
   await settingsBtn.click();
 
   // Modal de configurações visível
-  await expect(page.getByText('Minha Conta & Configurações')).toBeVisible();
+  await expect(page.getByText('Meu Perfil')).toBeVisible();
 
   // Aba Perfil & Contato está ativa por padrão
   const emailInput = page.getByPlaceholder('exemplo@email.com');
@@ -187,7 +187,7 @@ test('abre aba de configurações e gerencia perfil, email e telefone', async ({
   // Edita telefone e salva
   const phoneInput = page.getByPlaceholder('(11) 99999-9999');
   await phoneInput.fill('11977776666');
-  await page.getByRole('button', { name: /salvar alterações do perfil/i }).click();
+  await page.getByRole('button', { name: /^salvar alterações$/i }).click();
 
   await expect(page.getByText('Dados da sua conta atualizados com sucesso!')).toBeVisible();
 });

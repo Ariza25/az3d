@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -246,6 +247,11 @@ func CalculateShippingQuote(c *gin.Context) {
 				})
 			}
 
+			// Deixa sempre o frete mais barato primeiro na lista
+			sort.Slice(options, func(i, j int) bool {
+				return options[i].Price < options[j].Price
+			})
+
 			c.JSON(http.StatusOK, gin.H{
 				"tenant_id":        tenantID,
 				"zip_code":         zipDigits,
@@ -282,6 +288,11 @@ func CalculateShippingQuote(c *gin.Context) {
 			DeliveryDays: sedexDays,
 		},
 	}
+
+	// Deixa sempre o frete mais barato primeiro na lista
+	sort.Slice(options, func(i, j int) bool {
+		return options[i].Price < options[j].Price
+	})
 
 	c.JSON(http.StatusOK, gin.H{
 		"tenant_id":        tenantID,

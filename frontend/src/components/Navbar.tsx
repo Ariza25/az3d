@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { ShoppingBag, LogOut, Layers, ChevronDown, ShieldAlert, Heart, ReceiptText, Settings } from 'lucide-react';
+import { ShoppingBag, LogOut, ChevronDown, ShieldAlert, Heart, ReceiptText, Settings } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { Tenant, TenantSettings } from '../types';
 import { ThemeToggle } from './ThemeToggle';
+import { AZ3DLogo } from './AZ3DLogo';
 
 interface NavbarProps {
   onOpenLogin: () => void;
@@ -29,7 +30,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const storeName = tenantSettings?.store_name || activeTenant?.name || 'AZ3D';
   const logoUrl = tenantSettings?.logo_url || activeTenant?.logo_url;
-  const primaryColor = tenantSettings?.primary_color || '#22d3ee';
 
   return (
     <header className="sticky top-0 z-40 w-full glass-panel border-b border-chumbo-800 bg-chumbo-950/80 backdrop-blur-md">
@@ -42,9 +42,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               {logoUrl ? (
                 <img src={logoUrl} alt={storeName} className="h-9 w-9 shrink-0 rounded-lg border border-chumbo-700 bg-chumbo-900 object-cover shadow-lg transition-transform duration-300 group-hover:scale-105 sm:h-10 sm:w-10" />
               ) : (
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-chumbo-700 bg-chumbo-900 shadow-lg transition-transform duration-300 group-hover:scale-105 sm:h-10 sm:w-10" style={{ color: primaryColor }}>
-                  <Layers className="h-5 w-5 stroke-[2.5] sm:h-6 sm:w-6" />
-                </div>
+                <AZ3DLogo className="h-9 w-9 shrink-0 transition-transform duration-300 group-hover:scale-105 sm:h-10 sm:w-10" />
               )}
               <div className="min-w-0">
                 <span className="block max-w-[118px] truncate text-lg font-extrabold tracking-wide text-white sm:max-w-none sm:text-2xl sm:tracking-wider">
@@ -97,7 +95,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     onClick={onOpenSettings}
                     className="relative p-2.5 rounded-xl bg-chumbo-900 hover:bg-chumbo-800 border border-chumbo-700/50 text-slate-200 hover:text-white transition-all"
                     aria-label="Abrir configurações da conta"
-                    title="Minha Conta & Configurações"
+                    title="Meu Perfil"
                   >
                     <Settings className="w-5 h-5" />
                   </button>

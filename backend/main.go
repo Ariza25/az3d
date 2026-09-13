@@ -71,6 +71,7 @@ func main() {
 	platformHandler := handlers.NewPlatformHandler(cfg)
 	handlers.StartTrackingSyncJob(bgCtx, cfg)
 	handlers.StartMarketplaceSyncJob(bgCtx, cfg, marketplaceHandler)
+	handlers.StartExpiredPixJob(bgCtx)
 
 	r.Static("/uploads", "./uploads")
 
