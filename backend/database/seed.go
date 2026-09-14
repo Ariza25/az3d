@@ -16,11 +16,11 @@ import (
 func bootstrapData(db *gorm.DB, cfg *config.Config) {
 	var tenant models.Tenant
 	if err := db.Where("slug = ?", "az3d").First(&tenant).Error; err != nil {
-		tenant = models.Tenant{Name: "AZ3D", Slug: "az3d"}
+		tenant = models.Tenant{Name: "AZ3D Studio", Slug: "az3d"}
 		db.Create(&tenant)
-	} else if tenant.Name == "AZ3D Print Studio" {
-		db.Model(&tenant).Update("name", "AZ3D")
-		tenant.Name = "AZ3D"
+	} else if tenant.Name != "AZ3D Studio" {
+		db.Model(&tenant).Update("name", "AZ3D Studio")
+		tenant.Name = "AZ3D Studio"
 	}
 
 	ensureTenantSettings(db, tenant)
@@ -219,6 +219,11 @@ func ensureTenantSettings(db *gorm.DB, tenant models.Tenant) {
 		db.Create(&settings)
 	} else {
 		db.Where("tenant_id = ?", tenant.ID).First(&settings)
+		if settings.StoreName == "AZ3D" || settings.StoreName == "AZ3D Store" || settings.StoreName == "" {
+			settings.StoreName = "AZ3D Studio"
+			db.Model(&models.TenantSettings{}).Where("tenant_id = ?", tenant.ID).Update("store_name", "AZ3D Studio")
+			db.Model(&models.TenantStoreSettings{}).Where("tenant_id = ?", tenant.ID).Update("store_name", "AZ3D Studio")
+		}
 	}
 
 	db.Model(&models.TenantStoreSettings{}).Where("tenant_id = ?", tenant.ID).Count(&count)

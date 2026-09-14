@@ -28,7 +28,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const { user, isAuthenticated, logout } = useAuth();
   const { totalItems, openCart, openOrders } = useCart();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const storeName = tenantSettings?.store_name || activeTenant?.name || 'AZ3D';
+  const storeName = tenantSettings?.store_name || activeTenant?.name || 'AZ3D Studio';
   const logoUrl = tenantSettings?.logo_url || activeTenant?.logo_url;
 
   return (
@@ -49,7 +49,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {storeName}
                 </span>
                 <span className="-mt-1 hidden text-[10px] font-medium uppercase tracking-widest text-slate-400 sm:block">
-                  {activeTenant?.slug || 'store'}
+                  {activeTenant?.slug === 'store' || !activeTenant?.slug || activeTenant?.slug === 'az3d' ? 'studio' : activeTenant.slug}
                 </span>
               </div>
             </div>
@@ -195,7 +195,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
                 <button
                   onClick={onOpenRegister}
-                  className="rounded-xl bg-white px-3 py-2 text-xs font-semibold text-chumbo-950 shadow-md transition-all duration-200 hover:bg-slate-200 active:scale-95 sm:px-4 sm:text-sm"
+                  className="rounded-xl border border-chumbo-700/60 bg-white px-3 py-2 text-xs font-bold text-cyan-600 dark:text-chumbo-950 shadow-md transition-all duration-200 hover:bg-slate-50 dark:hover:bg-slate-200 active:scale-95 sm:px-4 sm:text-sm"
                 >
                   Cadastrar
                 </button>

@@ -2,7 +2,6 @@ import React from 'react';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import { Category, Product, Tenant, TenantSettings } from '../types';
 import { getStockStatus, money } from '../shared/storePresentation';
-import { AZ3DLogo } from './AZ3DLogo';
 
 interface HeroProps {
   tenant: Tenant | null;
@@ -19,8 +18,7 @@ export const Hero: React.FC<HeroProps> = ({
   featuredProduct,
   onOpenProduct,
 }) => {
-  const storeName = settings?.store_name || tenant?.name || 'AZ3D Store';
-  const logoUrl = settings?.logo_url || tenant?.logo_url;
+  const storeName = (settings?.store_name || tenant?.name || 'AZ3D Studio').replace(/AZ3D Store/gi, 'AZ3D Studio');
   const featuredImage =
     featuredProduct?.color_images?.[0]?.image_url ||
     featuredProduct?.image_url ||
@@ -38,11 +36,6 @@ export const Hero: React.FC<HeroProps> = ({
       <div className={`relative z-10 mx-auto grid max-w-7xl items-center gap-6 sm:gap-10 px-4 py-6 sm:py-12 lg:px-8 lg:py-16 ${featuredProduct ? 'lg:grid-cols-[minmax(0,1fr)_420px]' : ''}`}>
         <div className="max-w-2xl space-y-4 sm:space-y-7">
           <div className="flex items-center gap-3">
-            {logoUrl ? (
-              <img src={logoUrl} alt={storeName} className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl border border-chumbo-700 bg-chumbo-900 object-cover shadow-md" />
-            ) : (
-              <AZ3DLogo className="h-10 w-10 sm:h-12 sm:w-12 shrink-0 rounded-xl" />
-            )}
             <div>
               <p className="text-[10px] sm:text-xs font-mono uppercase tracking-widest text-slate-400">Loja oficial</p>
               <h1 className="text-2xl font-extrabold leading-tight text-white sm:text-5xl lg:text-6xl">{storeName}</h1>
@@ -56,10 +49,10 @@ export const Hero: React.FC<HeroProps> = ({
           <button
             type="button"
             onClick={scrollToCatalog}
-            className="inline-flex items-center gap-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 px-5 py-3 text-sm font-extrabold shadow-lg transition hover:brightness-105"
+            className="inline-flex items-center gap-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-white px-5 py-3 text-sm font-extrabold shadow-lg transition hover:brightness-105"
           >
             Explorar catálogo
-            <ArrowRight className="h-4 w-4" />
+            <ArrowRight className="h-4 w-4 text-white" />
           </button>
         </div>
 

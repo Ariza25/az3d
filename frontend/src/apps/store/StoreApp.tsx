@@ -207,7 +207,7 @@ export const StoreApp: React.FC = () => {
   }, [storeProducts]);
 
   useEffect(() => {
-    const storeName = tenantSettings?.store_name || activeTenant?.name || 'AZ3D Store';
+    const storeName = (tenantSettings?.store_name || activeTenant?.name || 'AZ3D Studio').replace(/AZ3D Store/gi, 'AZ3D Studio');
     if (selectedProduct) {
       document.title = `${selectedProduct.title} | ${storeName}`;
       upsertMetaDescription(selectedProduct.description || `${selectedProduct.title} em ${storeName}`);

@@ -255,4 +255,38 @@ html.light textarea,
   color: #0f172a;
 }
 
+/* Evita duplicidade de botão 'x' nativo em campos de pesquisa */
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration,
+input[type="search"]::-webkit-search-results-button,
+input[type="search"]::-webkit-search-results-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+
+/* Botões com fundo no tom de azul/cyan da marca devem ter texto e ícones brancos */
+.bg-cyan-500,
+.bg-cyan-600,
+.bg-laser-500,
+.bg-laser-400 {
+  color: #ffffff !important;
+}
+
+.bg-cyan-500 *,
+.bg-cyan-600 *,
+.bg-laser-500 *,
+.bg-laser-400 * {
+  color: #ffffff;
+}
+
+/* No tema claro, botões e elementos com fundo branco que usam text-chumbo-950 devem ter fonte no azul da marca */
+html.light .bg-white.text-chumbo-950,
+[data-theme="light"] .bg-white.text-chumbo-950,
+html.light button.text-chumbo-950,
+[data-theme="light"] button.text-chumbo-950 {
+  color: #0891b2 !important;
+}
+
+
 

@@ -47,7 +47,7 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
             onClick={() => onSelectCategory('todas')}
             className={`flex items-center space-x-2 whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-all ${
               activeCategory === 'todas'
-                ? 'bg-cyan-500 font-bold text-slate-950 shadow-sm'
+                ? 'bg-cyan-500 font-bold text-white shadow-sm'
                 : 'border border-chumbo-800 bg-chumbo-900 text-slate-400 hover:border-chumbo-700 hover:text-white'
             }`}
           >
@@ -64,11 +64,11 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
                 onClick={() => onSelectCategory(category.slug)}
                 className={`flex items-center space-x-2.5 whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-all ${
                   isActive
-                    ? 'bg-cyan-500 font-bold text-slate-950 shadow-sm'
+                    ? 'bg-cyan-500 font-bold text-white shadow-sm'
                     : 'border border-chumbo-800 bg-chumbo-900 text-slate-400 hover:border-chumbo-700 hover:text-white'
                 }`}
               >
-                <span className={isActive ? 'text-slate-950' : 'text-laser-400'}>
+                <span className={isActive ? 'text-white' : 'text-laser-400'}>
                   {getCategoryIcon(category.icon)}
                 </span>
                 <span>{getStoreCategoryName(category)}</span>
