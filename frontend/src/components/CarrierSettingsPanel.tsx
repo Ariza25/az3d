@@ -150,17 +150,17 @@ export const CarrierSettingsPanel: React.FC<Props> = ({
   };
 
   return (
-    <section className="space-y-4 rounded-2xl border border-chumbo-800 bg-chumbo-950/40 p-5">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-chumbo-800/80 pb-3">
+    <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-chumbo-800 dark:bg-chumbo-950/40">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3 dark:border-chumbo-800/80">
         <div>
-          <h3 className="flex items-center gap-2 text-sm font-bold text-white">
-            <Truck className="h-4 w-4 text-emerald-400" /> Parâmetros de Frete SuperFrete (Correios)
+          <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white">
+            <Truck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> Parâmetros de Frete SuperFrete (Correios)
           </h3>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             Ajuste o CEP de origem, formato, dimensões e opções do pacote para garantir que a cotação na sua loja reflita exatamente a calculadora do SuperFrete.
           </p>
         </div>
-        <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-950/40 px-3 py-1 text-[11px] font-medium text-emerald-400">
+        <div className="flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-950/40 dark:text-emerald-400">
           <CheckCircle2 className="h-3.5 w-3.5" /> API Oficial SuperFrete Ativa
         </div>
       </div>
@@ -168,14 +168,14 @@ export const CarrierSettingsPanel: React.FC<Props> = ({
       <div className="grid gap-5 lg:grid-cols-[1.25fr_0.75fr]">
         <form onSubmit={save} className="space-y-4">
           {/* Card 1: Origem do Envio */}
-          <div className="rounded-xl border border-laser-500/30 bg-laser-950/20 p-4">
+          <div className="rounded-xl border border-cyan-200 bg-cyan-50/50 p-4 dark:border-laser-500/30 dark:bg-laser-950/20">
             <div className="flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-laser-400" />
-              <h4 className="text-xs font-bold text-laser-400 uppercase tracking-wider">
+              <MapPin className="h-4 w-4 text-cyan-700 dark:text-laser-400" />
+              <h4 className="text-xs font-bold text-cyan-800 uppercase tracking-wider dark:text-laser-400">
                 1. Local de Origem da Expedição
               </h4>
             </div>
-            <p className="mt-1 text-[11px] text-slate-400">
+            <p className="mt-1 text-[11px] text-slate-600 dark:text-slate-400">
               Informe o CEP de onde saem seus pedidos 3D (seu ateliê/fábrica).
             </p>
             <div className="mt-3">
@@ -185,28 +185,28 @@ export const CarrierSettingsPanel: React.FC<Props> = ({
                 value={form.origin_cep}
                 onChange={(e) => update('origin_cep', e.target.value)}
                 placeholder="Ex: 86303-096"
-                className="block w-full max-w-sm rounded-xl border border-chumbo-700 bg-chumbo-950 px-3.5 py-2.5 font-mono text-sm font-bold text-white placeholder-slate-500 focus:border-laser-400 focus:outline-none focus:ring-1 focus:ring-laser-400"
+                className="block w-full max-w-sm rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 font-mono text-sm font-bold text-slate-900 placeholder:text-slate-400 focus:border-cyan-600 focus:outline-none focus:ring-1 focus:ring-cyan-600 dark:border-chumbo-700 dark:bg-chumbo-950 dark:text-white dark:placeholder-slate-500 dark:focus:border-laser-400 dark:focus:ring-laser-400"
               />
             </div>
           </div>
 
           {/* Card 2: Formato, Dimensões e Peso do Pacote */}
-          <div className="rounded-xl border border-chumbo-800 bg-chumbo-900/40 p-4 space-y-4">
+          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-4 dark:border-chumbo-800 dark:bg-chumbo-900/40">
             <div className="flex items-center gap-2">
-              <Box className="h-4 w-4 text-amber-400" />
-              <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+              <Box className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider dark:text-white">
                 2. Formato, Dimensões e Peso Padrão da Caixa
               </h4>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
               {/* Formato */}
-              <label className="space-y-1.5 text-xs text-slate-300">
-                <span className="font-semibold text-white">Formato do Pacote</span>
+              <label className="space-y-1.5 text-xs text-slate-600 dark:text-slate-300">
+                <span className="font-semibold text-slate-900 dark:text-white">Formato do Pacote</span>
                 <select
                   value={form.package_format}
                   onChange={(e) => update('package_format', e.target.value)}
-                  className="block w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3 py-2 text-xs text-white focus:border-amber-400 focus:outline-none"
+                  className="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 focus:border-amber-500 focus:outline-none dark:border-chumbo-700 dark:bg-chumbo-950 dark:text-white dark:focus:border-amber-400"
                 >
                   <option value="box">Caixa / Pacote (Padrão)</option>
                   <option value="roll">Rolo / Cilindro / Prisma</option>
@@ -215,8 +215,8 @@ export const CarrierSettingsPanel: React.FC<Props> = ({
               </label>
 
               {/* Peso Padrão */}
-              <label className="space-y-1.5 text-xs text-slate-300">
-                <span className="font-semibold text-white">Peso Estimado (em gramas)</span>
+              <label className="space-y-1.5 text-xs text-slate-600 dark:text-slate-300">
+                <span className="font-semibold text-slate-900 dark:text-white">Peso Estimado (em gramas)</span>
                 <div className="relative">
                   <input
                     type="number"
@@ -225,7 +225,7 @@ export const CarrierSettingsPanel: React.FC<Props> = ({
                     step={10}
                     value={form.package_weight_grams}
                     onChange={(e) => update('package_weight_grams', Number(e.target.value))}
-                    className="block w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3 py-2 pr-10 text-xs font-mono text-white focus:border-amber-400 focus:outline-none"
+                    className="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 pr-10 text-xs font-mono text-slate-900 focus:border-amber-500 focus:outline-none dark:border-chumbo-700 dark:bg-chumbo-950 dark:text-white dark:focus:border-amber-400"
                   />
                   <span className="absolute right-3 top-2 text-xs font-bold text-slate-500">g</span>
                 </div>
@@ -234,58 +234,58 @@ export const CarrierSettingsPanel: React.FC<Props> = ({
 
             {/* Dimensões em 3 colunas */}
             <div className="grid grid-cols-3 gap-2.5">
-              <label className="space-y-1 text-xs text-slate-300">
-                <span className="text-[11px] text-slate-400">Altura (cm)</span>
+              <label className="space-y-1 text-xs text-slate-600 dark:text-slate-300">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">Altura (cm)</span>
                 <input
                   type="number"
                   min={2}
                   max={105}
                   value={form.package_height}
                   onChange={(e) => update('package_height', Number(e.target.value))}
-                  className="block w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3 py-2 text-xs font-mono text-white focus:border-amber-400 focus:outline-none"
+                  className="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-mono text-slate-900 focus:border-amber-500 focus:outline-none dark:border-chumbo-700 dark:bg-chumbo-950 dark:text-white dark:focus:border-amber-400"
                 />
               </label>
-              <label className="space-y-1 text-xs text-slate-300">
-                <span className="text-[11px] text-slate-400">Largura (cm)</span>
+              <label className="space-y-1 text-xs text-slate-600 dark:text-slate-300">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">Largura (cm)</span>
                 <input
                   type="number"
                   min={11}
                   max={105}
                   value={form.package_width}
                   onChange={(e) => update('package_width', Number(e.target.value))}
-                  className="block w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3 py-2 text-xs font-mono text-white focus:border-amber-400 focus:outline-none"
+                  className="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-mono text-slate-900 focus:border-amber-500 focus:outline-none dark:border-chumbo-700 dark:bg-chumbo-950 dark:text-white dark:focus:border-amber-400"
                 />
               </label>
-              <label className="space-y-1 text-xs text-slate-300">
-                <span className="text-[11px] text-slate-400">Comprimento (cm)</span>
+              <label className="space-y-1 text-xs text-slate-600 dark:text-slate-300">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">Comprimento (cm)</span>
                 <input
                   type="number"
                   min={16}
                   max={105}
                   value={form.package_length}
                   onChange={(e) => update('package_length', Number(e.target.value))}
-                  className="block w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3 py-2 text-xs font-mono text-white focus:border-amber-400 focus:outline-none"
+                  className="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-mono text-slate-900 focus:border-amber-500 focus:outline-none dark:border-chumbo-700 dark:bg-chumbo-950 dark:text-white dark:focus:border-amber-400"
                 />
               </label>
             </div>
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
               * Mínimos dos Correios para caixas: 16cm comprimento × 11cm largura × 2cm altura.
             </p>
           </div>
 
           {/* Card 3: Opções Avançadas e Serviços */}
-          <div className="rounded-xl border border-chumbo-800 bg-chumbo-900/40 p-4 space-y-3">
+          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-3 dark:border-chumbo-800 dark:bg-chumbo-900/40">
             <div className="flex items-center gap-2">
-              <Shield className="h-4 w-4 text-cyan-400" />
-              <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+              <Shield className="h-4 w-4 text-cyan-700 dark:text-cyan-400" />
+              <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider dark:text-white">
                 3. Serviços Adicionais & Prazos
               </h4>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="space-y-1 text-xs text-slate-300">
-                <span className="flex items-center gap-1.5 font-semibold text-white">
-                  <Clock className="h-3.5 w-3.5 text-laser-400" /> Dias adicionais de produção/postagem
+              <label className="space-y-1 text-xs text-slate-600 dark:text-slate-300">
+                <span className="flex items-center gap-1.5 font-semibold text-slate-900 dark:text-white">
+                  <Clock className="h-3.5 w-3.5 text-cyan-700 dark:text-laser-400" /> Dias adicionais de produção/postagem
                 </span>
                 <input
                   type="number"
@@ -294,16 +294,16 @@ export const CarrierSettingsPanel: React.FC<Props> = ({
                   value={form.additional_days}
                   onChange={(e) => update('additional_days', Number(e.target.value))}
                   placeholder="0 (soma aos dias do frete)"
-                  className="block w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3 py-2 text-xs font-mono text-white focus:border-cyan-400 focus:outline-none"
+                  className="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-mono text-slate-900 placeholder:text-slate-400 focus:border-cyan-600 focus:outline-none dark:border-chumbo-700 dark:bg-chumbo-950 dark:text-white dark:placeholder-slate-500 dark:focus:border-cyan-400"
                 />
               </label>
 
-              <label className="space-y-1 text-xs text-slate-300">
-                <span className="font-semibold text-white">Serviços Habilitados</span>
+              <label className="space-y-1 text-xs text-slate-600 dark:text-slate-300">
+                <span className="font-semibold text-slate-900 dark:text-white">Serviços Habilitados</span>
                 <select
                   value={form.services}
                   onChange={(e) => update('services', e.target.value)}
-                  className="block w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3 py-2 text-xs text-white focus:border-cyan-400 focus:outline-none"
+                  className="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 focus:border-cyan-600 focus:outline-none dark:border-chumbo-700 dark:bg-chumbo-950 dark:text-white dark:focus:border-cyan-400"
                 >
                   <option value="1,2,17">Todos (PAC, SEDEX e Mini Envios)</option>
                   <option value="1,2">PAC e SEDEX</option>
@@ -314,32 +314,32 @@ export const CarrierSettingsPanel: React.FC<Props> = ({
             </div>
 
             <div className="grid gap-2 pt-2 sm:grid-cols-3">
-              <label className="flex items-center gap-2 rounded-lg border border-chumbo-800 bg-chumbo-950/60 p-2.5 text-xs text-slate-300 cursor-pointer hover:border-chumbo-700">
+              <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-2.5 text-xs text-slate-700 cursor-pointer shadow-sm hover:border-slate-300 dark:border-chumbo-800 dark:bg-chumbo-950/60 dark:text-slate-300 dark:hover:border-chumbo-700">
                 <input
                   type="checkbox"
                   checked={form.own_hand}
                   onChange={(e) => update('own_hand', e.target.checked)}
-                  className="rounded border-chumbo-700 text-laser-500 focus:ring-0"
+                  className="rounded border-slate-300 text-cyan-600 focus:ring-0 dark:border-chumbo-700 dark:text-laser-500"
                 />
                 <span>Mão Própria</span>
               </label>
 
-              <label className="flex items-center gap-2 rounded-lg border border-chumbo-800 bg-chumbo-950/60 p-2.5 text-xs text-slate-300 cursor-pointer hover:border-chumbo-700">
+              <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-2.5 text-xs text-slate-700 cursor-pointer shadow-sm hover:border-slate-300 dark:border-chumbo-800 dark:bg-chumbo-950/60 dark:text-slate-300 dark:hover:border-chumbo-700">
                 <input
                   type="checkbox"
                   checked={form.receipt}
                   onChange={(e) => update('receipt', e.target.checked)}
-                  className="rounded border-chumbo-700 text-laser-500 focus:ring-0"
+                  className="rounded border-slate-300 text-cyan-600 focus:ring-0 dark:border-chumbo-700 dark:text-laser-500"
                 />
                 <span>Aviso de Recebimento (AR)</span>
               </label>
 
-              <label className="flex items-center gap-2 rounded-lg border border-chumbo-800 bg-chumbo-950/60 p-2.5 text-xs text-slate-300 cursor-pointer hover:border-chumbo-700">
+              <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-2.5 text-xs text-slate-700 cursor-pointer shadow-sm hover:border-slate-300 dark:border-chumbo-800 dark:bg-chumbo-950/60 dark:text-slate-300 dark:hover:border-chumbo-700">
                 <input
                   type="checkbox"
                   checked={form.use_insurance_value}
                   onChange={(e) => update('use_insurance_value', e.target.checked)}
-                  className="rounded border-chumbo-700 text-laser-500 focus:ring-0"
+                  className="rounded border-slate-300 text-cyan-600 focus:ring-0 dark:border-chumbo-700 dark:text-laser-500"
                 />
                 <span>Seguro / Valor Declarado</span>
               </label>
@@ -347,39 +347,39 @@ export const CarrierSettingsPanel: React.FC<Props> = ({
           </div>
 
           {/* Card 4: Credenciais e Token Opcional */}
-          <div className="rounded-xl border border-chumbo-800 bg-chumbo-900/30 p-3">
+          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-chumbo-800 dark:bg-chumbo-900/30">
             <button
               type="button"
               onClick={() => setShowAdvancedAuth(!showAdvancedAuth)}
-              className="flex w-full items-center justify-between text-xs font-semibold text-slate-400 hover:text-white"
+              className="flex w-full items-center justify-between text-xs font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
             >
               <span className="flex items-center gap-1.5">
-                <Info className="h-3.5 w-3.5 text-slate-400" /> Token Próprio SuperFrete (Opcional para Tenant)
+                <Info className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" /> Token Próprio SuperFrete (Opcional para Tenant)
               </span>
               {showAdvancedAuth ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </button>
 
             {showAdvancedAuth && (
-              <div className="mt-3 space-y-3 pt-3 border-t border-chumbo-800/60">
-                <label className="space-y-1 text-xs text-slate-400">
+              <div className="mt-3 space-y-3 pt-3 border-t border-slate-200 dark:border-chumbo-800/60">
+                <label className="space-y-1 text-xs text-slate-600 dark:text-slate-400">
                   Token de API Personalizado
                   <input
                     type="password"
                     value={form.access_token}
                     onChange={(e) => update('access_token', e.target.value)}
                     placeholder="Deixe em branco para usar o token SuperFrete da plataforma AZ3D"
-                    className="block w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs font-mono text-white placeholder-slate-600 focus:border-laser-400 focus:outline-none"
+                    className="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-mono text-slate-900 placeholder:text-slate-400 focus:border-cyan-600 focus:outline-none dark:border-chumbo-800 dark:bg-chumbo-950 dark:text-white dark:placeholder-slate-600 dark:focus:border-laser-400"
                   />
                 </label>
 
-                <label className="space-y-1 text-xs text-slate-400">
+                <label className="space-y-1 text-xs text-slate-600 dark:text-slate-400">
                   URL Base da API
                   <input
                     type="text"
                     value={form.api_base_url}
                     onChange={(e) => update('api_base_url', e.target.value)}
                     placeholder="https://api.superfrete.com/api/v0"
-                    className="block w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs font-mono text-white placeholder-slate-600 focus:border-laser-400 focus:outline-none"
+                    className="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-mono text-slate-900 placeholder:text-slate-400 focus:border-cyan-600 focus:outline-none dark:border-chumbo-800 dark:bg-chumbo-950 dark:text-white dark:placeholder-slate-600 dark:focus:border-laser-400"
                   />
                 </label>
               </div>
@@ -388,7 +388,7 @@ export const CarrierSettingsPanel: React.FC<Props> = ({
 
           <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
             <div className="flex items-center gap-4">
-              <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+              <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer dark:text-slate-300">
                 <input
                   type="checkbox"
                   checked={form.is_active}
@@ -396,7 +396,7 @@ export const CarrierSettingsPanel: React.FC<Props> = ({
                 />
                 Ativa no Checkout
               </label>
-              <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+              <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer dark:text-slate-300">
                 <input
                   type="checkbox"
                   checked={form.sync_tracking}
@@ -409,7 +409,7 @@ export const CarrierSettingsPanel: React.FC<Props> = ({
             <button
               disabled={saving}
               type="submit"
-              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-emerald-500/20 hover:from-emerald-400 hover:to-teal-400 disabled:opacity-50"
+              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-5 py-2.5 text-xs font-bold text-white shadow-md hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 dark:shadow-emerald-500/20"
             >
               <Save className="h-4 w-4" /> {saving ? 'Salvando...' : 'Salvar Parâmetros de Frete'}
             </button>
@@ -418,54 +418,54 @@ export const CarrierSettingsPanel: React.FC<Props> = ({
 
         {/* Painel lateral: Resumo das Configurações do Tenant */}
         <div className="space-y-4">
-          <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
-            <h4 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-white">
-              <Activity className="h-4 w-4 text-emerald-400" /> Resumo de Expedição
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-chumbo-800 dark:bg-chumbo-950/60">
+            <h4 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">
+              <Activity className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> Resumo de Expedição
             </h4>
             
             <div className="mt-3 space-y-3">
-              <div className="rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3 text-xs space-y-2">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs space-y-2 dark:border-chumbo-800 dark:bg-chumbo-900/60">
                 <div className="flex justify-between items-center">
-                  <span className="font-bold text-white">SuperFrete (Correios)</span>
-                  <span className="rounded-full bg-emerald-950/60 px-2 py-0.5 text-[10px] font-bold text-emerald-400 border border-emerald-500/30">
+                  <span className="font-bold text-slate-900 dark:text-white">SuperFrete (Correios)</span>
+                  <span className="rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-950/60 dark:text-emerald-400">
                     Cálculo Oficial Ativo
                   </span>
                 </div>
 
-                <div className="space-y-1 text-slate-300 text-[11px]">
+                <div className="space-y-1 text-slate-700 text-[11px] dark:text-slate-300">
                   <p className="flex items-center justify-between">
-                    <span className="text-slate-400">CEP Origem:</span>
-                    <strong className="font-mono text-laser-400">{form.origin_cep || 'Não definido'}</strong>
+                    <span className="text-slate-500 dark:text-slate-400">CEP Origem:</span>
+                    <strong className="font-mono text-cyan-800 dark:text-laser-400">{form.origin_cep || 'Não definido'}</strong>
                   </p>
                   <p className="flex items-center justify-between">
-                    <span className="text-slate-400">Dimensões:</span>
+                    <span className="text-slate-500 dark:text-slate-400">Dimensões:</span>
                     <span>{form.package_height} × {form.package_width} × {form.package_length} cm</span>
                   </p>
                   <p className="flex items-center justify-between">
-                    <span className="text-slate-400">Peso Padrão:</span>
+                    <span className="text-slate-500 dark:text-slate-400">Peso Padrão:</span>
                     <span>{form.package_weight_grams}g ({(form.package_weight_grams / 1000).toFixed(2)} kg)</span>
                   </p>
                   <p className="flex items-center justify-between">
-                    <span className="text-slate-400">Formato:</span>
+                    <span className="text-slate-500 dark:text-slate-400">Formato:</span>
                     <span>{form.package_format === 'box' ? 'Caixa / Pacote' : form.package_format === 'roll' ? 'Rolo / Cilindro' : 'Envelope'}</span>
                   </p>
                   <p className="flex items-center justify-between">
-                    <span className="text-slate-400">Prazo Adicional:</span>
+                    <span className="text-slate-500 dark:text-slate-400">Prazo Adicional:</span>
                     <span>+{form.additional_days} dia(s)</span>
                   </p>
                 </div>
               </div>
 
               {accounts.map((account) => (
-                <div key={account.id} className="rounded-xl border border-chumbo-800 bg-chumbo-900/40 p-3 text-xs">
+                <div key={account.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs dark:border-chumbo-800 dark:bg-chumbo-900/40">
                   <div className="flex justify-between gap-3">
                     <div>
-                      <strong className="block text-white">{account.account_name || account.provider}</strong>
+                      <strong className="block text-slate-900 dark:text-white">{account.account_name || account.provider}</strong>
                       <span className="text-[11px] text-slate-500">
                         {account.auth_type} · {account.is_connected ? 'conectada' : 'ativa'}
                       </span>
                       {account.origin_cep && (
-                        <p className="mt-1 flex items-center gap-1 font-mono text-emerald-400 text-[11px]">
+                        <p className="mt-1 flex items-center gap-1 font-mono text-emerald-700 text-[11px] dark:text-emerald-400">
                           <MapPin className="h-3 w-3" /> Origem: {account.origin_cep}
                         </p>
                       )}
@@ -475,23 +475,23 @@ export const CarrierSettingsPanel: React.FC<Props> = ({
                       title={account.is_active ? 'Desativar' : 'Ativar'}
                     >
                       {account.is_active ? (
-                        <ToggleRight className="h-7 w-7 text-emerald-400" />
+                        <ToggleRight className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
                       ) : (
-                        <ToggleLeft className="h-7 w-7 text-slate-500" />
+                        <ToggleLeft className="h-7 w-7 text-slate-400 dark:text-slate-500" />
                       )}
                     </button>
                   </div>
-                  {account.last_error && <p className="mt-2 text-rose-300 text-[11px]">{account.last_error}</p>}
+                  {account.last_error && <p className="mt-2 text-rose-600 text-[11px] dark:text-rose-300">{account.last_error}</p>}
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="rounded-xl border border-blue-500/20 bg-blue-950/20 p-3 text-[11px] text-blue-300 space-y-1">
-            <p className="font-semibold flex items-center gap-1.5 text-blue-200">
+          <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3 text-[11px] text-blue-900 space-y-1 dark:border-blue-500/20 dark:bg-blue-950/20 dark:text-blue-300">
+            <p className="font-semibold flex items-center gap-1.5 text-blue-950 dark:text-blue-200">
               <Info className="h-3.5 w-3.5" /> Como funciona o cálculo?
             </p>
-            <p className="text-slate-400">
+            <p className="text-slate-600 dark:text-slate-400">
               Quando o cliente digita o CEP de entrega na vitrine da sua loja ou no checkout, o sistema envia exatamente o seu CEP de origem e as dimensões configuradas para a API do SuperFrete, trazendo os mesmos descontos de SEDEX e PAC da plataforma.
             </p>
           </div>

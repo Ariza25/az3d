@@ -221,15 +221,15 @@ export const ImageConverterTab: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header Info */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-laser-500/30 bg-chumbo-950/80 p-5 backdrop-blur-md">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm backdrop-blur-md dark:border-laser-500/30 dark:bg-chumbo-950/80">
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-laser-400/20 text-laser-400 border border-laser-400/30">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-100 text-cyan-800 border border-cyan-200 dark:bg-laser-400/20 dark:text-laser-400 dark:border-laser-400/30">
             <Sparkles className="h-6 w-6" />
           </div>
           <div>
-            <h3 className="text-base font-extrabold text-white">Formatador de Imagens sem Bordas para Mercado Livre</h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Converte e preenche 100% da área sem bordas para o padrão oficial <strong className="text-white">900 x 1200 px (3:4)</strong>. 100% no seu navegador (sem salvar no servidor).
+            <h3 className="text-base font-extrabold text-slate-900 dark:text-white">Formatador de Imagens sem Bordas para Mercado Livre</h3>
+            <p className="text-xs text-slate-600 mt-0.5 dark:text-slate-400">
+              Converte e preenche 100% da área sem bordas para o padrão oficial <strong className="text-slate-900 dark:text-white">900 x 1200 px (3:4)</strong>. 100% no seu navegador (sem salvar no servidor).
             </p>
           </div>
         </div>
@@ -238,7 +238,7 @@ export const ImageConverterTab: React.FC = () => {
           <div className="flex items-center gap-2">
             <button
               onClick={handleClearAll}
-              className="flex items-center gap-1.5 rounded-xl border border-chumbo-700 bg-chumbo-900 px-3.5 py-2 text-xs font-bold text-slate-300 hover:bg-chumbo-800 hover:text-white transition-colors"
+              className="flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors shadow-sm dark:border-chumbo-700 dark:bg-chumbo-900 dark:text-slate-300 dark:hover:bg-chumbo-800 dark:hover:text-white"
             >
               <Trash2 className="h-4 w-4" />
               Limpar lista
@@ -257,14 +257,14 @@ export const ImageConverterTab: React.FC = () => {
 
       {/* Opções de Redimensionamento */}
       <div className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-2xl border border-chumbo-800 bg-chumbo-900/60 p-4 space-y-2">
-          <label className="block text-xs font-mono uppercase tracking-wider text-slate-400 font-bold">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-2 shadow-sm dark:border-chumbo-800 dark:bg-chumbo-900/60">
+          <label className="block text-xs font-mono uppercase tracking-wider text-slate-600 font-bold dark:text-slate-400">
             Formato / Resolução Alvo
           </label>
           <select
             value={preset}
             onChange={(e) => handlePresetChange(e.target.value)}
-            className="w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3 py-2 text-xs font-bold text-white focus:border-laser-500 focus:outline-none"
+            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-900 focus:border-cyan-600 focus:outline-none dark:border-chumbo-700 dark:bg-chumbo-950 dark:text-white dark:focus:border-laser-500"
           >
             <option value="ml-34">Mercado Livre Fotos 3:4 Vertical (900 x 1200 px — Padrão Exato ML)</option>
             <option value="ml-square">Fotos 1:1 Quadrado HD (1200 x 1200 px)</option>
@@ -275,49 +275,49 @@ export const ImageConverterTab: React.FC = () => {
           {preset === 'custom' && (
             <div className="grid grid-cols-2 gap-2 pt-2">
               <div>
-                <span className="text-[10px] text-slate-400 font-mono">Largura (px)</span>
+                <span className="text-[10px] text-slate-600 font-mono dark:text-slate-400">Largura (px)</span>
                 <input
                   type="number"
                   value={targetWidth}
                   onChange={(e) => setTargetWidth(Number(e.target.value) || 900)}
-                  className="w-full rounded-lg border border-chumbo-700 bg-chumbo-950 px-2 py-1.5 text-xs text-white"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 dark:border-chumbo-700 dark:bg-chumbo-950 dark:text-white"
                 />
               </div>
               <div>
-                <span className="text-[10px] text-slate-400 font-mono">Altura (px)</span>
+                <span className="text-[10px] text-slate-600 font-mono dark:text-slate-400">Altura (px)</span>
                 <input
                   type="number"
                   value={targetHeight}
                   onChange={(e) => setTargetHeight(Number(e.target.value) || 1200)}
-                  className="w-full rounded-lg border border-chumbo-700 bg-chumbo-950 px-2 py-1.5 text-xs text-white"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 dark:border-chumbo-700 dark:bg-chumbo-950 dark:text-white"
                 />
               </div>
             </div>
           )}
         </div>
 
-        <div className="rounded-2xl border border-chumbo-800 bg-chumbo-900/60 p-4 space-y-2">
-          <label className="block text-xs font-mono uppercase tracking-wider text-slate-400 font-bold">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-2 shadow-sm dark:border-chumbo-800 dark:bg-chumbo-900/60">
+          <label className="block text-xs font-mono uppercase tracking-wider text-slate-600 font-bold dark:text-slate-400">
             Modo de Enquadramento (Bordas)
           </label>
           <select
             value={fitMode}
             onChange={(e) => setFitMode(e.target.value as FitMode)}
-            className="w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3 py-2 text-xs font-bold text-white focus:border-laser-500 focus:outline-none"
+            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-900 focus:border-cyan-600 focus:outline-none dark:border-chumbo-700 dark:bg-chumbo-950 dark:text-white dark:focus:border-laser-500"
           >
             <option value="cover">Preencher Sem Bordas (Zoom/Corte - Recomendado)</option>
             <option value="stretch">Esticar Total Sem Bordas (Preenchimento 100%)</option>
           </select>
         </div>
 
-        <div className="rounded-2xl border border-chumbo-800 bg-chumbo-900/60 p-4 space-y-2">
-          <label className="block text-xs font-mono uppercase tracking-wider text-slate-400 font-bold">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-2 shadow-sm dark:border-chumbo-800 dark:bg-chumbo-900/60">
+          <label className="block text-xs font-mono uppercase tracking-wider text-slate-600 font-bold dark:text-slate-400">
             Formato de Saída
           </label>
           <select
             value={outputFormat}
             onChange={(e) => setOutputFormat(e.target.value as OutputFormat)}
-            className="w-full rounded-xl border border-chumbo-700 bg-chumbo-950 px-3 py-2 text-xs font-bold text-white focus:border-laser-500 focus:outline-none"
+            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-900 focus:border-cyan-600 focus:outline-none dark:border-chumbo-700 dark:bg-chumbo-950 dark:text-white dark:focus:border-laser-500"
           >
             <option value="image/jpeg">JPEG (.jpg) — 92% Qualidade</option>
             <option value="image/png">PNG (.png) — Transparência & Sem Perdas</option>
@@ -331,7 +331,7 @@ export const ImageConverterTab: React.FC = () => {
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
         onClick={() => fileInputRef.current?.click()}
-        className="relative cursor-pointer rounded-2xl border-2 border-dashed border-chumbo-700 bg-chumbo-950/70 p-8 text-center transition-all hover:border-laser-400 hover:bg-chumbo-900/50 group"
+        className="relative cursor-pointer rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50/70 p-8 text-center transition-all hover:border-cyan-600 hover:bg-slate-100 group dark:border-chumbo-700 dark:bg-chumbo-950/70 dark:hover:border-laser-400 dark:hover:bg-chumbo-900/50"
       >
         <input
           ref={fileInputRef}
@@ -341,26 +341,26 @@ export const ImageConverterTab: React.FC = () => {
           className="hidden"
           onChange={(e) => e.target.files && void handleFilesAdded(e.target.files)}
         />
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-chumbo-700 bg-chumbo-900 text-laser-400 transition-transform group-hover:scale-110">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200 bg-white text-cyan-800 shadow-sm transition-transform group-hover:scale-110 dark:border-chumbo-700 dark:bg-chumbo-900 dark:text-laser-400">
           {isProcessing ? (
             <Loader2 className="h-7 w-7 animate-spin" />
           ) : (
             <UploadCloud className="h-7 w-7" />
           )}
         </div>
-        <h4 className="mt-4 text-sm font-extrabold text-white">
+        <h4 className="mt-4 text-sm font-extrabold text-slate-900 dark:text-white">
           {isProcessing ? 'Formatando lote de imagens...' : 'Arraste e solte fotos de produtos aqui em lote'}
         </h4>
-        <p className="mt-1 text-xs text-slate-400">
+        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
           Sem bordas · Formatação automática para{' '}
-          <strong className="text-laser-400">{targetWidth} x {targetHeight} px</strong> ({fitMode === 'cover' ? 'Preenchimento sem bordas' : fitMode === 'stretch' ? 'Esticado sem bordas' : 'Ajustado'}).
+          <strong className="text-cyan-800 dark:text-laser-400">{targetWidth} x {targetHeight} px</strong> ({fitMode === 'cover' ? 'Preenchimento sem bordas' : fitMode === 'stretch' ? 'Esticado sem bordas' : 'Ajustado'}).
         </p>
       </div>
 
       {/* Lista de Imagens Processadas */}
       {items.length > 0 && (
         <div className="space-y-3">
-          <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
+          <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-600 font-mono dark:text-slate-400">
             <span>Imagens Formatadas Sem Bordas ({items.length})</span>
             <span>Pronto para Download</span>
           </div>
@@ -369,10 +369,10 @@ export const ImageConverterTab: React.FC = () => {
             {items.map((item) => (
               <div
                 key={item.id}
-                className="flex flex-col justify-between overflow-hidden rounded-2xl border border-chumbo-800 bg-chumbo-950 p-3 shadow-lg transition-all hover:border-chumbo-700"
+                className="flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition-all hover:border-slate-300 dark:border-chumbo-800 dark:bg-chumbo-950 dark:hover:border-chumbo-700"
               >
                 <div className="flex items-center gap-3">
-                  <div className="relative h-20 w-16 shrink-0 overflow-hidden rounded-xl border border-chumbo-800 bg-chumbo-900">
+                  <div className="relative h-20 w-16 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-chumbo-800 dark:bg-chumbo-900">
                     <img
                       src={item.dataUrl}
                       alt={item.originalName}
@@ -380,29 +380,29 @@ export const ImageConverterTab: React.FC = () => {
                     />
                   </div>
                   <div className="min-w-0 flex-1 space-y-1">
-                    <p className="truncate text-xs font-bold text-white" title={item.originalName}>
+                    <p className="truncate text-xs font-bold text-slate-900 dark:text-white" title={item.originalName}>
                       {item.originalName}
                     </p>
-                    <p className="text-[10px] font-mono text-slate-400">
+                    <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
                       Original: {item.originalWidth}x{item.originalHeight}px ({item.originalSizeMb} MB)
                     </p>
-                    <p className="text-[10px] font-mono font-bold text-laser-400">
+                    <p className="text-[10px] font-mono font-bold text-cyan-800 dark:text-laser-400">
                       Convertido: {item.outputWidth}x{item.outputHeight}px ({item.outputSizeMb} MB)
                     </p>
                   </div>
                 </div>
 
-                <div className="mt-3 flex items-center justify-between border-t border-chumbo-850 pt-2">
+                <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2 dark:border-chumbo-850">
                   <button
                     onClick={() => handleRemoveSingle(item.id)}
-                    className="rounded-lg p-1.5 text-slate-500 hover:bg-chumbo-850 hover:text-rose-400 transition-colors"
+                    className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-rose-600 transition-colors dark:text-slate-500 dark:hover:bg-chumbo-850 dark:hover:text-rose-400"
                     title="Remover da lista"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => handleDownloadSingle(item)}
-                    className="flex items-center gap-1.5 rounded-xl bg-laser-400 px-3 py-1.5 text-xs font-extrabold text-chumbo-950 hover:bg-laser-300 transition-all active:scale-95"
+                    className="flex items-center gap-1.5 rounded-xl bg-cyan-700 px-3 py-1.5 text-xs font-extrabold text-white hover:bg-cyan-800 transition-all active:scale-95 dark:bg-laser-400 dark:text-chumbo-950 dark:hover:bg-laser-300"
                   >
                     <Download className="h-3.5 w-3.5 stroke-[2.5]" />
                     <span>Baixar</span>

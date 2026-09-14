@@ -25,18 +25,18 @@ export const AdminOrdersTab: React.FC<AdminOrdersTabProps> = ({
 }) => {
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-bold text-white">Gerenciamento de vendas e pedidos</h3>
+      <h3 className="text-sm font-bold text-slate-900 dark:text-white">Gerenciamento de vendas e pedidos</h3>
       
-      <form onSubmit={onSaveShipment} className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
+      <form onSubmit={onSaveShipment} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-chumbo-800 dark:bg-chumbo-950/60">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
           <div className="flex-1 space-y-1.5">
-            <label className="text-xs font-mono uppercase text-slate-400">Pedido</label>
+            <label className="text-xs font-mono uppercase font-bold text-slate-600 dark:text-slate-400">Pedido</label>
             <select
               value={shipmentForm.order_id || ''}
               onChange={(event) =>
                 setShipmentForm((prev) => ({ ...prev, order_id: Number(event.target.value) || 0 }))
               }
-              className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-cyan-600 focus:outline-none dark:border-chumbo-800 dark:bg-chumbo-950 dark:text-white"
             >
               <option value="">Selecione</option>
               {orders.map((order) => (
@@ -47,36 +47,36 @@ export const AdminOrdersTab: React.FC<AdminOrdersTabProps> = ({
             </select>
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs font-mono uppercase text-slate-400">Transportadora</label>
+            <label className="text-xs font-mono uppercase font-bold text-slate-600 dark:text-slate-400">Transportadora</label>
             <select
               value={shipmentForm.carrier}
               onChange={(event) =>
                 setShipmentForm((prev) => ({ ...prev, carrier: event.target.value }))
               }
-              className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-cyan-600 focus:outline-none dark:border-chumbo-800 dark:bg-chumbo-950 dark:text-white"
             >
               <option value="superfrete">SuperFrete (Correios)</option>
             </select>
           </div>
           <div className="flex-1 space-y-1.5">
-            <label className="text-xs font-mono uppercase text-slate-400">Codigo de rastreio</label>
+            <label className="text-xs font-mono uppercase font-bold text-slate-600 dark:text-slate-400">Codigo de rastreio</label>
             <input
               value={shipmentForm.tracking_code}
               onChange={(event) =>
                 setShipmentForm((prev) => ({ ...prev, tracking_code: event.target.value.toUpperCase() }))
               }
               placeholder="AA123456789BR"
-              className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-cyan-600 focus:outline-none dark:border-chumbo-800 dark:bg-chumbo-950 dark:text-white dark:placeholder-slate-500"
             />
           </div>
-          <button type="submit" className="rounded-xl bg-white px-4 py-2 text-xs font-bold text-chumbo-950 hover:bg-slate-200">
+          <button type="submit" className="rounded-xl bg-cyan-700 px-4 py-2 text-xs font-bold text-white hover:bg-cyan-800 dark:bg-white dark:text-chumbo-950 dark:hover:bg-slate-200">
             Vincular envio
           </button>
           <button
             type="button"
             onClick={onSyncAllTracking}
             disabled={syncingShipmentId === 'all' || shipments.length === 0}
-            className="flex items-center justify-center gap-2 rounded-xl border border-chumbo-700 bg-chumbo-900 px-4 py-2 text-xs font-bold text-slate-200 hover:bg-chumbo-800 disabled:opacity-50"
+            className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 dark:border-chumbo-700 dark:bg-chumbo-900 dark:text-slate-200 dark:hover:bg-chumbo-800 disabled:opacity-50"
           >
             <RefreshCw className={`h-4 w-4 ${syncingShipmentId === 'all' ? 'animate-spin' : ''}`} />
             Sincronizar
@@ -84,9 +84,9 @@ export const AdminOrdersTab: React.FC<AdminOrdersTabProps> = ({
         </div>
       </form>
 
-      <div className="rounded-2xl border border-chumbo-800 overflow-hidden bg-chumbo-950/60">
+      <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm dark:border-chumbo-800 dark:bg-chumbo-950/60">
         <table className="w-full text-left text-xs">
-          <thead className="bg-chumbo-950 text-slate-400 font-mono uppercase text-[10px]">
+          <thead className="border-b border-slate-200 bg-slate-50 text-slate-600 font-mono uppercase text-[10px] dark:border-chumbo-800 dark:bg-chumbo-950 dark:text-slate-400">
             <tr>
               <th className="p-3">Pedido</th>
               <th className="p-3">Comprador</th>
@@ -96,36 +96,36 @@ export const AdminOrdersTab: React.FC<AdminOrdersTabProps> = ({
               <th className="p-3">Ação</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-chumbo-850 text-slate-300">
+          <tbody className="divide-y divide-slate-200 text-slate-700 dark:divide-chumbo-850 dark:text-slate-300">
             {orders.map((o) => (
-              <tr key={o.id} className="hover:bg-chumbo-850/50 transition-colors">
-                <td className="p-3 font-mono font-bold text-white">
+              <tr key={o.id} className="hover:bg-slate-50 dark:hover:bg-chumbo-850/50 transition-colors">
+                <td className="p-3 font-mono font-bold text-slate-900 dark:text-white">
                   #{o.id}
                   <span className="text-[10px] text-slate-500 block">
                     {new Date(o.created_at).toLocaleDateString('pt-BR')}
                   </span>
                 </td>
                 <td className="p-3">
-                  <span className="text-white font-semibold block">
+                  <span className="text-slate-900 dark:text-white font-semibold block">
                     {o.user?.name || `Usuário #${o.user_id}`}
                   </span>
-                  <span className="text-[10px] text-slate-400">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400">
                     {o.shipping_address || 'Endereço padrão'}
                   </span>
                 </td>
                 <td className="p-3">
-                  <span className="bg-slate-200 text-slate-800 dark:bg-chumbo-800 dark:text-slate-300 px-2 py-0.5 rounded-md font-mono text-[11px]">
+                  <span className="bg-slate-100 text-slate-700 border border-slate-200 dark:border-transparent dark:bg-chumbo-800 dark:text-slate-300 px-2 py-0.5 rounded-md font-mono text-[11px]">
                     {o.items?.length || 0} itens
                   </span>
                 </td>
-                <td className="p-3 font-bold text-white">
+                <td className="p-3 font-bold text-slate-900 dark:text-white">
                   R$ {o.total_amount.toFixed(2).replace('.', ',')}
                 </td>
                 <td className="p-3">
                   <select
                     value={o.status}
                     onChange={(e) => onStatusChange(o.id, e.target.value)}
-                    className={`bg-chumbo-950 border border-chumbo-700 text-xs font-mono font-bold rounded-lg px-2 py-1 focus:outline-none ${
+                    className={`border border-slate-200 bg-white text-xs font-mono font-bold rounded-lg px-2 py-1 focus:outline-none dark:bg-chumbo-950 dark:border-chumbo-700 ${
                       o.status === 'preparing' || o.status === 'paid'
                         ? 'text-amber-600 dark:text-amber-400'
                         : o.status === 'delivered'

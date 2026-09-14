@@ -323,12 +323,12 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
   const modalTitle = (
     <div className="flex items-center gap-3">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-laser-500/30 bg-laser-500/10 text-laser-400">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan-300 bg-cyan-700 text-white dark:border-laser-500/30 dark:bg-laser-500/10 dark:text-laser-400">
         <Store className="h-5 w-5" />
       </div>
       <div>
         <div className="flex items-center gap-2">
-          <h1 className="text-base sm:text-lg font-extrabold text-white">
+          <h1 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white">
             Gestão da loja — {`${activeTenant?.name}`}
           </h1>
         </div>

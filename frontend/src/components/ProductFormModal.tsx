@@ -251,16 +251,16 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Cabeçalho */}
-        <div className="bg-chumbo-950 p-6 border-b border-chumbo-800 flex items-center justify-between">
+        <div className="bg-slate-100 dark:bg-chumbo-950 p-6 border-b border-slate-200 dark:border-chumbo-800 flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-laser-500/20 text-laser-400 border border-laser-500/30 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-cyan-700 text-white border border-cyan-600 dark:bg-laser-500/20 dark:text-laser-400 dark:border-laser-500/30 flex items-center justify-center">
               <PackagePlus className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white">
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white">
                 {productToEdit ? 'Editar Produto' : 'Novo Produto 3D'}
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Preencha os detalhes e especificações de fatiamento 3D
               </p>
             </div>
@@ -268,7 +268,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
           <button
             onClick={onClose}
-            className="p-2 rounded-full bg-chumbo-900 text-slate-400 hover:text-white border border-chumbo-700 transition-colors"
+            className="p-2 rounded-full bg-white text-slate-500 hover:text-slate-900 border border-slate-200 dark:bg-chumbo-900 dark:text-slate-400 dark:hover:text-white dark:border-chumbo-700 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>

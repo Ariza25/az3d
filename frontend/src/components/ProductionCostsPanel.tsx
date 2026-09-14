@@ -85,48 +85,48 @@ export const ProductionCostsPanel: React.FC<ProductionCostsPanelProps> = ({ tena
   return (
     <section className="space-y-4">
       <div>
-        <h3 className="text-sm font-bold text-white">Custos de producao</h3>
-        <p className="mt-1 text-xs text-slate-400">Central de custos fixos, consumo real de filamento, tempo e demais insumos.</p>
+        <h3 className="text-sm font-bold text-slate-900 dark:text-white">Custos de producao</h3>
+        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Central de custos fixos, consumo real de filamento, tempo e demais insumos.</p>
       </div>
       {error && <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-200">{error}</div>}
 
       <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-        <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
-          <h4 className="text-sm font-bold text-white">Custos fixos do tenant</h4>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-chumbo-800 dark:bg-chumbo-950/60">
+          <h4 className="text-sm font-bold text-slate-900 dark:text-white">Custos fixos do tenant</h4>
           <div className="mt-3 space-y-2">
             {fixedCosts.map((cost) => (
-              <div key={cost.id} className="flex items-center justify-between rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3 text-xs">
+              <div key={cost.id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs dark:border-chumbo-800 dark:bg-chumbo-900/60">
                 <div>
-                  <strong className="block text-white">{cost.name}</strong>
+                  <strong className="block text-slate-900 dark:text-white">{cost.name}</strong>
                   <span className="text-slate-500">{cost.allocation_basis} | {cost.is_active ? 'ativo' : 'inativo'}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <strong className="text-laser-300">{currencyBRL(cost.monthly_amount)}</strong>
-                  <button onClick={() => deleteFixedCost(cost.id)} className="rounded-lg border border-chumbo-700 p-2 text-slate-400 hover:text-rose-300">
+                  <strong className="text-cyan-700 dark:text-laser-300">{currencyBRL(cost.monthly_amount)}</strong>
+                  <button onClick={() => deleteFixedCost(cost.id)} className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:text-rose-600 dark:border-chumbo-700 dark:text-slate-400 dark:hover:text-rose-300">
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
               </div>
             ))}
           </div>
-          <div className="mt-4 grid gap-2 border-t border-chumbo-800 pt-4">
-            <input value={fixedForm.name} onChange={(e) => setFixedForm((prev) => ({ ...prev, name: e.target.value }))} className="rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white" />
+          <div className="mt-4 grid gap-2 border-t border-slate-200 pt-4 dark:border-chumbo-800">
+            <input value={fixedForm.name} onChange={(e) => setFixedForm((prev) => ({ ...prev, name: e.target.value }))} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 dark:border-chumbo-800 dark:bg-chumbo-950 dark:text-white" />
             <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
               <NumberField value={fixedForm.monthly_amount} onChange={(value) => setFixedForm((prev) => ({ ...prev, monthly_amount: value }))} />
-              <select value={fixedForm.allocation_basis} onChange={(e) => setFixedForm((prev) => ({ ...prev, allocation_basis: e.target.value }))} className="rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white">
+              <select value={fixedForm.allocation_basis} onChange={(e) => setFixedForm((prev) => ({ ...prev, allocation_basis: e.target.value }))} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 dark:border-chumbo-800 dark:bg-chumbo-950 dark:text-white">
                 <option value="print_hours">Horas de impressao</option>
                 <option value="orders">Pedidos</option>
                 <option value="monthly">Mensal</option>
               </select>
-              <button onClick={saveFixedCost} className="rounded-xl bg-white px-3 text-chumbo-950"><Plus className="h-4 w-4" /></button>
+              <button onClick={saveFixedCost} className="rounded-xl bg-cyan-700 px-3 text-white shadow-sm hover:bg-cyan-800 dark:bg-white dark:text-chumbo-950"><Plus className="h-4 w-4" /></button>
             </div>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
-          <h4 className="text-sm font-bold text-white">Lancamento de custo real</h4>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-chumbo-800 dark:bg-chumbo-950/60">
+          <h4 className="text-sm font-bold text-slate-900 dark:text-white">Lancamento de custo real</h4>
           <div className="mt-3 grid gap-2 md:grid-cols-3">
-            <select value={actualForm.product_id} onChange={(e) => setActualForm((prev) => ({ ...prev, product_id: Number(e.target.value) }))} className="md:col-span-3 rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white">
+            <select value={actualForm.product_id} onChange={(e) => setActualForm((prev) => ({ ...prev, product_id: Number(e.target.value) }))} className="md:col-span-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 dark:border-chumbo-800 dark:bg-chumbo-950 dark:text-white">
               <option value={0}>Produto...</option>
               {products.map((product) => <option key={product.id} value={product.id}>{product.title}</option>)}
             </select>
@@ -141,14 +141,14 @@ export const ProductionCostsPanel: React.FC<ProductionCostsPanelProps> = ({ tena
             <LabeledNumber label="Frete" value={actualForm.shipping_cost} onChange={(value) => setActualForm((prev) => ({ ...prev, shipping_cost: value }))} />
             <LabeledNumber label="Taxa canal" value={actualForm.marketplace_fee_amount} onChange={(value) => setActualForm((prev) => ({ ...prev, marketplace_fee_amount: value }))} />
             <LabeledNumber label="Desconto" value={actualForm.discount_amount} onChange={(value) => setActualForm((prev) => ({ ...prev, discount_amount: value }))} />
-            <textarea value={actualForm.notes} onChange={(e) => setActualForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Observacoes" className="md:col-span-3 rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white" />
+            <textarea value={actualForm.notes} onChange={(e) => setActualForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Observacoes" className="md:col-span-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 dark:border-chumbo-800 dark:bg-chumbo-950 dark:text-white" />
           </div>
-          <button onClick={saveActualCost} className="mt-3 rounded-xl bg-white px-4 py-2 text-xs font-bold text-chumbo-950">Salvar custo real</button>
+          <button onClick={saveActualCost} className="mt-3 rounded-xl bg-cyan-700 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-cyan-800 dark:bg-white dark:text-chumbo-950">Salvar custo real</button>
           <div className="mt-4 space-y-2">
             {actualCosts.slice(0, 6).map((cost) => (
-              <div key={cost.id} className="flex items-center justify-between rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3 text-xs">
-                <span className="truncate text-slate-300">{cost.product?.title || `Produto #${cost.product_id}`}</span>
-                <strong className="text-white">{currencyBRL(cost.total_cost)}</strong>
+              <div key={cost.id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs dark:border-chumbo-800 dark:bg-chumbo-900/60">
+                <span className="truncate text-slate-700 dark:text-slate-300">{cost.product?.title || `Produto #${cost.product_id}`}</span>
+                <strong className="text-slate-900 dark:text-white font-bold">{currencyBRL(cost.total_cost)}</strong>
               </div>
             ))}
           </div>
@@ -159,12 +159,12 @@ export const ProductionCostsPanel: React.FC<ProductionCostsPanelProps> = ({ tena
 };
 
 const NumberField = ({ value, onChange }: { value: number; onChange: (value: number) => void }) => (
-  <input type="number" step="0.01" value={value} onChange={(e) => onChange(Number(e.target.value) || 0)} className="min-w-0 rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white" />
+  <input type="number" step="0.01" value={value} onChange={(e) => onChange(Number(e.target.value) || 0)} className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 dark:border-chumbo-800 dark:bg-chumbo-950 dark:text-white" />
 );
 
 const LabeledNumber = ({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) => (
   <label className="space-y-1">
-    <span className="block text-[10px] font-mono uppercase text-slate-500">{label}</span>
+    <span className="block text-[10px] font-mono uppercase text-slate-500 dark:text-slate-400">{label}</span>
     <NumberField value={value} onChange={onChange} />
   </label>
 );

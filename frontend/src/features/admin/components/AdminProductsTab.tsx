@@ -58,9 +58,9 @@ export const AdminProductsTab: React.FC<AdminProductsTabProps> = ({
         </div>
 
         {/* Tabela de Produtos */}
-        <div className="rounded-2xl border border-chumbo-800 overflow-hidden bg-chumbo-950/60">
+        <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm dark:border-chumbo-800 dark:bg-chumbo-950/60">
           <table className="w-full text-left text-xs">
-            <thead className="bg-chumbo-950 text-slate-400 font-mono uppercase text-[10px]">
+            <thead className="border-b border-slate-200 bg-slate-50 text-slate-600 font-mono uppercase text-[10px] dark:border-chumbo-800 dark:bg-chumbo-950 dark:text-slate-400">
               <tr>
                 <th className="p-3">Produto</th>
                 <th className="p-3">Material 3D</th>
@@ -70,32 +70,32 @@ export const AdminProductsTab: React.FC<AdminProductsTabProps> = ({
                 <th className="p-3 text-right">Ações</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-chumbo-850 text-slate-300">
+            <tbody className="divide-y divide-slate-200 text-slate-700 dark:divide-chumbo-850 dark:text-slate-300">
               {filteredProducts.map((p) => (
-                <tr key={p.id} className="hover:bg-chumbo-850/50 transition-colors">
+                <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-chumbo-850/50 transition-colors">
                   <td className="p-3">
                     <div className="flex items-center space-x-3">
                       <img
                         src={p.image_url}
                         alt={p.title}
-                        className="w-10 h-10 object-cover rounded-lg border border-chumbo-700"
+                        className="w-10 h-10 object-cover rounded-lg border border-slate-200 dark:border-chumbo-700"
                       />
                       <div>
-                        <span className="font-bold text-white block">{p.title}</span>
-                        <span className="text-[10px] text-slate-400 font-mono">ID #{p.id} • Slug: {p.slug}</span>
+                        <span className="font-bold text-slate-900 dark:text-white block">{p.title}</span>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">ID #{p.id} • Slug: {p.slug}</span>
                       </div>
                     </div>
                   </td>
                   <td className="p-3">
-                    <span className="bg-slate-200 text-slate-800 dark:bg-chumbo-800 dark:text-slate-200 px-2 py-0.5 rounded-md font-mono text-[11px]">
+                    <span className="bg-slate-100 text-slate-800 dark:bg-chumbo-800 dark:text-slate-200 px-2 py-0.5 rounded-md font-mono text-[11px] border border-slate-200 dark:border-transparent">
                       {p.material}
                     </span>
                   </td>
-                  <td className="p-3 font-mono text-slate-400">
+                  <td className="p-3 font-mono text-slate-500 dark:text-slate-400">
                     <div>{p.layer_height}</div>
                     <div className="text-[10px] text-slate-500">{p.print_time}</div>
                   </td>
-                  <td className="p-3 font-bold text-white">
+                  <td className="p-3 font-bold text-slate-900 dark:text-white">
                     R$ {p.price.toFixed(2).replace('.', ',')}
                   </td>
                   <td className="p-3">

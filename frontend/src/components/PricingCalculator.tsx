@@ -201,14 +201,14 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     suffix?: string;
   }) => (
     <label className="space-y-1.5">
-      <span className="text-[10px] font-mono text-slate-400 uppercase">{label}</span>
-      <div className="flex items-center rounded-xl border border-chumbo-800 bg-chumbo-950 focus-within:border-laser-400">
+      <span className="text-[10px] font-mono font-bold uppercase text-slate-600 dark:text-slate-400">{label}</span>
+      <div className="flex items-center rounded-xl border border-slate-300 bg-white shadow-sm focus-within:border-cyan-700 dark:border-chumbo-800 dark:bg-chumbo-950 dark:focus-within:border-laser-400">
         <input
           type="number"
           step={step}
           value={Number(input[field] || 0)}
           onChange={(event) => updateNumber(field, event.target.value)}
-          className="w-full bg-transparent px-3 py-2 text-sm text-white focus:outline-none"
+          className="w-full bg-transparent px-3 py-2 text-sm text-slate-900 focus:outline-none dark:text-white"
         />
         {suffix && <span className="pr-3 text-[10px] font-mono text-slate-500">{suffix}</span>}
       </div>
@@ -219,11 +219,11 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     <div className="space-y-5">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <h3 className="flex items-center gap-2 text-sm font-bold text-white">
-            <Calculator className="h-4 w-4 text-laser-400" />
-            <span>Calculadora de precificacao 3D</span>
+          <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white">
+            <Calculator className="h-4 w-4 text-cyan-700 dark:text-laser-400" />
+            <span>Calculadora de precificação 3D</span>
           </h3>
-          <p className="mt-1 text-xs text-slate-400">
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
             O backend calcula custos, margem e taxas do tenant. O painel apenas envia os dados de peso e tempo.
           </p>
         </div>
@@ -233,7 +233,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
             type="button"
             onClick={() => runCalculation()}
             disabled={isCalculating}
-            className="flex items-center justify-center gap-2 rounded-xl bg-laser-400 px-4 py-2 text-xs font-bold text-chumbo-950 transition-colors hover:bg-laser-300 disabled:opacity-60"
+            className="flex items-center justify-center gap-2 rounded-xl bg-cyan-700 px-4 py-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-cyan-800 disabled:opacity-60 dark:bg-laser-400 dark:text-chumbo-950 dark:hover:bg-laser-300"
           >
             {isCalculating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Calculator className="h-4 w-4" />}
             <span>Calcular no backend</span>
@@ -242,16 +242,16 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
             type="button"
             onClick={saveDefaults}
             disabled={isSaving || !tenantSettings}
-            className="flex items-center justify-center gap-2 rounded-xl border border-chumbo-700 bg-chumbo-950 px-4 py-2 text-xs font-bold text-slate-200 transition-colors hover:bg-chumbo-800 disabled:opacity-60"
+            className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-sm transition-colors hover:bg-slate-100 dark:border-chumbo-700 dark:bg-chumbo-950 dark:text-slate-200 dark:hover:bg-chumbo-800 disabled:opacity-60"
           >
             {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            <span>{saved ? 'Parametros salvos' : 'Salvar no tenant'}</span>
+            <span>{saved ? 'Parâmetros salvos' : 'Salvar no tenant'}</span>
           </button>
           <button
             type="button"
             onClick={applyToSelectedProduct}
             disabled={isApplying || !selectedProductId || !result}
-            className="flex items-center justify-center gap-2 rounded-xl border border-laser-500/40 bg-laser-500/10 px-4 py-2 text-xs font-bold text-laser-200 transition-colors hover:bg-laser-500/20 disabled:opacity-40"
+            className="flex items-center justify-center gap-2 rounded-xl border border-cyan-300 bg-cyan-50 px-4 py-2 text-xs font-bold text-cyan-800 shadow-sm transition-colors hover:bg-cyan-100 dark:border-laser-500/40 dark:bg-laser-500/10 dark:text-laser-200 dark:hover:bg-laser-500/20 disabled:opacity-40"
           >
             {isApplying ? <Loader2 className="h-4 w-4 animate-spin" /> : <DollarSign className="h-4 w-4" />}
             <span>Aplicar ao produto</span>
@@ -259,29 +259,33 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
         </div>
       </div>
 
-      {error && <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-200">{error}</div>}
+      {error && (
+        <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300">
+          {error}
+        </div>
+      )}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-        <div className="space-y-4 rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-chumbo-800 dark:bg-chumbo-900/60 lg:col-span-2">
+          <label className="block space-y-1.5">
+            <span className="text-[10px] font-mono font-bold uppercase text-slate-600 dark:text-slate-400">Carregar produto cadastrado</span>
+            <select
+              value={selectedProductId}
+              onChange={(e) => loadProduct(e.target.value)}
+              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 shadow-sm focus:border-cyan-700 focus:outline-none dark:border-chumbo-800 dark:bg-chumbo-950 dark:text-white dark:focus:border-laser-400"
+            >
+              <option value="">Selecionar produto...</option>
+              {products.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.title} ({item.sku || 'sem sku'})
+                </option>
+              ))}
+            </select>
+          </label>
+
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <label className="space-y-1.5 md:col-span-3">
-              <span className="text-[10px] font-mono text-slate-400 uppercase">Carregar produto cadastrado</span>
-              <select
-                value={selectedProductId}
-                onChange={(event) => loadProduct(event.target.value)}
-                className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-sm text-white focus:outline-none focus:border-laser-400"
-              >
-                <option value="">Selecionar produto...</option>
-                {products.map((product) => (
-                  <option key={product.id} value={product.id}>
-                    {product.title}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <Field label="Peso modelo" field="productWeightGrams" suffix="g" />
-            <Field label="Peso suporte" field="supportWeightGrams" suffix="g" />
+            <Field label="Peso modelo" field="productWeightGrams" step="0.1" suffix="g" />
+            <Field label="Peso suporte" field="supportWeightGrams" step="0.1" suffix="g" />
             <Field label="Tempo total" field="printMinutes" step="1" suffix="min" />
           </div>
 
@@ -301,16 +305,16 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
           </div>
         </div>
 
-        <div className="space-y-4 rounded-2xl border border-laser-500/30 bg-laser-500/10 p-4">
+        <div className="space-y-4 rounded-2xl border border-cyan-300 bg-cyan-50/70 p-4 shadow-sm dark:border-laser-500/30 dark:bg-laser-500/10">
           <div>
-            <span className="text-[10px] font-mono font-bold uppercase text-laser-300">Preco sugerido</span>
-            <div className="mt-1 text-3xl font-extrabold text-white">
+            <span className="text-[10px] font-mono font-bold uppercase text-cyan-800 dark:text-laser-300">Preço sugerido</span>
+            <div className="mt-1 text-3xl font-extrabold text-cyan-950 dark:text-white">
               {result ? currencyBRL(result.suggestedPrice) : '--'}
             </div>
-            <p className="mt-1 text-xs text-slate-300">
+            <p className="mt-1 text-xs text-slate-700 dark:text-slate-300 font-medium">
               {result
-                ? `Liquido apos taxas: ${currencyBRL(result.netAfterFees)} | Lucro: ${currencyBRL(result.profit)}`
-                : 'Execute o calculo para ver o resultado atualizado.'}
+                ? `Líquido após taxas: ${currencyBRL(result.netAfterFees)} | Lucro: ${currencyBRL(result.profit)}`
+                : 'Execute o cálculo para ver o resultado atualizado.'}
             </p>
           </div>
 
@@ -324,62 +328,62 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
           </div>
 
           {result && (
-            <div className="rounded-xl border border-chumbo-800 bg-chumbo-950/70 p-3 text-xs text-slate-300">
+            <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-700 shadow-sm dark:border-chumbo-800 dark:bg-chumbo-950/70 dark:text-slate-300">
               <div className="flex justify-between">
                 <span>Material total</span>
-                <strong>{result.totalMaterialGrams.toFixed(2)} g</strong>
+                <strong className="text-slate-900 dark:text-white">{result.totalMaterialGrams.toFixed(2)} g</strong>
               </div>
               <div className="mt-1 flex justify-between">
                 <span>Custo por grama</span>
-                <strong>{currencyBRL(result.materialCostPerGram)}</strong>
+                <strong className="text-slate-900 dark:text-white">{currencyBRL(result.materialCostPerGram)}</strong>
               </div>
               <div className="mt-1 flex justify-between">
                 <span>Energia estimada</span>
-                <strong>{result.energyKwh.toFixed(3)} kWh</strong>
+                <strong className="text-slate-900 dark:text-white">{result.energyKwh.toFixed(3)} kWh</strong>
               </div>
               <div className="mt-1 flex justify-between">
                 <span>Reserva de perda</span>
-                <strong>{currencyBRL(result.failureReserve)}</strong>
+                <strong className="text-slate-900 dark:text-white">{currencyBRL(result.failureReserve)}</strong>
               </div>
               <div className="mt-1 flex justify-between">
                 <span>Custo operacional</span>
-                <strong>{currencyBRL(result.operationalCost)}</strong>
+                <strong className="text-slate-900 dark:text-white">{currencyBRL(result.operationalCost)}</strong>
               </div>
             </div>
           )}
         </div>
       </div>
 
-      <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60">
-        <div className="flex items-center justify-between border-b border-chumbo-800 px-4 py-3">
-          <h4 className="text-xs font-bold text-white">Base inicial do Excel</h4>
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-chumbo-800 dark:bg-chumbo-950/60">
+        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-chumbo-800">
+          <h4 className="text-xs font-bold text-slate-900 dark:text-white">Base inicial do Excel</h4>
           <span className="text-[10px] font-mono text-slate-500">calculada pela API</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-chumbo-950 text-[10px] uppercase text-slate-400">
+            <thead className="bg-slate-50 text-[10px] uppercase text-slate-600 dark:bg-chumbo-950 dark:text-slate-400">
               <tr>
                 <th className="p-3">Produto</th>
                 <th className="p-3">Peso</th>
                 <th className="p-3">Tempo</th>
                 <th className="p-3">Custo direto</th>
-                <th className="p-3">Preco sugerido</th>
+                <th className="p-3">Preço sugerido</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-chumbo-850 text-slate-300">
+            <tbody className="divide-y divide-slate-100 text-slate-700 dark:divide-chumbo-850 dark:text-slate-300">
               {EXCEL_BASE_PRODUCTS.map((item) => {
                 const calculated = excelRows.find((row) => row.name === item.name);
                 return (
                   <tr
                     key={item.name}
-                    className="cursor-pointer transition-colors hover:bg-chumbo-850/60"
+                    className="cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-chumbo-850/60"
                     onClick={() => applyBaseProduct(item.name)}
                   >
-                    <td className="p-3 font-semibold text-white">{item.name}</td>
+                    <td className="p-3 font-semibold text-slate-900 dark:text-white">{item.name}</td>
                     <td className="p-3 font-mono">{item.weight.toFixed(2)} g</td>
                     <td className="p-3 font-mono">{formatPrintDuration(item.minutes)}</td>
                     <td className="p-3 font-mono">{calculated ? currencyBRL(calculated.result.directCost) : '--'}</td>
-                    <td className="p-3 font-bold text-laser-300">
+                    <td className="p-3 font-bold text-cyan-700 dark:text-laser-300">
                       {calculated ? currencyBRL(calculated.result.suggestedPrice) : '--'}
                     </td>
                   </tr>
@@ -394,9 +398,9 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
 };
 
 const Metric = ({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) => (
-  <div className="rounded-xl border border-chumbo-800 bg-chumbo-950/70 p-3">
-    <div className="mb-2 text-laser-300">{icon}</div>
-    <span className="block text-[10px] font-mono uppercase text-slate-500">{label}</span>
-    <strong className="mt-1 block text-sm text-white">{value}</strong>
+  <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-chumbo-800 dark:bg-chumbo-950/70">
+    <div className="mb-2 text-cyan-700 dark:text-laser-300">{icon}</div>
+    <span className="block text-[10px] font-mono font-bold uppercase text-slate-500 dark:text-slate-400">{label}</span>
+    <strong className="mt-1 block text-sm text-slate-900 dark:text-white">{value}</strong>
   </div>
 );

@@ -258,6 +258,36 @@ html.light textarea,
   color: #0f172a !important;
 }
 
+html.light input::placeholder,
+html.light textarea::placeholder,
+[data-theme="light"] input::placeholder,
+[data-theme="light"] textarea::placeholder {
+  color: #64748b !important;
+  opacity: 1 !important;
+}
+
+/* No tema claro, títulos (h1-h6) e cabeçalhos devem ser escuros/pretos */
+html.light h1,
+html.light h2,
+html.light h3,
+html.light h4,
+html.light h5,
+html.light h6,
+[data-theme="light"] h1,
+[data-theme="light"] h2,
+[data-theme="light"] h3,
+[data-theme="light"] h4,
+[data-theme="light"] h5,
+[data-theme="light"] h6 {
+  color: #0f172a;
+}
+
+html.light ::selection,
+[data-theme="light"] ::selection {
+  background-color: #bae6fd;
+  color: #0f172a;
+}
+
 /* Evita duplicidade de botão 'x' nativo em campos de pesquisa */
 input[type="search"]::-webkit-search-cancel-button,
 input[type="search"]::-webkit-search-decoration,
@@ -270,22 +300,17 @@ input[type="search"]::-webkit-search-results-decoration {
 
 /* ==========================================================================
    Tema Claro: Badges, Tags, Status e Botões Coloridos
-   Garante fundo escuro saturado (verde escuro, amarelo/âmbar escuro, vermelho escuro)
-   com texto e ícones em branco puro para máxima legibilidade.
+   Garante fundo escuro saturado com texto e ícones em branco puro para legibilidade.
+   APLICA APENAS EM ELEMENTOS ESPECÍFICOS (botões, badges, tags), NUNCA EM DESCENDENTES DE CARDS.
    ========================================================================== */
 
-/* 1. Elementos que usam text-white sobre fundos escuros/coloridos devem SEMPRE manter branco puro */
-html.light [class*="bg-emerald-"] .text-white,
-html.light [class*="bg-green-"] .text-white,
-html.light [class*="bg-amber-"] .text-white,
-html.light [class*="bg-yellow-"] .text-white,
-html.light [class*="bg-rose-"] .text-white,
-html.light [class*="bg-red-"] .text-white,
-html.light [class*="bg-cyan-"] .text-white,
-html.light [class*="bg-laser-"] .text-white,
-html.light [class*="bg-blue-"] .text-white,
-html.light [class*="bg-purple-"] .text-white,
-html.light [class*="bg-indigo-"] .text-white,
+/* 1. Elementos que possuem background escuro/colorido e classe text-white */
+html.light button.text-white,
+html.light a.text-white,
+html.light .badge.text-white,
+html.light .badge .text-white,
+html.light button[class*="bg-"] .text-white,
+html.light a[class*="bg-"] .text-white,
 html.light .text-white[class*="bg-emerald-"],
 html.light .text-white[class*="bg-green-"],
 html.light .text-white[class*="bg-amber-"],
@@ -297,17 +322,12 @@ html.light .text-white[class*="bg-laser-"],
 html.light .text-white[class*="bg-blue-"],
 html.light .text-white[class*="bg-purple-"],
 html.light .text-white[class*="bg-indigo-"],
-[data-theme="light"] [class*="bg-emerald-"] .text-white,
-[data-theme="light"] [class*="bg-green-"] .text-white,
-[data-theme="light"] [class*="bg-amber-"] .text-white,
-[data-theme="light"] [class*="bg-yellow-"] .text-white,
-[data-theme="light"] [class*="bg-rose-"] .text-white,
-[data-theme="light"] [class*="bg-red-"] .text-white,
-[data-theme="light"] [class*="bg-cyan-"] .text-white,
-[data-theme="light"] [class*="bg-laser-"] .text-white,
-[data-theme="light"] [class*="bg-blue-"] .text-white,
-[data-theme="light"] [class*="bg-purple-"] .text-white,
-[data-theme="light"] [class*="bg-indigo-"] .text-white,
+[data-theme="light"] button.text-white,
+[data-theme="light"] a.text-white,
+[data-theme="light"] .badge.text-white,
+[data-theme="light"] .badge .text-white,
+[data-theme="light"] button[class*="bg-"] .text-white,
+[data-theme="light"] a[class*="bg-"] .text-white,
 [data-theme="light"] .text-white[class*="bg-emerald-"],
 [data-theme="light"] .text-white[class*="bg-green-"],
 [data-theme="light"] .text-white[class*="bg-amber-"],
@@ -327,39 +347,31 @@ html.light [class*="bg-amber-500/"][class*="text-amber-"],
 html.light [class*="bg-amber-500/"][class*="text-yellow-"],
 html.light [class*="bg-yellow-500/"][class*="text-amber-"],
 html.light [class*="bg-yellow-500/"][class*="text-yellow-"],
-html.light span[class*="bg-amber-"],
-html.light span[class*="bg-yellow-"],
 [data-theme="light"] [class*="bg-amber-500/"][class*="text-amber-"],
 [data-theme="light"] [class*="bg-amber-500/"][class*="text-yellow-"],
 [data-theme="light"] [class*="bg-yellow-500/"][class*="text-amber-"],
-[data-theme="light"] [class*="bg-yellow-500/"][class*="text-yellow-"],
-[data-theme="light"] span[class*="bg-amber-"],
-[data-theme="light"] span[class*="bg-yellow-"] {
+[data-theme="light"] [class*="bg-yellow-500/"][class*="text-yellow-"] {
   background-color: #b45309 !important; /* Amarelo / Âmbar escuro */
   border-color: #92400e !important;
   color: #ffffff !important;
 }
 
 html.light [class*="bg-amber-500/"][class*="text-amber-"] *,
+html.light [class*="bg-amber-500/"][class*="text-yellow-"] *,
+html.light [class*="bg-yellow-500/"][class*="text-amber-"] *,
 html.light [class*="bg-yellow-500/"][class*="text-yellow-"] *,
-html.light span[class*="bg-amber-"] *,
-html.light span[class*="bg-yellow-"] *,
 [data-theme="light"] [class*="bg-amber-500/"][class*="text-amber-"] *,
 [data-theme="light"] [class*="bg-yellow-500/"][class*="text-yellow-"] *,
-[data-theme="light"] span[class*="bg-amber-"] *,
-[data-theme="light"] span[class*="bg-yellow-"] * {
+[data-theme="light"] [class*="bg-yellow-500/"][class*="text-amber-"] *,
+[data-theme="light"] [class*="bg-yellow-500/"][class*="text-yellow-"] * {
   color: #ffffff !important;
 }
 
 /* 3. Status Verde Escuro (Conectado, Em Estoque, Ativo, Sucesso) */
 html.light [class*="bg-emerald-500/"][class*="text-emerald-"],
 html.light [class*="bg-green-500/"][class*="text-green-"],
-html.light span[class*="bg-emerald-"],
-html.light span[class*="bg-green-"],
 [data-theme="light"] [class*="bg-emerald-500/"][class*="text-emerald-"],
-[data-theme="light"] [class*="bg-green-500/"][class*="text-green-"],
-[data-theme="light"] span[class*="bg-emerald-"],
-[data-theme="light"] span[class*="bg-green-"] {
+[data-theme="light"] [class*="bg-green-500/"][class*="text-green-"] {
   background-color: #047857 !important; /* Verde escuro */
   border-color: #065f46 !important;
   color: #ffffff !important;
@@ -367,24 +379,16 @@ html.light span[class*="bg-green-"],
 
 html.light [class*="bg-emerald-500/"][class*="text-emerald-"] *,
 html.light [class*="bg-green-500/"][class*="text-green-"] *,
-html.light span[class*="bg-emerald-"] *,
-html.light span[class*="bg-green-"] *,
 [data-theme="light"] [class*="bg-emerald-500/"][class*="text-emerald-"] *,
-[data-theme="light"] [class*="bg-green-500/"][class*="text-green-"] *,
-[data-theme="light"] span[class*="bg-emerald-"] *,
-[data-theme="light"] span[class*="bg-green-"] * {
+[data-theme="light"] [class*="bg-green-500/"][class*="text-green-"] * {
   color: #ffffff !important;
 }
 
 /* 4. Status Vermelho / Rose Escuro (Erro, Esgotado, Falha, Perigo) */
 html.light [class*="bg-rose-500/"][class*="text-rose-"],
 html.light [class*="bg-red-500/"][class*="text-red-"],
-html.light span[class*="bg-rose-"],
-html.light span[class*="bg-red-"],
 [data-theme="light"] [class*="bg-rose-500/"][class*="text-rose-"],
-[data-theme="light"] [class*="bg-red-500/"][class*="text-red-"],
-[data-theme="light"] span[class*="bg-rose-"],
-[data-theme="light"] span[class*="bg-red-"] {
+[data-theme="light"] [class*="bg-red-500/"][class*="text-red-"] {
   background-color: #be123c !important; /* Vermelho / Rose escuro */
   border-color: #9f1239 !important;
   color: #ffffff !important;
@@ -392,12 +396,8 @@ html.light span[class*="bg-red-"],
 
 html.light [class*="bg-rose-500/"][class*="text-rose-"] *,
 html.light [class*="bg-red-500/"][class*="text-red-"] *,
-html.light span[class*="bg-rose-"] *,
-html.light span[class*="bg-red-"] *,
 [data-theme="light"] [class*="bg-rose-500/"][class*="text-rose-"] *,
-[data-theme="light"] [class*="bg-red-500/"][class*="text-red-"] *,
-[data-theme="light"] span[class*="bg-rose-"] *,
-[data-theme="light"] span[class*="bg-red-"] * {
+[data-theme="light"] [class*="bg-red-500/"][class*="text-red-"] * {
   color: #ffffff !important;
 }
 
@@ -405,15 +405,9 @@ html.light span[class*="bg-red-"] *,
 html.light [class*="bg-laser-500/"][class*="text-laser-"],
 html.light [class*="bg-cyan-500/"][class*="text-cyan-"],
 html.light [class*="bg-blue-500/"][class*="text-blue-"],
-html.light span[class*="bg-laser-"],
-html.light span[class*="bg-cyan-"],
-html.light span[class*="bg-blue-"],
 [data-theme="light"] [class*="bg-laser-500/"][class*="text-laser-"],
 [data-theme="light"] [class*="bg-cyan-500/"][class*="text-cyan-"],
-[data-theme="light"] [class*="bg-blue-500/"][class*="text-blue-"],
-[data-theme="light"] span[class*="bg-laser-"],
-[data-theme="light"] span[class*="bg-cyan-"],
-[data-theme="light"] span[class*="bg-blue-"] {
+[data-theme="light"] [class*="bg-blue-500/"][class*="text-blue-"] {
   background-color: #0e7490 !important; /* Cyan / Azul escuro */
   border-color: #155e75 !important;
   color: #ffffff !important;
@@ -422,15 +416,9 @@ html.light span[class*="bg-blue-"],
 html.light [class*="bg-laser-500/"][class*="text-laser-"] *,
 html.light [class*="bg-cyan-500/"][class*="text-cyan-"] *,
 html.light [class*="bg-blue-500/"][class*="text-blue-"] *,
-html.light span[class*="bg-laser-"] *,
-html.light span[class*="bg-cyan-"] *,
-html.light span[class*="bg-blue-"] *,
 [data-theme="light"] [class*="bg-laser-500/"][class*="text-laser-"] *,
 [data-theme="light"] [class*="bg-cyan-500/"][class*="text-cyan-"] *,
-[data-theme="light"] [class*="bg-blue-500/"][class*="text-blue-"] *,
-[data-theme="light"] span[class*="bg-laser-"] *,
-[data-theme="light"] span[class*="bg-cyan-"] *,
-[data-theme="light"] span[class*="bg-blue-"] * {
+[data-theme="light"] [class*="bg-blue-500/"][class*="text-blue-"] * {
   color: #ffffff !important;
 }
 
@@ -484,17 +472,33 @@ html.light button[class*="bg-red-"] *,
 }
 
 /* 7. Botões Cyan/Laser da marca */
-.bg-cyan-500,
-.bg-cyan-600,
-.bg-laser-500,
-.bg-laser-400 {
+button.bg-cyan-500,
+button.bg-cyan-600,
+button.bg-laser-500,
+button.bg-laser-400,
+a.bg-cyan-500,
+a.bg-cyan-600,
+a.bg-laser-500,
+a.bg-laser-400,
+.badge.bg-cyan-500,
+.badge.bg-cyan-600,
+.badge.bg-laser-500,
+.badge.bg-laser-400 {
   color: #ffffff !important;
 }
 
-.bg-cyan-500 *,
-.bg-cyan-600 *,
-.bg-laser-500 *,
-.bg-laser-400 * {
+button.bg-cyan-500 *,
+button.bg-cyan-600 *,
+button.bg-laser-500 *,
+button.bg-laser-400 *,
+a.bg-cyan-500 *,
+a.bg-cyan-600 *,
+a.bg-laser-500 *,
+a.bg-laser-400 *,
+.badge.bg-cyan-500 *,
+.badge.bg-cyan-600 *,
+.badge.bg-laser-500 *,
+.badge.bg-laser-400 * {
   color: #ffffff !important;
 }
 
@@ -558,4 +562,28 @@ html.light .text-red-500,
 [data-theme="light"] .text-red-400,
 [data-theme="light"] .text-red-500 {
   color: #be123c !important; /* Vermelho escuro legível */
+}
+
+/* 12. Tons de azul/cyan/laser no tema claro -> escuros e saturados como a sidebar */
+html.light .text-laser-300,
+html.light .text-laser-400,
+html.light .text-laser-500,
+html.light .text-cyan-300,
+html.light .text-cyan-400,
+html.light .text-cyan-500,
+html.light .text-cyan-600,
+[data-theme="light"] .text-laser-300,
+[data-theme="light"] .text-laser-400,
+[data-theme="light"] .text-laser-500,
+[data-theme="light"] .text-cyan-300,
+[data-theme="light"] .text-cyan-400,
+[data-theme="light"] .text-cyan-500,
+[data-theme="light"] .text-cyan-600 {
+  color: #0e7490 !important; /* Cyan / Teal escuro da sidebar */
+}
+
+html.light select option,
+[data-theme="light"] select option {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
 }

@@ -156,16 +156,16 @@ export const PricingManagementPanel: React.FC<PricingManagementPanelProps> = ({ 
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
-        <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-chumbo-800 dark:bg-chumbo-950/60">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="flex items-center gap-2 text-sm font-bold text-white">
-              <History className="h-4 w-4 text-laser-300" />
+            <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white">
+              <History className="h-4 w-4 text-cyan-700 dark:text-laser-300" />
               Historico de precificacao
             </h3>
             <select
               value={selectedProductId}
               onChange={(event) => setSelectedProductId(Number(event.target.value) || '')}
-              className="rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white"
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 dark:border-chumbo-800 dark:bg-chumbo-950 dark:text-white"
             >
               <option value="">Produto...</option>
               {products.map((product) => (
@@ -177,12 +177,12 @@ export const PricingManagementPanel: React.FC<PricingManagementPanelProps> = ({ 
           </div>
           <div className="space-y-2">
             {snapshots.map((snapshot) => (
-              <div key={snapshot.id} className="rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3 text-xs">
+              <div key={snapshot.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs dark:border-chumbo-800 dark:bg-chumbo-900/60">
                 <div className="flex items-center justify-between">
-                  <strong className="text-white">{currencyBRL(snapshot.suggested_price)}</strong>
+                  <strong className="text-slate-900 dark:text-white font-bold">{currencyBRL(snapshot.suggested_price)}</strong>
                   <span className="font-mono text-slate-500">{new Date(snapshot.created_at).toLocaleString('pt-BR')}</span>
                 </div>
-                <div className="mt-2 grid grid-cols-3 gap-2 text-slate-400">
+                <div className="mt-2 grid grid-cols-3 gap-2 text-slate-500 dark:text-slate-400">
                   <span>Custo {currencyBRL(snapshot.operational_cost)}</span>
                   <span>Taxas {currencyBRL(snapshot.total_fees)}</span>
                   <span>Margem {snapshot.profit_margin_percent.toFixed(1)}%</span>
@@ -193,21 +193,21 @@ export const PricingManagementPanel: React.FC<PricingManagementPanelProps> = ({ 
           </div>
         </div>
 
-        <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-chumbo-800 dark:bg-chumbo-950/60">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-bold text-white">Cenarios por canal</h3>
-            <button onClick={calculateScenarios} className="rounded-xl bg-white px-4 py-2 text-xs font-bold text-chumbo-950">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">Cenarios por canal</h3>
+            <button onClick={calculateScenarios} className="rounded-xl bg-cyan-700 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-cyan-800 dark:bg-white dark:text-chumbo-950">
               Simular canais
             </button>
           </div>
           <div className="space-y-2">
             {scenario?.scenarios.map((item) => (
-              <div key={item.name} className="rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3 text-xs">
+              <div key={item.name} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs dark:border-chumbo-800 dark:bg-chumbo-900/60">
                 <div className="flex items-center justify-between">
-                  <strong className="text-white">{item.name}</strong>
-                  <span className="font-bold text-laser-300">{currencyBRL(item.result.suggestedPrice)}</span>
+                  <strong className="text-slate-900 dark:text-white">{item.name}</strong>
+                  <span className="font-bold text-cyan-700 dark:text-laser-300">{currencyBRL(item.result.suggestedPrice)}</span>
                 </div>
-                <div className="mt-2 grid grid-cols-3 gap-2 text-slate-400">
+                <div className="mt-2 grid grid-cols-3 gap-2 text-slate-500 dark:text-slate-400">
                   <span>Lucro {currencyBRL(item.result.profit)}</span>
                   <span>Taxas {currencyBRL(item.result.totalFees)}</span>
                   <span>{formatPrintDuration(item.input.printMinutes)}</span>
@@ -223,7 +223,7 @@ export const PricingManagementPanel: React.FC<PricingManagementPanelProps> = ({ 
 };
 
 const SaveButton = ({ onClick }: { onClick: () => void }) => (
-  <button onClick={onClick} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-bold text-chumbo-950">
+  <button onClick={onClick} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-700 px-3 py-2 text-xs font-bold text-white shadow-sm hover:bg-cyan-800 dark:bg-white dark:text-chumbo-950">
     <Plus className="h-4 w-4" />
     Salvar preset
   </button>
@@ -242,22 +242,22 @@ const PresetCard = ({
   onRemove: (kind: 'material' | 'printer' | 'platform', id: number) => void;
   children: React.ReactNode;
 }) => (
-  <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
-    <h3 className="text-sm font-bold text-white">{title}</h3>
+  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-chumbo-800 dark:bg-chumbo-950/60">
+    <h3 className="text-sm font-bold text-slate-900 dark:text-white">{title}</h3>
     <div className="mt-3 space-y-2">
       {items.map((item) => (
-        <div key={item.id} className="flex items-center justify-between gap-2 rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3 text-xs">
+        <div key={item.id} className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs dark:border-chumbo-800 dark:bg-chumbo-900/60">
           <div className="min-w-0">
-            <strong className="block truncate text-white">{item.name}</strong>
+            <strong className="block truncate text-slate-900 dark:text-white">{item.name}</strong>
             <span className="text-slate-500">{item.is_default ? 'Padrao' : 'Opcional'} | {item.is_active ? 'Ativo' : 'Inativo'}</span>
           </div>
-          <button onClick={() => onRemove(kind, item.id)} className="rounded-lg border border-chumbo-700 p-2 text-slate-400 hover:text-rose-300">
+          <button onClick={() => onRemove(kind, item.id)} className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:text-rose-600 dark:border-chumbo-700 dark:text-slate-400 dark:hover:text-rose-300">
             <Trash2 className="h-4 w-4" />
           </button>
         </div>
       ))}
     </div>
-    <div className="mt-4 border-t border-chumbo-800 pt-4">{children}</div>
+    <div className="mt-4 border-t border-slate-200 pt-4 dark:border-chumbo-800">{children}</div>
   </div>
 );
 
@@ -271,11 +271,11 @@ const PresetInputFields = ({
   mode: 'material' | 'printer' | 'platform';
 }) => (
   <div className="space-y-2">
-    <input value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} className="w-full rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white" />
+    <input value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 dark:border-chumbo-800 dark:bg-chumbo-950 dark:text-white dark:placeholder:text-slate-500" />
     {mode === 'material' && (
       <div className="grid grid-cols-2 gap-2">
-        <input placeholder="Material" value={form.material_type || ''} onChange={(e) => setForm((prev) => ({ ...prev, material_type: e.target.value }))} className="rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white" />
-        <input placeholder="Cor" value={form.color_name || ''} onChange={(e) => setForm((prev) => ({ ...prev, color_name: e.target.value }))} className="rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white" />
+        <input placeholder="Material" value={form.material_type || ''} onChange={(e) => setForm((prev) => ({ ...prev, material_type: e.target.value }))} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 dark:border-chumbo-800 dark:bg-chumbo-950 dark:text-white" />
+        <input placeholder="Cor" value={form.color_name || ''} onChange={(e) => setForm((prev) => ({ ...prev, color_name: e.target.value }))} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 dark:border-chumbo-800 dark:bg-chumbo-950 dark:text-white" />
         <NumberInput value={form.spool_price || 0} onChange={(value) => setForm((prev) => ({ ...prev, spool_price: value }))} />
         <NumberInput value={form.spool_weight_grams || 0} onChange={(value) => setForm((prev) => ({ ...prev, spool_weight_grams: value }))} />
       </div>
@@ -288,7 +288,7 @@ const PresetInputFields = ({
         <NumberInput value={form.fixed_fee || 0} onChange={(value) => setForm((prev) => ({ ...prev, fixed_fee: value }))} />
       </div>
     )}
-    <div className="flex gap-3 text-xs text-slate-300">
+    <div className="flex gap-3 text-xs text-slate-600 dark:text-slate-300">
       <label className="flex items-center gap-2">
         <input type="checkbox" checked={form.is_default} onChange={(e) => setForm((prev) => ({ ...prev, is_default: e.target.checked }))} />
         Padrao
@@ -302,5 +302,5 @@ const PresetInputFields = ({
 );
 
 const NumberInput = ({ value, onChange }: { value: number; onChange: (value: number) => void }) => (
-  <input type="number" step="0.01" value={value} onChange={(e) => onChange(Number(e.target.value) || 0)} className="min-w-0 rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs text-white" />
+  <input type="number" step="0.01" value={value} onChange={(e) => onChange(Number(e.target.value) || 0)} className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 dark:border-chumbo-800 dark:bg-chumbo-950 dark:text-white" />
 );

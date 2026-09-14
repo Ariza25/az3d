@@ -36,11 +36,11 @@ export const FinancePanel: React.FC<FinancePanelProps> = ({ tenantId }) => {
         <Metric label="Ticket medio" value={currencyBRL(summary?.average_ticket || 0)} />
       </div>
 
-      <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
-        <h3 className="text-sm font-bold text-white">Resultado por canal</h3>
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-chumbo-800 dark:bg-chumbo-950/60">
+        <h3 className="text-sm font-bold text-slate-900 dark:text-white">Resultado por canal</h3>
         <div className="mt-3 overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="text-[10px] uppercase text-slate-500">
+            <thead className="text-[10px] uppercase font-mono font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-chumbo-800">
               <tr>
                 <th className="py-2 pr-3">Canal</th>
                 <th className="py-2 pr-3">Pedidos</th>
@@ -51,16 +51,16 @@ export const FinancePanel: React.FC<FinancePanelProps> = ({ tenantId }) => {
                 <th className="py-2 pr-3">Margem</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-chumbo-800 text-slate-300">
+            <tbody className="divide-y divide-slate-200 text-slate-700 dark:divide-chumbo-800 dark:text-slate-300">
               {(summary?.channels || []).map((channel) => (
-                <tr key={channel.provider}>
-                  <td className="py-2 pr-3 font-semibold text-white">{channel.provider}</td>
+                <tr key={channel.provider} className="hover:bg-slate-50 dark:hover:bg-chumbo-850/50">
+                  <td className="py-2 pr-3 font-semibold text-slate-900 dark:text-white">{channel.provider}</td>
                   <td className="py-2 pr-3">{channel.orders_count}</td>
                   <td className="py-2 pr-3">{channel.units_sold}</td>
-                  <td className="py-2 pr-3">{currencyBRL(channel.gross_revenue)}</td>
-                  <td className="py-2 pr-3">{currencyBRL(channel.marketplace_fees)}</td>
-                  <td className="py-2 pr-3">{currencyBRL(channel.net_revenue)}</td>
-                  <td className="py-2 pr-3">{channel.margin_percent.toFixed(1)}%</td>
+                  <td className="py-2 pr-3 font-mono font-bold text-slate-900 dark:text-white">{currencyBRL(channel.gross_revenue)}</td>
+                  <td className="py-2 pr-3 font-mono">{currencyBRL(channel.marketplace_fees)}</td>
+                  <td className="py-2 pr-3 font-mono font-bold text-cyan-700 dark:text-laser-300">{currencyBRL(channel.net_revenue)}</td>
+                  <td className="py-2 pr-3 font-mono">{channel.margin_percent.toFixed(1)}%</td>
                 </tr>
               ))}
               {(summary?.channels || []).length === 0 && (
@@ -76,12 +76,12 @@ export const FinancePanel: React.FC<FinancePanelProps> = ({ tenantId }) => {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
-          <h3 className="text-sm font-bold text-white">Produtos mais rentaveis</h3>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-chumbo-800 dark:bg-chumbo-950/60">
+          <h3 className="text-sm font-bold text-slate-900 dark:text-white">Produtos mais rentaveis</h3>
           <ProductSummaryTable rows={summary?.top_products || []} />
         </div>
-        <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4">
-          <h3 className="text-sm font-bold text-white">Alertas de margem</h3>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-chumbo-800 dark:bg-chumbo-950/60">
+          <h3 className="text-sm font-bold text-slate-900 dark:text-white">Alertas de margem</h3>
           <ProductSummaryTable rows={summary?.low_margin_products || []} />
         </div>
       </div>
@@ -91,21 +91,21 @@ export const FinancePanel: React.FC<FinancePanelProps> = ({ tenantId }) => {
 };
 
 const Metric = ({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) => (
-  <div className={`rounded-2xl border p-4 ${accent ? 'border-laser-500/30 bg-laser-500/10' : 'border-chumbo-800 bg-chumbo-950/70'}`}>
-    <span className="block text-[10px] font-mono uppercase text-slate-500">{label}</span>
-    <strong className="mt-1 block text-lg text-white">{value}</strong>
+  <div className={`rounded-2xl border p-4 shadow-sm ${accent ? 'border-cyan-300 bg-cyan-50 dark:border-laser-500/30 dark:bg-laser-500/10' : 'border-slate-200 bg-white dark:border-chumbo-800 dark:bg-chumbo-950/70'}`}>
+    <span className={`block text-[10px] font-mono uppercase font-bold ${accent ? 'text-cyan-800 dark:text-laser-300' : 'text-slate-500 dark:text-slate-400'}`}>{label}</span>
+    <strong className={`mt-1 block text-lg font-extrabold ${accent ? 'text-cyan-950 dark:text-white' : 'text-slate-900 dark:text-white'}`}>{value}</strong>
   </div>
 );
 
 const ProductSummaryTable = ({ rows }: { rows: FinancialSummary['top_products'] }) => (
   <div className="mt-3 space-y-2">
     {rows.map((row) => (
-      <div key={row.product_id} className="rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3 text-xs">
+      <div key={row.product_id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs dark:border-chumbo-800 dark:bg-chumbo-900/60">
         <div className="flex items-center justify-between gap-3">
-          <strong className="truncate text-white">{row.product_title}</strong>
-          <span className="text-laser-300">{currencyBRL(row.estimated_profit)}</span>
+          <strong className="truncate text-slate-900 dark:text-white">{row.product_title}</strong>
+          <span className="font-bold text-cyan-700 dark:text-laser-300">{currencyBRL(row.estimated_profit)}</span>
         </div>
-        <div className="mt-2 grid grid-cols-3 gap-2 text-slate-500">
+        <div className="mt-2 grid grid-cols-3 gap-2 text-slate-500 dark:text-slate-400">
           <span>{row.units_sold} un.</span>
           <span>{currencyBRL(row.gross_revenue)}</span>
           <span>{row.estimated_margin_percent.toFixed(1)}%</span>

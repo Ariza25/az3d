@@ -48,14 +48,14 @@ export const AdminInventory: React.FC<AdminInventoryProps> = ({
       title="Controle de estoque"
       description="Saldos atuais, alertas de reposicao e historico de movimentacoes."
       action={
-        <span className="rounded-xl border border-chumbo-800 bg-chumbo-950 px-3 py-2 text-xs font-mono text-slate-300">
+        <span className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-mono text-slate-700 shadow-sm dark:border-chumbo-800 dark:bg-chumbo-950 dark:text-slate-300">
           {lowStockItems.length} alerta(s) de baixo estoque
         </span>
       }
     />
 
     <Card asForm onSubmit={onAdjustStock}>
-      <h4 className="text-sm font-bold text-white">Ajuste rapido</h4>
+      <h4 className="text-sm font-bold text-slate-900 dark:text-white">Ajuste rapido</h4>
       <div className="mt-3 grid gap-3 md:grid-cols-[1.2fr_1fr_120px_1fr_auto]">
         <Select
           value={stockAdjustment.product_id || stockAdjustmentProduct?.id || ''}
@@ -105,8 +105,8 @@ export const AdminInventory: React.FC<AdminInventoryProps> = ({
     <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
       <Card>
         <div className="flex items-center justify-between gap-3">
-          <h4 className="text-sm font-bold text-white">Alertas</h4>
-          <AlertTriangle className={lowStockItems.length ? 'h-4 w-4 text-amber-300' : 'h-4 w-4 text-slate-600'} />
+          <h4 className="text-sm font-bold text-slate-900 dark:text-white">Alertas</h4>
+          <AlertTriangle className={lowStockItems.length ? 'h-4 w-4 text-amber-500 dark:text-amber-300' : 'h-4 w-4 text-slate-400 dark:text-slate-600'} />
         </div>
         <div className="mt-3 space-y-2">
           {lowStockItems.map(({ product, color, qty, severity, alert }) => (
@@ -117,8 +117,8 @@ export const AdminInventory: React.FC<AdminInventoryProps> = ({
               }`}
             >
               <div className="min-w-0">
-                <strong className="block truncate text-white">{product.title}</strong>
-                <span className="text-slate-400">{color || 'Estoque geral'} - SKU {product.sku || '-'}</span>
+                <strong className="block truncate text-slate-900 dark:text-white">{product.title}</strong>
+                <span className="text-slate-500 dark:text-slate-400">{color || 'Estoque geral'} - SKU {product.sku || '-'}</span>
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <span className={severity === 'out' ? 'rounded-lg bg-rose-700 px-2 py-1 font-mono font-bold text-white shadow-sm dark:bg-rose-400 dark:text-chumbo-950 dark:shadow-none' : 'rounded-lg bg-amber-700 px-2 py-1 font-mono font-bold text-white shadow-sm dark:bg-amber-400 dark:text-chumbo-950 dark:shadow-none'}>
@@ -138,7 +138,7 @@ export const AdminInventory: React.FC<AdminInventoryProps> = ({
 
       <Card>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h4 className="text-sm font-bold text-white">Ultimas movimentacoes</h4>
+          <h4 className="text-sm font-bold text-slate-900 dark:text-white">Ultimas movimentacoes</h4>
           <Select
             value={stockMovementProductId}
             onChange={(event) => onStockMovementProductChange(event.target.value ? Number(event.target.value) : '')}
@@ -152,19 +152,19 @@ export const AdminInventory: React.FC<AdminInventoryProps> = ({
         </div>
         <div className="mt-3 max-h-80 space-y-2 overflow-y-auto">
           {filteredStockMovements.map((movement) => (
-            <div key={movement.id} className="rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3 text-xs">
+            <div key={movement.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs dark:border-chumbo-800 dark:bg-chumbo-900/60">
               <div className="flex items-center justify-between gap-3">
-                <strong className="min-w-0 truncate text-white">{movement.product?.title || `Produto #${movement.product_id}`}</strong>
+                <strong className="min-w-0 truncate text-slate-900 dark:text-white">{movement.product?.title || `Produto #${movement.product_id}`}</strong>
                 <span className={movement.quantity_delta < 0 ? 'font-mono font-bold text-rose-700 dark:text-rose-300' : 'font-mono font-bold text-emerald-700 dark:text-emerald-300'}>
                   {movement.quantity_delta > 0 ? '+' : ''}{movement.quantity_delta}
                 </span>
               </div>
-              <div className="mt-1 flex flex-wrap gap-2 text-slate-400">
+              <div className="mt-1 flex flex-wrap gap-2 text-slate-500 dark:text-slate-400">
                 <span>{movement.color_name || 'geral'}</span>
                 <span>saldo {movement.quantity_after}</span>
                 <span>{new Date(movement.created_at).toLocaleString('pt-BR')}</span>
               </div>
-              {movement.reason && <p className="mt-1 text-slate-500">{movement.reason}</p>}
+              {movement.reason && <p className="mt-1 text-slate-600 dark:text-slate-400">{movement.reason}</p>}
             </div>
           ))}
           {filteredStockMovements.length === 0 && <EmptyState message="Nenhuma movimentacao registrada ainda." />}
