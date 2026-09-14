@@ -93,6 +93,7 @@ const TenantAdminConsole: React.FC<{ tenantId?: number }> = ({ tenantId }) => {
     activeTenant,
     categories,
     refreshProducts,
+    refreshCategories,
   } = useTenantCatalog({ lockedTenantId: tenantId });
 
   return (
@@ -103,6 +104,7 @@ const TenantAdminConsole: React.FC<{ tenantId?: number }> = ({ tenantId }) => {
       activeTenant={activeTenant}
       categories={categories}
       onRefreshProducts={refreshProducts}
+      onRefreshCategories={refreshCategories}
     />
   );
 };

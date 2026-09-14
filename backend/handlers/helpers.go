@@ -21,3 +21,25 @@ func getEnv(key, fallback string) string {
 	}
 	return value
 }
+
+func isDuplicateKeyError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "duplicate key") ||
+		strings.Contains(msg, "23505") ||
+		strings.Contains(msg, "unique constraint") ||
+		strings.Contains(msg, "already exists")
+}
+
+func isForeignKeyError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "foreign key") ||
+		strings.Contains(msg, "23503") ||
+		strings.Contains(msg, "violates foreign key constraint")
+}
+

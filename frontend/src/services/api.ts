@@ -85,6 +85,42 @@ const getHeaders = (
 
 const getAdminHeaders = (tenantId?: number) => getHeaders(tenantId, ADMIN_TOKEN_KEY);
 
+export const extractApiErrorMessage = (body: unknown, response: Response, fallbackMessage: string): string => {
+  if (body && typeof body === 'object') {
+    const obj = body as Record<string, unknown>;
+    if (typeof obj.error === 'string' && obj.error.trim()) return obj.error.trim();
+    if (typeof obj.message === 'string' && obj.message.trim()) return obj.message.trim();
+    if (typeof obj.msg === 'string' && obj.msg.trim()) return obj.msg.trim();
+    if (Array.isArray(obj.errors) && obj.errors.length > 0) {
+      return obj.errors
+        .map((e: unknown) => typeof e === 'string' ? e : (e as any)?.message || JSON.stringify(e))
+        .join('; ');
+    }
+  }
+
+  if (response.status === 401) {
+    return 'Sessão expirada ou não autorizada. Por favor, faça login novamente.';
+  }
+  if (response.status === 403) {
+    return 'Acesso negado. Você não possui permissão para executar esta ação.';
+  }
+  if (response.status === 404) {
+    return `${fallbackMessage}: registro não encontrado.`;
+  }
+  if (response.status === 409) {
+    return 'Já existe um registro cadastrado com estes mesmos dados (nome ou identificador duplicado).';
+  }
+  if (response.status === 422) {
+    return `${fallbackMessage}: dados fornecidos são inválidos ou incompletos.`;
+  }
+  if (response.status >= 500) {
+    return `${fallbackMessage} (Erro no servidor: HTTP ${response.status}).`;
+  }
+
+  const statusSuffix = response.status ? ` (HTTP ${response.status})` : '';
+  return `${fallbackMessage}${statusSuffix}`;
+};
+
 const readJsonResponse = async <T>(response: Response, fallbackMessage: string): Promise<T> => {
   const rawBody = await response.text();
   let body: unknown = null;
@@ -93,21 +129,20 @@ const readJsonResponse = async <T>(response: Response, fallbackMessage: string):
     try {
       body = JSON.parse(rawBody);
     } catch {
-      const statusSuffix = response.status ? ` (HTTP ${response.status})` : '';
-      if (!response.ok) throw new Error(`${fallbackMessage}${statusSuffix}`);
-      throw new Error(`${fallbackMessage}: resposta inválida do servidor${statusSuffix}`);
+      if (!response.ok) {
+        throw new Error(extractApiErrorMessage(null, response, fallbackMessage));
+      }
+      throw new Error(`${fallbackMessage}: resposta inválida do servidor`);
     }
   }
 
   if (!response.ok) {
-    const apiMessage = body && typeof body === 'object' && 'error' in body
-      ? String((body as { error?: unknown }).error || '')
-      : '';
-    const statusSuffix = response.status ? ` (HTTP ${response.status})` : '';
-    throw new Error(apiMessage || `${fallbackMessage}${statusSuffix}`);
+    throw new Error(extractApiErrorMessage(body, response, fallbackMessage));
   }
 
-  if (body === null) throw new Error(`${fallbackMessage}: resposta vazia do servidor`);
+  if (body === null) {
+    return undefined as unknown as T;
+  }
   return body as T;
 };
 
@@ -127,15 +162,12 @@ export const api = {
   // Tenants
   getTenants: async (): Promise<Tenant[]> => {
     const res = await fetch(`${API_BASE_URL}/tenants`);
-    if (!res.ok) throw new Error('Falha ao carregar lista de lojas (tenants)');
-    return res.json();
+    return readJsonResponse<Tenant[]>(res, 'Falha ao carregar lista de lojas (tenants)');
   },
 
   getTenantByIdentifier: async (identifier: string): Promise<Tenant> => {
     const res = await fetch(`${API_BASE_URL}/tenants/${encodeURIComponent(identifier)}`);
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Loja nao encontrada');
-    return data;
+    return readJsonResponse<Tenant>(res, 'Loja não encontrada');
   },
 
   getMercadoPagoPlatformConfig: async (): Promise<MercadoPagoPlatformConfig> => {
@@ -205,8 +237,7 @@ export const api = {
     const res = await fetch(`${API_BASE_URL}/categories`, {
       headers: getHeaders(tenantId),
     });
-    if (!res.ok) throw new Error('Falha ao carregar categorias');
-    return res.json();
+    return readJsonResponse<Category[]>(res, 'Falha ao carregar categorias');
   },
 
   // Produtos
@@ -218,24 +249,21 @@ export const api = {
     const res = await fetch(`${API_BASE_URL}/products?${params.toString()}`, {
       headers: getHeaders(tenantId),
     });
-    if (!res.ok) throw new Error('Falha ao carregar produtos');
-    return res.json();
+    return readJsonResponse<Product[]>(res, 'Falha ao carregar produtos');
   },
 
   getProductById: async (id: number, tenantId?: number): Promise<Product> => {
     const res = await fetch(`${API_BASE_URL}/products/${id}`, {
       headers: getHeaders(tenantId),
     });
-    if (!res.ok) throw new Error('Produto não encontrado');
-    return res.json();
+    return readJsonResponse<Product>(res, 'Produto não encontrado');
   },
 
   getTenantSettings: async (tenantId?: number): Promise<TenantSettings> => {
     const res = await fetch(`${API_BASE_URL}/tenant/settings`, {
       headers: getHeaders(tenantId),
     });
-    if (!res.ok) throw new Error('Falha ao carregar configuracoes da loja');
-    return res.json();
+    return readJsonResponse<TenantSettings>(res, 'Falha ao carregar configurações da loja');
   },
 
   getProductReviews: async (productId: number, tenantId?: number): Promise<ProductReview[]> => {
@@ -427,9 +455,7 @@ export const api = {
       body: JSON.stringify(productData),
     });
 
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Erro ao cadastrar novo produto');
-    return data;
+    return readJsonResponse<Product>(res, 'Erro ao cadastrar novo produto');
   },
 
   getAdminProducts: async (tenantId?: number, query?: string): Promise<Product[]> => {
@@ -438,8 +464,7 @@ export const api = {
     const res = await fetch(`${API_BASE_URL}/admin/products?${params.toString()}`, {
       headers: getAdminHeaders(tenantId),
     });
-    if (!res.ok) throw new Error('Erro ao buscar produtos do admin');
-    return res.json();
+    return readJsonResponse<Product[]>(res, 'Erro ao buscar produtos do admin');
   },
 
   updateProduct: async (id: number, productData: ProductInput, tenantId?: number): Promise<Product> => {
@@ -449,9 +474,7 @@ export const api = {
       body: JSON.stringify(productData),
     });
 
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Erro ao atualizar produto');
-    return data;
+    return readJsonResponse<Product>(res, 'Erro ao atualizar produto');
   },
 
   deleteProduct: async (id: number, tenantId?: number): Promise<void> => {
@@ -460,10 +483,7 @@ export const api = {
       headers: getAdminHeaders(tenantId),
     });
 
-    if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.error || 'Erro ao excluir produto');
-    }
+    return readJsonResponse<void>(res, 'Erro ao excluir produto');
   },
 
   createCategory: async (categoryData: { name: string; description?: string; icon?: string }, tenantId?: number): Promise<Category> => {
@@ -473,17 +493,14 @@ export const api = {
       body: JSON.stringify(categoryData),
     });
 
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Erro ao criar categoria');
-    return data;
+    return readJsonResponse<Category>(res, 'Erro ao criar categoria');
   },
 
   getAdminOrders: async (tenantId?: number): Promise<Order[]> => {
     const res = await fetch(`${API_BASE_URL}/admin/orders`, {
       headers: getAdminHeaders(tenantId),
     });
-    if (!res.ok) throw new Error('Erro ao buscar pedidos do admin');
-    return res.json();
+    return readJsonResponse<Order[]>(res, 'Erro ao buscar pedidos do admin');
   },
 
   updateOrderStatus: async (orderId: number, status: string, tenantId?: number): Promise<Order> => {
@@ -493,9 +510,7 @@ export const api = {
       body: JSON.stringify({ status }),
     });
 
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Erro ao atualizar status do pedido');
-    return data;
+    return readJsonResponse<Order>(res, 'Erro ao atualizar status do pedido');
   },
 
   getStockMovements: async (tenantId?: number, productId?: number): Promise<StockMovement[]> => {
@@ -504,8 +519,7 @@ export const api = {
     const res = await fetch(`${API_BASE_URL}/admin/stock-movements?${params.toString()}`, {
       headers: getAdminHeaders(tenantId),
     });
-    if (!res.ok) throw new Error('Erro ao carregar historico de estoque');
-    return res.json();
+    return readJsonResponse<StockMovement[]>(res, 'Erro ao carregar histórico de estoque');
   },
 
   getStockAlerts: async (tenantId?: number, threshold = 3): Promise<StockAlert[]> => {
@@ -514,8 +528,7 @@ export const api = {
     const res = await fetch(`${API_BASE_URL}/admin/stock-alerts?${params.toString()}`, {
       headers: getAdminHeaders(tenantId),
     });
-    if (!res.ok) throw new Error('Erro ao carregar alertas de estoque');
-    return res.json();
+    return readJsonResponse<StockAlert[]>(res, 'Erro ao carregar alertas de estoque');
   },
 
   adjustStock: async (input: StockAdjustmentInput, tenantId?: number): Promise<Product> => {
@@ -524,9 +537,7 @@ export const api = {
       headers: getAdminHeaders(tenantId),
       body: JSON.stringify(input),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Erro ao ajustar estoque');
-    return data;
+    return readJsonResponse<Product>(res, 'Erro ao ajustar estoque');
   },
 
   getCarrierAccounts: async (tenantId?: number): Promise<TenantCarrierAccount[]> => {

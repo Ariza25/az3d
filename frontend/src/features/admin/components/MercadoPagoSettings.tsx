@@ -71,7 +71,7 @@ export const MercadoPagoSettings: React.FC<MercadoPagoSettingsProps> = ({ tenant
       </div>
 
       {feedback && (
-        <div className={`rounded-xl border p-3 text-xs ${feedback.tone === 'success' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' : 'border-rose-500/30 bg-rose-500/10 text-rose-200'}`}>
+        <div className={`rounded-xl border p-3 text-xs font-medium ${feedback.tone === 'success' ? 'border-emerald-800 bg-emerald-700 text-white dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200' : 'border-rose-800 bg-rose-700 text-white dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200'}`}>
           {feedback.text}
         </div>
       )}
@@ -90,7 +90,7 @@ export const MercadoPagoSettings: React.FC<MercadoPagoSettingsProps> = ({ tenant
             {status?.token_expires_at && <p className="mt-1 text-[10px] font-mono text-slate-500">Token valido ate {new Date(status.token_expires_at).toLocaleString('pt-BR')}</p>}
             {status?.last_error && <p className="mt-2 text-xs text-rose-300">{status.last_error}</p>}
           </div>
-          <span className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase ${status?.connected ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-300'}`}>
+          <span className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase shadow-sm ${status?.connected ? 'border border-emerald-800 bg-emerald-700 text-white dark:border-transparent dark:bg-emerald-500/15 dark:text-emerald-300' : 'border border-amber-800 bg-amber-700 text-white dark:border-transparent dark:bg-amber-500/15 dark:text-amber-300'}`}>
             {status?.connected ? 'conectado' : status?.status || 'desconectado'}
           </span>
         </div>

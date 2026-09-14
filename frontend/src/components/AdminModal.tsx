@@ -65,6 +65,7 @@ interface AdminModalProps {
   activeTenant: Tenant | null;
   categories: Category[];
   onRefreshProducts: () => void;
+  onRefreshCategories?: () => void;
 }
 
 type AdminSection =
@@ -110,6 +111,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   activeTenant,
   categories,
   onRefreshProducts,
+  onRefreshCategories,
 }) => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<AdminSection>(initialAdminSection);
@@ -191,7 +193,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       void loadTenantData('products');
       onRefreshProducts();
     } catch (err: any) {
-      setMessage({ type: 'error', text: err.message || 'Erro ao salvar produto.' });
+      const errorMsg = err.message || 'Erro ao salvar produto.';
+      setMessage({ type: 'error', text: errorMsg });
+      throw err;
     }
   };
 
@@ -282,20 +286,20 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
   const lowStockItems = stockAlerts.length > 0
     ? stockAlerts.map((alert) => ({
-        product: products.find((p) => p.id === alert.product_id) || ({ id: alert.product_id, title: `Produto #${alert.product_id}`, image_url: '', stock_qty: alert.stock_qty } as Product),
-        color: alert.color_name || '',
-        qty: alert.stock_qty,
-        severity: alert.severity,
-        alert,
-      }))
+      product: products.find((p) => p.id === alert.product_id) || ({ id: alert.product_id, title: `Produto #${alert.product_id}`, image_url: '', stock_qty: alert.stock_qty } as Product),
+      color: alert.color_name || '',
+      qty: alert.stock_qty,
+      severity: alert.severity,
+      alert,
+    }))
     : products.flatMap((product) => {
-        const colorRows = product.color_stocks?.length
-          ? product.color_stocks.map((stock) => ({ product, color: stock.color_name, qty: stock.stock_qty }))
-          : [{ product, color: '', qty: product.stock_qty }];
-        return colorRows
-          .filter((item) => item.qty <= 3)
-          .map((item) => ({ ...item, severity: item.qty <= 0 ? 'out' : item.qty <= 2 ? 'critical' : 'low', alert: null }));
-      });
+      const colorRows = product.color_stocks?.length
+        ? product.color_stocks.map((stock) => ({ product, color: stock.color_name, qty: stock.stock_qty }))
+        : [{ product, color: '', qty: product.stock_qty }];
+      return colorRows
+        .filter((item) => item.qty <= 3)
+        .map((item) => ({ ...item, severity: item.qty <= 0 ? 'out' : item.qty <= 2 ? 'critical' : 'low', alert: null }));
+    });
 
   const filteredStockMovements = stockMovementProductId
     ? stockMovements.filter((movement) => movement.product_id === stockMovementProductId)
@@ -325,15 +329,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       <div>
         <div className="flex items-center gap-2">
           <h1 className="text-base sm:text-lg font-extrabold text-white">
-            Gestão da loja — {activeTenant?.name || 'AZ3D'}
+            Gestão da loja — {`${activeTenant?.name}`}
           </h1>
-          <span className="rounded bg-laser-500/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-laser-300">
-            {user?.role || 'tenant_admin'}
-          </span>
         </div>
-        <p className="text-[11px] font-mono text-slate-400">
-          Operação de {activeTenant?.name || 'AZ3D Studio'} · Tenant #{activeTenant?.id || '1'}
-        </p>
       </div>
     </div>
   );
@@ -349,7 +347,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       <div className="flex flex-col lg:flex-row items-start gap-6 lg:gap-8">
         {/* Mobile Horizontal Navigation Tabs */}
         <div className="lg:hidden w-full overflow-x-auto pb-2 -mt-2">
-          <nav className="flex items-center gap-1.5 min-w-max p-1.5 rounded-2xl border border-chumbo-800 bg-chumbo-900/60 backdrop-blur-md">
+          <nav className="flex items-center gap-1.5 min-w-max p-1.5 rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-chumbo-800 dark:bg-chumbo-900/60 dark:backdrop-blur-md">
             {tenantNavigation.map((item) => {
               const isActive = activeTab === item.id;
               return (
@@ -357,19 +355,17 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                   key={item.id}
                   type="button"
                   onClick={() => setActiveTab(item.id)}
-                  className={`flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold whitespace-nowrap transition-all ${
-                    isActive
-                      ? 'bg-laser-400 text-chumbo-950 shadow-md font-extrabold'
-                      : 'text-slate-400 hover:bg-chumbo-800/80 hover:text-white'
-                  }`}
+                  className={`flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold whitespace-nowrap transition-all ${isActive
+                    ? 'bg-cyan-600 text-white shadow-md font-extrabold dark:bg-laser-400 dark:text-chumbo-950'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-chumbo-800/80 dark:hover:text-white'
+                    }`}
                 >
                   {item.icon}
                   <span>{item.label}</span>
                   {item.badge !== undefined && (
                     <span
-                      className={`rounded-full px-1.5 py-0.5 text-[10px] font-extrabold ${
-                        isActive ? 'bg-chumbo-950/20 text-chumbo-950' : 'bg-chumbo-800 text-slate-300'
-                      }`}
+                      className={`rounded-full px-1.5 py-0.5 text-[10px] font-extrabold ${isActive ? 'bg-white/20 text-white dark:bg-chumbo-950/20 dark:text-chumbo-950' : 'border border-slate-200 bg-slate-100 text-slate-600 dark:border-transparent dark:bg-chumbo-800 dark:text-slate-300'
+                        }`}
                     >
                       {item.badge}
                     </span>
@@ -383,32 +379,26 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         {/* Desktop Vertical Sidebar */}
         <aside className="hidden lg:flex w-64 xl:w-72 shrink-0 flex-col gap-3.5 sticky top-24">
           {/* Tenant & User Info Card */}
-          <div className="rounded-2xl border border-chumbo-800 bg-chumbo-900/60 p-4 backdrop-blur-sm shadow-sm">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-chumbo-800 dark:bg-chumbo-900/60 dark:backdrop-blur-sm">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-laser-500/30 bg-laser-500/10 text-laser-400">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan-200 bg-cyan-50 text-cyan-700 dark:border-laser-500/30 dark:bg-laser-500/10 dark:text-laser-400">
                 <Store className="h-5 w-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <strong className="block truncate text-xs font-bold text-white">
-                  {activeTenant?.name || 'AZ3D Studio'}
+                <strong className="block truncate text-xs font-bold text-slate-900 dark:text-white">
+                  {`${activeTenant?.name}`}
                 </strong>
-                <div className="mt-1 flex items-center gap-1.5">
-                  <span className="rounded bg-laser-500/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-laser-300">
-                    Console Loja
-                  </span>
-                  <span className="text-[10px] font-mono text-slate-500">#{activeTenant?.id || '1'}</span>
-                </div>
               </div>
             </div>
             {user?.email && (
-              <p className="mt-2.5 truncate border-t border-chumbo-800/80 pt-2 text-[11px] text-slate-400">
+              <p className="mt-2.5 truncate border-t border-slate-100 pt-2 text-[11px] text-slate-500 dark:border-chumbo-800/80 dark:text-slate-400">
                 {user.email}
               </p>
             )}
           </div>
 
           {/* Navigation Menu Links */}
-          <nav className="space-y-1 rounded-2xl border border-chumbo-800 bg-chumbo-900/40 p-2 backdrop-blur-sm">
+          <nav className="space-y-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm dark:border-chumbo-800 dark:bg-chumbo-900/40 dark:backdrop-blur-sm">
             {tenantNavigation.map((item) => {
               const isActive = activeTab === item.id;
               return (
@@ -416,25 +406,23 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                   key={item.id}
                   type="button"
                   onClick={() => setActiveTab(item.id)}
-                  className={`group flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-semibold transition-all duration-150 ${
-                    isActive
-                      ? 'bg-laser-400 text-chumbo-950 font-bold shadow-md shadow-laser-500/10'
-                      : 'text-slate-300 hover:bg-chumbo-800/80 hover:text-white'
-                  }`}
+                  className={`group flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-semibold transition-all duration-150 ${isActive
+                    ? 'bg-cyan-600 text-white font-bold shadow-sm dark:bg-laser-400 dark:text-chumbo-950'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-chumbo-800/80 dark:hover:text-white'
+                    }`}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <span className={`shrink-0 ${isActive ? 'text-chumbo-950' : 'text-slate-400 group-hover:text-white'}`}>
+                    <span className={`shrink-0 ${isActive ? 'text-white dark:text-chumbo-950' : 'text-slate-400 group-hover:text-slate-900 dark:text-slate-400 dark:group-hover:text-white'}`}>
                       {item.icon}
                     </span>
                     <span className="truncate">{item.label}</span>
                   </div>
                   {item.badge !== undefined && (
                     <span
-                      className={`ml-2 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                        isActive
-                          ? 'bg-chumbo-950/20 text-chumbo-950'
-                          : 'bg-chumbo-800 text-slate-300 group-hover:bg-chumbo-700'
-                      }`}
+                      className={`ml-2 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${isActive
+                        ? 'bg-white/20 text-white dark:bg-chumbo-950/20 dark:text-chumbo-950'
+                        : 'border border-slate-200 bg-slate-100 text-slate-600 group-hover:bg-slate-200 dark:border-transparent dark:bg-chumbo-800 dark:text-slate-300 dark:group-hover:bg-chumbo-700'
+                        }`}
                     >
                       {item.badge}
                     </span>
@@ -448,7 +436,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="flex w-full items-center gap-2 rounded-xl border border-chumbo-800 bg-chumbo-900/40 px-3.5 py-2.5 text-xs font-semibold text-slate-400 transition-colors hover:bg-chumbo-800 hover:text-white"
+            className="flex w-full items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-slate-600 shadow-sm transition-colors hover:bg-slate-100 hover:text-slate-900 dark:border-chumbo-800 dark:bg-chumbo-900/40 dark:text-slate-400 dark:hover:bg-chumbo-800 dark:hover:text-white"
           >
             <ArrowLeft className="h-4 w-4" />
             <span>Voltar para a loja</span>
@@ -459,23 +447,22 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         <div className="flex-1 min-w-0 w-full space-y-6">
           {message && (
             <div
-              className={`flex items-center justify-between rounded-2xl border p-3.5 text-xs shadow-sm ${
-                message.type === 'success'
-                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
-                  : 'border-rose-500/30 bg-rose-500/10 text-rose-300'
-              }`}
+              className={`flex items-center justify-between rounded-2xl border p-3.5 text-xs shadow-sm ${message.type === 'success'
+                ? 'border-emerald-800 bg-emerald-700 text-white dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300'
+                : 'border-rose-800 bg-rose-700 text-white dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300'
+                }`}
             >
               <div className="flex items-center gap-2.5 font-semibold">
                 {message.type === 'success' ? (
-                  <CheckCircle2 className="h-4 w-4 shrink-0" />
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-white dark:text-emerald-300" />
                 ) : (
-                  <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" />
+                  <AlertCircle className="h-4 w-4 shrink-0 text-white dark:text-rose-400" />
                 )}
                 <span>{message.text}</span>
               </div>
               <button
                 onClick={() => setMessage(null)}
-                className="opacity-70 hover:opacity-100 p-1 transition-opacity"
+                className="opacity-80 hover:opacity-100 p-1 transition-opacity text-white"
                 aria-label="Fechar mensagem"
               >
                 ✕
@@ -520,6 +507,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                 }}
                 onDeleteProduct={handleDeleteProduct}
                 onRefreshProducts={onRefreshProducts}
+                onRefreshCategories={onRefreshCategories}
                 onMessage={setMessage}
               />
             )}

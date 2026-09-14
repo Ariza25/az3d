@@ -565,6 +565,10 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 	}
 
 	if err := database.DB.Create(&product).Error; err != nil {
+		if isDuplicateKeyError(err) {
+			c.JSON(http.StatusConflict, gin.H{"error": "Já existe um produto com o mesmo SKU ou slug cadastrado. Altere o SKU ou título."})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao criar produto: " + err.Error()})
 		return
 	}
@@ -668,7 +672,11 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 	}
 
 	if err := database.DB.Save(&product).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao atualizar produto"})
+		if isDuplicateKeyError(err) {
+			c.JSON(http.StatusConflict, gin.H{"error": "Já existe outro produto cadastrado com o mesmo SKU ou slug."})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao atualizar produto: " + err.Error()})
 		return
 	}
 	if previousStockQty != product.StockQty {
@@ -909,7 +917,11 @@ func (h *ProductHandler) DeleteProduct(c *gin.Context) {
 	}
 
 	if err := database.DB.Delete(&product).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao excluir produto"})
+		if isForeignKeyError(err) {
+			c.JSON(http.StatusConflict, gin.H{"error": "Não é possível excluir este produto pois ele possui pedidos ou histórico associados. Você pode desativá-lo alterando seu status para inativo."})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao excluir produto: " + err.Error()})
 		return
 	}
 
@@ -926,26 +938,43 @@ func (h *ProductHandler) CreateCategory(c *gin.Context) {
 		return
 	}
 
-	slug := input.Slug
-	if slug == "" {
-		slug = input.Name
+	name := strings.TrimSpace(input.Name)
+	if name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "O nome da categoria é obrigatório."})
+		return
 	}
 
-	icon := input.Icon
+	slug := strings.TrimSpace(input.Slug)
+	if slug == "" {
+		slug = name
+	}
+
+	icon := strings.TrimSpace(input.Icon)
 	if icon == "" {
 		icon = "box"
 	}
 
+	// Verificar previamente se já existe categoria com o mesmo nome ou slug para este tenant
+	var existing models.Category
+	if err := database.DB.Where("tenant_id = ? AND (LOWER(TRIM(name)) = LOWER(?) OR LOWER(TRIM(slug)) = LOWER(?))", tenantID, name, slug).First(&existing).Error; err == nil {
+		c.JSON(http.StatusConflict, gin.H{"error": fmt.Sprintf("Já existe uma categoria cadastrada com o nome \"%s\". Escolha um nome diferente.", name)})
+		return
+	}
+
 	category := models.Category{
 		TenantID:    tenantID,
-		Name:        input.Name,
+		Name:        name,
 		Slug:        slug,
-		Description: input.Description,
+		Description: strings.TrimSpace(input.Description),
 		Icon:        icon,
 	}
 
 	if err := database.DB.Create(&category).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao criar categoria"})
+		if isDuplicateKeyError(err) {
+			c.JSON(http.StatusConflict, gin.H{"error": fmt.Sprintf("Já existe uma categoria cadastrada com o nome \"%s\". Escolha um nome diferente.", name)})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao salvar categoria no banco: " + err.Error()})
 		return
 	}
 

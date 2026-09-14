@@ -16,12 +16,12 @@
 
 html.light,
 [data-theme="light"] {
-  /* Light Theme Palette (Clean Ice White, Crisp Slate, High-End Contrast) */
-  --color-chumbo-950: 255 255 255;  /* #ffffff */
-  --color-chumbo-900: 248 250 252;  /* #f8fafc */
-  --color-chumbo-850: 241 245 249;  /* #f1f5f9 */
-  --color-chumbo-800: 226 232 240;  /* #e2e8f0 */
-  --color-chumbo-750: 203 213 225;  /* #cbd5e1 */
+  /* Light Theme Palette (Soft Gray Canvas #f1f5f9, Crisp White Cards #ffffff) */
+  --color-chumbo-950: 241 245 249;  /* #f1f5f9 - Fundo da página cinza suave */
+  --color-chumbo-900: 255 255 255;  /* #ffffff - Cards e painéis brancos */
+  --color-chumbo-850: 255 255 255;  /* #ffffff - Superfície dos cards */
+  --color-chumbo-800: 226 232 240;  /* #e2e8f0 - Bordas nítidas */
+  --color-chumbo-750: 203 213 225;  /* #cbd5e1 - Bordas secundárias */
   --color-chumbo-700: 203 213 225;  /* #cbd5e1 */
   --color-chumbo-600: 148 163 184;  /* #94a3b8 */
   --color-chumbo-500: 100 116 139;  /* #64748b */
@@ -139,28 +139,29 @@ html.light .filter-input:focus,
 /* Light Theme Global Utility Overrides (Clean Ice White & Ultra-Soft Gray) */
 html.light body,
 [data-theme="light"] body {
-  background-color: #fafbfc;
+  background-color: #f1f5f9;
   color: #0f172a;
 }
 
 html.light .bg-chumbo-950,
 [data-theme="light"] .bg-chumbo-950 {
-  background-color: #ffffff !important;
+  background-color: #f1f5f9 !important; /* Fundo da página em cinza leve */
 }
 
 html.light .bg-chumbo-900,
 [data-theme="light"] .bg-chumbo-900 {
-  background-color: #ffffff !important;
+  background-color: #ffffff !important; /* Cards e componentes em branco */
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.05), 0 1px 2px -1px rgb(0 0 0 / 0.05);
 }
 
 html.light .bg-chumbo-850,
 [data-theme="light"] .bg-chumbo-850 {
-  background-color: #f8fafc !important;
+  background-color: #ffffff !important;
 }
 
 html.light .bg-chumbo-800,
 [data-theme="light"] .bg-chumbo-800 {
-  background-color: #f3f6f9 !important;
+  background-color: #f8fafc !important;
 }
 
 html.light .bg-chumbo-750,
@@ -170,17 +171,17 @@ html.light .bg-chumbo-750,
 
 html.light .bg-chumbo-700,
 [data-theme="light"] .bg-chumbo-700 {
-  background-color: #edf2f7 !important;
+  background-color: #e2e8f0 !important;
 }
 
 html.light .bg-chumbo-600,
 [data-theme="light"] .bg-chumbo-600 {
-  background-color: #e2e8f0 !important;
+  background-color: #cbd5e1 !important;
 }
 
 html.light .hover\:bg-chumbo-800:hover,
 [data-theme="light"] .hover\:bg-chumbo-800:hover {
-  background-color: #f3f6f9 !important;
+  background-color: #f1f5f9 !important;
 }
 
 html.light .hover\:bg-chumbo-900:hover,
@@ -190,7 +191,7 @@ html.light .hover\:bg-chumbo-900:hover,
 
 html.light .hover\:bg-chumbo-700:hover,
 [data-theme="light"] .hover\:bg-chumbo-700:hover {
-  background-color: #e5ebf2 !important;
+  background-color: #e2e8f0 !important;
 }
 
 html.light .border-chumbo-950,
@@ -201,19 +202,19 @@ html.light .border-chumbo-800,
 [data-theme="light"] .border-chumbo-900,
 [data-theme="light"] .border-chumbo-850,
 [data-theme="light"] .border-chumbo-800 {
-  border-color: #eef2f6 !important;
+  border-color: #e2e8f0 !important;
 }
 
 html.light .border-chumbo-750,
 html.light .border-chumbo-700,
 [data-theme="light"] .border-chumbo-750,
 [data-theme="light"] .border-chumbo-700 {
-  border-color: #e2e8f0 !important;
+  border-color: #cbd5e1 !important;
 }
 
 html.light .border-chumbo-600,
 [data-theme="light"] .border-chumbo-600 {
-  border-color: #cbd5e1 !important;
+  border-color: #94a3b8 !important;
 }
 
 html.light .text-white,
@@ -252,7 +253,9 @@ html.light textarea,
 [data-theme="light"] input:not([type="checkbox"]):not([type="radio"]),
 [data-theme="light"] select,
 [data-theme="light"] textarea {
-  color: #0f172a;
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
 }
 
 /* Evita duplicidade de botão 'x' nativo em campos de pesquisa */
@@ -265,7 +268,222 @@ input[type="search"]::-webkit-search-results-decoration {
   display: none;
 }
 
-/* Botões com fundo no tom de azul/cyan da marca devem ter texto e ícones brancos */
+/* ==========================================================================
+   Tema Claro: Badges, Tags, Status e Botões Coloridos
+   Garante fundo escuro saturado (verde escuro, amarelo/âmbar escuro, vermelho escuro)
+   com texto e ícones em branco puro para máxima legibilidade.
+   ========================================================================== */
+
+/* 1. Elementos que usam text-white sobre fundos escuros/coloridos devem SEMPRE manter branco puro */
+html.light [class*="bg-emerald-"] .text-white,
+html.light [class*="bg-green-"] .text-white,
+html.light [class*="bg-amber-"] .text-white,
+html.light [class*="bg-yellow-"] .text-white,
+html.light [class*="bg-rose-"] .text-white,
+html.light [class*="bg-red-"] .text-white,
+html.light [class*="bg-cyan-"] .text-white,
+html.light [class*="bg-laser-"] .text-white,
+html.light [class*="bg-blue-"] .text-white,
+html.light [class*="bg-purple-"] .text-white,
+html.light [class*="bg-indigo-"] .text-white,
+html.light .text-white[class*="bg-emerald-"],
+html.light .text-white[class*="bg-green-"],
+html.light .text-white[class*="bg-amber-"],
+html.light .text-white[class*="bg-yellow-"],
+html.light .text-white[class*="bg-rose-"],
+html.light .text-white[class*="bg-red-"],
+html.light .text-white[class*="bg-cyan-"],
+html.light .text-white[class*="bg-laser-"],
+html.light .text-white[class*="bg-blue-"],
+html.light .text-white[class*="bg-purple-"],
+html.light .text-white[class*="bg-indigo-"],
+[data-theme="light"] [class*="bg-emerald-"] .text-white,
+[data-theme="light"] [class*="bg-green-"] .text-white,
+[data-theme="light"] [class*="bg-amber-"] .text-white,
+[data-theme="light"] [class*="bg-yellow-"] .text-white,
+[data-theme="light"] [class*="bg-rose-"] .text-white,
+[data-theme="light"] [class*="bg-red-"] .text-white,
+[data-theme="light"] [class*="bg-cyan-"] .text-white,
+[data-theme="light"] [class*="bg-laser-"] .text-white,
+[data-theme="light"] [class*="bg-blue-"] .text-white,
+[data-theme="light"] [class*="bg-purple-"] .text-white,
+[data-theme="light"] [class*="bg-indigo-"] .text-white,
+[data-theme="light"] .text-white[class*="bg-emerald-"],
+[data-theme="light"] .text-white[class*="bg-green-"],
+[data-theme="light"] .text-white[class*="bg-amber-"],
+[data-theme="light"] .text-white[class*="bg-yellow-"],
+[data-theme="light"] .text-white[class*="bg-rose-"],
+[data-theme="light"] .text-white[class*="bg-red-"],
+[data-theme="light"] .text-white[class*="bg-cyan-"],
+[data-theme="light"] .text-white[class*="bg-laser-"],
+[data-theme="light"] .text-white[class*="bg-blue-"],
+[data-theme="light"] .text-white[class*="bg-purple-"],
+[data-theme="light"] .text-white[class*="bg-indigo-"] {
+  color: #ffffff !important;
+}
+
+/* 2. Status e Badges de Alerta / Pendente (Amarelo / Âmbar Escuro + Texto Branco) */
+html.light [class*="bg-amber-500/"][class*="text-amber-"],
+html.light [class*="bg-amber-500/"][class*="text-yellow-"],
+html.light [class*="bg-yellow-500/"][class*="text-amber-"],
+html.light [class*="bg-yellow-500/"][class*="text-yellow-"],
+html.light span[class*="bg-amber-"],
+html.light span[class*="bg-yellow-"],
+[data-theme="light"] [class*="bg-amber-500/"][class*="text-amber-"],
+[data-theme="light"] [class*="bg-amber-500/"][class*="text-yellow-"],
+[data-theme="light"] [class*="bg-yellow-500/"][class*="text-amber-"],
+[data-theme="light"] [class*="bg-yellow-500/"][class*="text-yellow-"],
+[data-theme="light"] span[class*="bg-amber-"],
+[data-theme="light"] span[class*="bg-yellow-"] {
+  background-color: #b45309 !important; /* Amarelo / Âmbar escuro */
+  border-color: #92400e !important;
+  color: #ffffff !important;
+}
+
+html.light [class*="bg-amber-500/"][class*="text-amber-"] *,
+html.light [class*="bg-yellow-500/"][class*="text-yellow-"] *,
+html.light span[class*="bg-amber-"] *,
+html.light span[class*="bg-yellow-"] *,
+[data-theme="light"] [class*="bg-amber-500/"][class*="text-amber-"] *,
+[data-theme="light"] [class*="bg-yellow-500/"][class*="text-yellow-"] *,
+[data-theme="light"] span[class*="bg-amber-"] *,
+[data-theme="light"] span[class*="bg-yellow-"] * {
+  color: #ffffff !important;
+}
+
+/* 3. Status Verde Escuro (Conectado, Em Estoque, Ativo, Sucesso) */
+html.light [class*="bg-emerald-500/"][class*="text-emerald-"],
+html.light [class*="bg-green-500/"][class*="text-green-"],
+html.light span[class*="bg-emerald-"],
+html.light span[class*="bg-green-"],
+[data-theme="light"] [class*="bg-emerald-500/"][class*="text-emerald-"],
+[data-theme="light"] [class*="bg-green-500/"][class*="text-green-"],
+[data-theme="light"] span[class*="bg-emerald-"],
+[data-theme="light"] span[class*="bg-green-"] {
+  background-color: #047857 !important; /* Verde escuro */
+  border-color: #065f46 !important;
+  color: #ffffff !important;
+}
+
+html.light [class*="bg-emerald-500/"][class*="text-emerald-"] *,
+html.light [class*="bg-green-500/"][class*="text-green-"] *,
+html.light span[class*="bg-emerald-"] *,
+html.light span[class*="bg-green-"] *,
+[data-theme="light"] [class*="bg-emerald-500/"][class*="text-emerald-"] *,
+[data-theme="light"] [class*="bg-green-500/"][class*="text-green-"] *,
+[data-theme="light"] span[class*="bg-emerald-"] *,
+[data-theme="light"] span[class*="bg-green-"] * {
+  color: #ffffff !important;
+}
+
+/* 4. Status Vermelho / Rose Escuro (Erro, Esgotado, Falha, Perigo) */
+html.light [class*="bg-rose-500/"][class*="text-rose-"],
+html.light [class*="bg-red-500/"][class*="text-red-"],
+html.light span[class*="bg-rose-"],
+html.light span[class*="bg-red-"],
+[data-theme="light"] [class*="bg-rose-500/"][class*="text-rose-"],
+[data-theme="light"] [class*="bg-red-500/"][class*="text-red-"],
+[data-theme="light"] span[class*="bg-rose-"],
+[data-theme="light"] span[class*="bg-red-"] {
+  background-color: #be123c !important; /* Vermelho / Rose escuro */
+  border-color: #9f1239 !important;
+  color: #ffffff !important;
+}
+
+html.light [class*="bg-rose-500/"][class*="text-rose-"] *,
+html.light [class*="bg-red-500/"][class*="text-red-"] *,
+html.light span[class*="bg-rose-"] *,
+html.light span[class*="bg-red-"] *,
+[data-theme="light"] [class*="bg-rose-500/"][class*="text-rose-"] *,
+[data-theme="light"] [class*="bg-red-500/"][class*="text-red-"] *,
+[data-theme="light"] span[class*="bg-rose-"] *,
+[data-theme="light"] span[class*="bg-red-"] * {
+  color: #ffffff !important;
+}
+
+/* 5. Status Cyan / Laser / Azul Escuro (Info, Processamento) */
+html.light [class*="bg-laser-500/"][class*="text-laser-"],
+html.light [class*="bg-cyan-500/"][class*="text-cyan-"],
+html.light [class*="bg-blue-500/"][class*="text-blue-"],
+html.light span[class*="bg-laser-"],
+html.light span[class*="bg-cyan-"],
+html.light span[class*="bg-blue-"],
+[data-theme="light"] [class*="bg-laser-500/"][class*="text-laser-"],
+[data-theme="light"] [class*="bg-cyan-500/"][class*="text-cyan-"],
+[data-theme="light"] [class*="bg-blue-500/"][class*="text-blue-"],
+[data-theme="light"] span[class*="bg-laser-"],
+[data-theme="light"] span[class*="bg-cyan-"],
+[data-theme="light"] span[class*="bg-blue-"] {
+  background-color: #0e7490 !important; /* Cyan / Azul escuro */
+  border-color: #155e75 !important;
+  color: #ffffff !important;
+}
+
+html.light [class*="bg-laser-500/"][class*="text-laser-"] *,
+html.light [class*="bg-cyan-500/"][class*="text-cyan-"] *,
+html.light [class*="bg-blue-500/"][class*="text-blue-"] *,
+html.light span[class*="bg-laser-"] *,
+html.light span[class*="bg-cyan-"] *,
+html.light span[class*="bg-blue-"] *,
+[data-theme="light"] [class*="bg-laser-500/"][class*="text-laser-"] *,
+[data-theme="light"] [class*="bg-cyan-500/"][class*="text-cyan-"] *,
+[data-theme="light"] [class*="bg-blue-500/"][class*="text-blue-"] *,
+[data-theme="light"] span[class*="bg-laser-"] *,
+[data-theme="light"] span[class*="bg-cyan-"] *,
+[data-theme="light"] span[class*="bg-blue-"] * {
+  color: #ffffff !important;
+}
+
+/* 6. Botões com fundo colorido no tema claro devem ter contraste escuro e texto branco */
+html.light button[class*="bg-yellow-"],
+html.light button[class*="bg-amber-"],
+[data-theme="light"] button[class*="bg-yellow-"],
+[data-theme="light"] button[class*="bg-amber-"] {
+  background-color: #b45309 !important; /* Amarelo / Âmbar escuro */
+  border-color: #92400e !important;
+  color: #ffffff !important;
+}
+
+html.light button[class*="bg-yellow-"] *,
+html.light button[class*="bg-amber-"] *,
+[data-theme="light"] button[class*="bg-yellow-"] *,
+[data-theme="light"] button[class*="bg-amber-"] * {
+  color: #ffffff !important;
+}
+
+html.light button[class*="bg-emerald-"],
+html.light button[class*="bg-green-"],
+[data-theme="light"] button[class*="bg-emerald-"],
+[data-theme="light"] button[class*="bg-green-"] {
+  background-color: #047857 !important; /* Verde escuro */
+  border-color: #065f46 !important;
+  color: #ffffff !important;
+}
+
+html.light button[class*="bg-emerald-"] *,
+html.light button[class*="bg-green-"] *,
+[data-theme="light"] button[class*="bg-emerald-"] *,
+[data-theme="light"] button[class*="bg-green-"] * {
+  color: #ffffff !important;
+}
+
+html.light button[class*="bg-rose-"],
+html.light button[class*="bg-red-"],
+[data-theme="light"] button[class*="bg-rose-"],
+[data-theme="light"] button[class*="bg-red-"] {
+  background-color: #be123c !important; /* Vermelho escuro */
+  border-color: #9f1239 !important;
+  color: #ffffff !important;
+}
+
+html.light button[class*="bg-rose-"] *,
+html.light button[class*="bg-red-"] *,
+[data-theme="light"] button[class*="bg-rose-"] *,
+[data-theme="light"] button[class*="bg-red-"] * {
+  color: #ffffff !important;
+}
+
+/* 7. Botões Cyan/Laser da marca */
 .bg-cyan-500,
 .bg-cyan-600,
 .bg-laser-500,
@@ -277,16 +495,67 @@ input[type="search"]::-webkit-search-results-decoration {
 .bg-cyan-600 *,
 .bg-laser-500 *,
 .bg-laser-400 * {
-  color: #ffffff;
+  color: #ffffff !important;
 }
 
-/* No tema claro, botões e elementos com fundo branco que usam text-chumbo-950 devem ter fonte no azul da marca */
+/* 8. Botões brancos com texto azul da marca (somente quando são de fato bg-white) */
 html.light .bg-white.text-chumbo-950,
 [data-theme="light"] .bg-white.text-chumbo-950,
-html.light button.text-chumbo-950,
-[data-theme="light"] button.text-chumbo-950 {
+html.light button.bg-white.text-chumbo-950,
+[data-theme="light"] button.bg-white.text-chumbo-950 {
   color: #0891b2 !important;
 }
 
+/* 9. Badges/pills neutros no tema claro (ex: SELLER ID, pending_credentials) */
+html.light .rounded-full.bg-chumbo-900,
+html.light .rounded-full.bg-chumbo-950,
+[data-theme="light"] .rounded-full.bg-chumbo-900,
+[data-theme="light"] .rounded-full.bg-chumbo-950 {
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #1e293b !important;
+}
 
+/* 10. Ícones com cor amarela/âmbar em fundo claro */
+html.light svg.text-yellow-300,
+html.light svg.text-amber-300,
+html.light svg.text-amber-400,
+[data-theme="light"] svg.text-yellow-300,
+[data-theme="light"] svg.text-amber-300,
+[data-theme="light"] svg.text-amber-400 {
+  color: #b45309 !important;
+}
 
+/* 11. Textos coloridos de status/métricas em tema claro (tons escuros e legíveis) */
+html.light .text-amber-400,
+html.light .text-amber-500,
+html.light .text-yellow-400,
+html.light .text-yellow-500,
+[data-theme="light"] .text-amber-400,
+[data-theme="light"] .text-amber-500,
+[data-theme="light"] .text-yellow-400,
+[data-theme="light"] .text-yellow-500 {
+  color: #b45309 !important; /* Âmbar escuro legível */
+}
+
+html.light .text-emerald-400,
+html.light .text-emerald-500,
+html.light .text-green-400,
+html.light .text-green-500,
+[data-theme="light"] .text-emerald-400,
+[data-theme="light"] .text-emerald-500,
+[data-theme="light"] .text-green-400,
+[data-theme="light"] .text-green-500 {
+  color: #047857 !important; /* Verde escuro legível */
+}
+
+html.light .text-rose-400,
+html.light .text-rose-500,
+html.light .text-red-400,
+html.light .text-red-500,
+[data-theme="light"] .text-rose-400,
+[data-theme="light"] .text-rose-500,
+[data-theme="light"] .text-red-400,
+[data-theme="light"] .text-red-500 {
+  color: #be123c !important; /* Vermelho escuro legível */
+}

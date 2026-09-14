@@ -72,20 +72,33 @@ export const useTenantCatalog = (options: UseTenantCatalogOptions = {}) => {
     }
   }, [lockedTenantId]);
 
-  useEffect(() => {
+  const fetchCategories = useCallback(async () => {
     if (!activeTenant) return;
 
-    const fetchCategories = async () => {
-      try {
-        const data = await api.getCategories(activeTenant.id);
-        setCategories(data);
-      } catch (err) {
-        console.error('Erro ao carregar categorias:', err);
+    try {
+      const data = await api.getCategories(activeTenant.id);
+      setCategories(data);
+    } catch (err) {
+      console.error('Erro ao carregar categorias:', err);
+    }
+  }, [activeTenant]);
+
+  useEffect(() => {
+    void fetchCategories();
+  }, [fetchCategories]);
+
+  useEffect(() => {
+    const handleCategoriesChanged = (e: Event) => {
+      const custom = e as CustomEvent<{ tenantId?: number }>;
+      if (!custom.detail?.tenantId || custom.detail.tenantId === activeTenant?.id) {
+        void fetchCategories();
       }
     };
-
-    fetchCategories();
-  }, [activeTenant]);
+    window.addEventListener('az3d:categories-changed', handleCategoriesChanged);
+    return () => {
+      window.removeEventListener('az3d:categories-changed', handleCategoriesChanged);
+    };
+  }, [fetchCategories, activeTenant?.id]);
 
   const fetchProducts = useCallback(async () => {
     if (!activeTenant) return;
@@ -111,6 +124,10 @@ export const useTenantCatalog = (options: UseTenantCatalogOptions = {}) => {
     return () => window.clearTimeout(timer);
   }, [fetchProducts]);
 
+  const refreshCatalog = useCallback(async () => {
+    await Promise.all([fetchCategories(), fetchProducts()]);
+  }, [fetchCategories, fetchProducts]);
+
   return {
     tenants,
     activeTenant,
@@ -123,5 +140,7 @@ export const useTenantCatalog = (options: UseTenantCatalogOptions = {}) => {
     isLoading,
     onSelectTenant: handleSelectTenant,
     refreshProducts: fetchProducts,
+    refreshCategories: fetchCategories,
+    refreshCatalog,
   };
 };

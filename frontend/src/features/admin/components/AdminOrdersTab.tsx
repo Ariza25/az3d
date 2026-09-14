@@ -114,7 +114,7 @@ export const AdminOrdersTab: React.FC<AdminOrdersTabProps> = ({
                   </span>
                 </td>
                 <td className="p-3">
-                  <span className="bg-chumbo-800 text-slate-300 px-2 py-0.5 rounded-md font-mono text-[11px]">
+                  <span className="bg-slate-200 text-slate-800 dark:bg-chumbo-800 dark:text-slate-300 px-2 py-0.5 rounded-md font-mono text-[11px]">
                     {o.items?.length || 0} itens
                   </span>
                 </td>
@@ -127,10 +127,10 @@ export const AdminOrdersTab: React.FC<AdminOrdersTabProps> = ({
                     onChange={(e) => onStatusChange(o.id, e.target.value)}
                     className={`bg-chumbo-950 border border-chumbo-700 text-xs font-mono font-bold rounded-lg px-2 py-1 focus:outline-none ${
                       o.status === 'preparing' || o.status === 'paid'
-                        ? 'text-amber-400'
+                        ? 'text-amber-600 dark:text-amber-400'
                         : o.status === 'delivered'
-                        ? 'text-emerald-400'
-                        : 'text-slate-300'
+                        ? 'text-emerald-700 dark:text-emerald-400'
+                        : 'text-slate-800 dark:text-slate-300'
                     }`}
                   >
                     <option value="pending_confirmation">Aguardando confirmacao</option>

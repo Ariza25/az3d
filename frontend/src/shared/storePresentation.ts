@@ -130,20 +130,20 @@ export const getStockStatus = (product: Product) => {
   if (!product.in_stock || totalStock <= 0) {
     return {
       label: 'Esgotado',
-      tone: 'border-red-500/40 bg-red-500/10 text-red-200',
+      tone: 'border-rose-800 bg-rose-700 text-white dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200',
       canBuy: false,
     };
   }
   if (totalStock <= 3) {
     return {
       label: 'Baixo estoque',
-      tone: 'border-amber-500/40 bg-amber-500/10 text-amber-200',
+      tone: 'border-amber-800 bg-amber-700 text-white dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200',
       canBuy: true,
     };
   }
   return {
     label: 'Disponivel',
-    tone: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200',
+    tone: 'border-emerald-800 bg-emerald-700 text-white dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200',
     canBuy: true,
   };
 };

@@ -546,15 +546,15 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
               </div>
 
               {profileSuccessMsg && (
-                <div className="p-3 bg-emerald-500/20 border border-emerald-500/40 rounded-xl flex items-center gap-2.5 text-xs text-emerald-300">
-                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                <div className="p-3 bg-emerald-700 text-white border border-emerald-800 rounded-xl flex items-center gap-2.5 text-xs shadow-sm dark:bg-emerald-500/20 dark:border-emerald-500/40 dark:text-emerald-300 dark:shadow-none">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-white dark:text-emerald-400" />
                   <span>{profileSuccessMsg}</span>
                 </div>
               )}
 
               {profileErrorMsg && (
-                <div className="p-3 bg-red-500/20 border border-red-500/40 rounded-xl flex items-center gap-2.5 text-xs text-red-300">
-                  <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+                <div className="p-3 bg-rose-700 text-white border border-rose-800 rounded-xl flex items-center gap-2.5 text-xs shadow-sm dark:bg-red-500/20 dark:border-red-500/40 dark:text-red-300 dark:shadow-none">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-white dark:text-red-400" />
                   <span>{profileErrorMsg}</span>
                 </div>
               )}
@@ -660,8 +660,8 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
           {activeTab === 'addresses' && (
             <div className="space-y-6">
               {addressSuccessMsg && (
-                <div className="p-3 bg-emerald-500/20 border border-emerald-500/40 rounded-xl flex items-center gap-2.5 text-xs text-emerald-300">
-                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                <div className="p-3 bg-emerald-700 text-white border border-emerald-800 rounded-xl flex items-center gap-2.5 text-xs shadow-sm dark:bg-emerald-500/20 dark:border-emerald-500/40 dark:text-emerald-300 dark:shadow-none">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-white dark:text-emerald-400" />
                   <span>{addressSuccessMsg}</span>
                 </div>
               )}
@@ -950,8 +950,8 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
           {activeTab === 'cards' && (
             <div className="space-y-6">
               {cardSuccessMsg && (
-                <div className="p-3 bg-emerald-500/20 border border-emerald-500/40 rounded-xl flex items-center gap-2.5 text-xs text-emerald-300">
-                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                <div className="p-3 bg-emerald-700 text-white border border-emerald-800 rounded-xl flex items-center gap-2.5 text-xs shadow-sm dark:bg-emerald-500/20 dark:border-emerald-500/40 dark:text-emerald-300 dark:shadow-none">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-white dark:text-emerald-400" />
                   <span>{cardSuccessMsg}</span>
                 </div>
               )}

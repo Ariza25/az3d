@@ -43,7 +43,7 @@ export const AdminMasterOverview: React.FC<AdminMasterOverviewProps> = ({ platfo
       <SectionHeader title="Visão da plataforma" description="Monitore os tenants e inicie a autorização das contas externas sem cadastrar tokens manualmente." />
 
       {feedback && (
-        <div className={`rounded-xl border p-3 text-xs ${feedback.tone === 'success' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' : 'border-rose-500/30 bg-rose-500/10 text-rose-200'}`}>{feedback.text}</div>
+        <div className={`rounded-xl border p-3 text-xs font-medium shadow-sm ${feedback.tone === 'success' ? 'border-emerald-800 bg-emerald-700 text-white dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200' : 'border-rose-800 bg-rose-700 text-white dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200'}`}>{feedback.text}</div>
       )}
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
@@ -108,7 +108,7 @@ export const AdminMasterOverview: React.FC<AdminMasterOverviewProps> = ({ platfo
 };
 
 const OAuthButton = ({ label, connected, busy, icon: Icon, onClick }: { label: string; connected: boolean; busy: boolean; icon: React.ComponentType<{ className?: string }>; onClick: () => void }) => (
-  <button type="button" onClick={onClick} disabled={busy} className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[10px] font-bold transition-colors disabled:opacity-60 ${connected ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' : 'border-chumbo-700 bg-chumbo-950 text-slate-200 hover:bg-chumbo-800'}`} title={connected ? `${label} conectado; clique para reautorizar` : `Autorizar ${label}`}>
+  <button type="button" onClick={onClick} disabled={busy} className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[10px] font-bold transition-colors disabled:opacity-60 shadow-sm ${connected ? 'border-emerald-800 bg-emerald-700 text-white dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200' : 'border-chumbo-700 bg-chumbo-950 text-slate-200 hover:bg-chumbo-800'}`} title={connected ? `${label} conectado; clique para reautorizar` : `Autorizar ${label}`}>
     <Icon className="h-3.5 w-3.5" />{busy ? 'Abrindo...' : connected ? `${label} conectado` : label}
   </button>
 );
@@ -116,6 +116,6 @@ const OAuthButton = ({ label, connected, busy, icon: Icon, onClick }: { label: s
 const ControlRow = ({ icon: Icon, label, value, warning = false }: { icon: React.ComponentType<{ className?: string }>; label: string; value: React.ReactNode; warning?: boolean }) => (
   <div className="flex items-center justify-between rounded-xl border border-chumbo-800 bg-chumbo-950/60 p-3">
     <span className="flex items-center gap-2 text-xs text-slate-400"><Icon className="h-4 w-4 text-slate-500" />{label}</span>
-    <strong className={warning && Number(value) > 0 ? 'text-amber-300' : 'text-white'}>{value}</strong>
+    <strong className={warning && Number(value) > 0 ? 'text-amber-600 dark:text-amber-300 font-bold' : 'text-white'}>{value}</strong>
   </div>
 );

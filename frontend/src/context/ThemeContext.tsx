@@ -30,12 +30,12 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       root.classList.add('light');
       root.setAttribute('data-theme', 'light');
       document.body.classList.remove('bg-chumbo-950', 'text-slate-100');
-      document.body.classList.add('bg-slate-50', 'text-slate-900', 'theme-light');
+      document.body.classList.add('bg-slate-100', 'text-slate-900', 'theme-light');
     } else {
       root.classList.remove('light');
       root.classList.add('dark');
       root.setAttribute('data-theme', 'dark');
-      document.body.classList.remove('bg-slate-50', 'text-slate-900', 'theme-light');
+      document.body.classList.remove('bg-slate-100', 'bg-slate-50', 'text-slate-900', 'theme-light');
       document.body.classList.add('bg-chumbo-950', 'text-slate-100');
     }
   };

@@ -12,6 +12,7 @@ export interface AdminProductsTabProps {
   onCreateProduct: () => void;
   onDeleteProduct: (productId: number) => void;
   onRefreshProducts: () => void;
+  onRefreshCategories?: () => void;
   onMessage: (msg: { type: 'success' | 'error'; text: string }) => void;
 }
 
@@ -23,6 +24,7 @@ export const AdminProductsTab: React.FC<AdminProductsTabProps> = ({
   onCreateProduct,
   onDeleteProduct,
   onRefreshProducts,
+  onRefreshCategories,
   onMessage,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -85,7 +87,7 @@ export const AdminProductsTab: React.FC<AdminProductsTabProps> = ({
                     </div>
                   </td>
                   <td className="p-3">
-                    <span className="bg-chumbo-800 text-slate-200 px-2 py-0.5 rounded-md font-mono text-[11px]">
+                    <span className="bg-slate-200 text-slate-800 dark:bg-chumbo-800 dark:text-slate-200 px-2 py-0.5 rounded-md font-mono text-[11px]">
                       {p.material}
                     </span>
                   </td>
@@ -98,8 +100,8 @@ export const AdminProductsTab: React.FC<AdminProductsTabProps> = ({
                   </td>
                   <td className="p-3">
                     <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        p.in_stock ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold shadow-sm ${
+                        p.in_stock ? 'bg-emerald-700 text-white dark:bg-emerald-500/20 dark:text-emerald-400 dark:shadow-none' : 'bg-rose-700 text-white dark:bg-rose-500/20 dark:text-rose-400 dark:shadow-none'
                       }`}
                     >
                       {p.in_stock ? `${p.stock_qty} un` : 'Esgotado'}
@@ -109,14 +111,14 @@ export const AdminProductsTab: React.FC<AdminProductsTabProps> = ({
                     <div className="flex items-center justify-end space-x-2">
                       <button
                         onClick={() => onEditProduct(p)}
-                        className="p-1.5 rounded-lg bg-chumbo-800 hover:bg-chumbo-700 text-slate-300 hover:text-white transition-colors"
+                        className="p-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 dark:bg-chumbo-800 dark:hover:bg-chumbo-700 dark:text-slate-300 dark:hover:text-white transition-colors"
                         title="Editar Produto"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => onDeleteProduct(p.id)}
-                        className="p-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/40 text-rose-300 transition-colors"
+                        className="p-1.5 rounded-lg bg-rose-700 hover:bg-rose-800 text-white dark:bg-rose-500/20 dark:hover:bg-rose-500/40 dark:text-rose-300 transition-colors"
                         title="Excluir Produto"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -140,7 +142,10 @@ export const AdminProductsTab: React.FC<AdminProductsTabProps> = ({
       <CatalogCategoriesPanel
         tenantId={activeTenant?.id}
         categories={categories}
-        onCreated={onRefreshProducts}
+        onCreated={() => {
+          onRefreshCategories?.();
+          onRefreshProducts();
+        }}
         onMessage={onMessage}
       />
     </div>

@@ -113,7 +113,7 @@ export const AdminInventory: React.FC<AdminInventoryProps> = ({
             <div
               key={`${product.id}-${color || 'base'}`}
               className={`flex items-center justify-between gap-3 rounded-xl border p-3 text-xs ${
-                severity === 'out' ? 'border-rose-500/30 bg-rose-500/10' : 'border-amber-500/20 bg-amber-500/10'
+                severity === 'out' ? 'border-rose-300 bg-rose-50 text-slate-900 dark:border-rose-500/30 dark:bg-rose-500/10' : 'border-amber-300 bg-amber-50 text-slate-900 dark:border-amber-500/20 dark:bg-amber-500/10'
               }`}
             >
               <div className="min-w-0">
@@ -121,7 +121,7 @@ export const AdminInventory: React.FC<AdminInventoryProps> = ({
                 <span className="text-slate-400">{color || 'Estoque geral'} - SKU {product.sku || '-'}</span>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <span className={severity === 'out' ? 'rounded-lg bg-rose-400 px-2 py-1 font-mono font-bold text-chumbo-950' : 'rounded-lg bg-amber-400 px-2 py-1 font-mono font-bold text-chumbo-950'}>
+                <span className={severity === 'out' ? 'rounded-lg bg-rose-700 px-2 py-1 font-mono font-bold text-white shadow-sm dark:bg-rose-400 dark:text-chumbo-950 dark:shadow-none' : 'rounded-lg bg-amber-700 px-2 py-1 font-mono font-bold text-white shadow-sm dark:bg-amber-400 dark:text-chumbo-950 dark:shadow-none'}>
                   {qty} un
                 </span>
                 {alert && (
@@ -155,7 +155,7 @@ export const AdminInventory: React.FC<AdminInventoryProps> = ({
             <div key={movement.id} className="rounded-xl border border-chumbo-800 bg-chumbo-900/60 p-3 text-xs">
               <div className="flex items-center justify-between gap-3">
                 <strong className="min-w-0 truncate text-white">{movement.product?.title || `Produto #${movement.product_id}`}</strong>
-                <span className={movement.quantity_delta < 0 ? 'font-mono font-bold text-rose-300' : 'font-mono font-bold text-emerald-300'}>
+                <span className={movement.quantity_delta < 0 ? 'font-mono font-bold text-rose-700 dark:text-rose-300' : 'font-mono font-bold text-emerald-700 dark:text-emerald-300'}>
                   {movement.quantity_delta > 0 ? '+' : ''}{movement.quantity_delta}
                 </span>
               </div>

@@ -70,7 +70,7 @@ export const AdminOutbox: React.FC<AdminOutboxProps> = ({ events, onRefresh }) =
               {visibleEvents.map((event) => (
                 <tr key={`${event.source}-${event.id}`} className="hover:bg-chumbo-900/60">
                   <td className="py-3.5 pr-4">
-                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-bold uppercase ${event.status === 'failed' ? 'bg-rose-500/10 text-rose-300' : event.status === 'processed' ? 'bg-emerald-500/10 text-emerald-300' : 'bg-amber-500/10 text-amber-300'}`}>
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase shadow-sm ${event.status === 'failed' ? 'border border-rose-800 bg-rose-700 text-white dark:border-transparent dark:bg-rose-500/10 dark:text-rose-300 dark:shadow-none' : event.status === 'processed' ? 'border border-emerald-800 bg-emerald-700 text-white dark:border-transparent dark:bg-emerald-500/10 dark:text-emerald-300 dark:shadow-none' : 'border border-amber-800 bg-amber-700 text-white dark:border-transparent dark:bg-amber-500/10 dark:text-amber-300 dark:shadow-none'}`}>
                       {event.status === 'failed' ? <CircleAlert className="h-3 w-3" /> : <CheckCircle2 className="h-3 w-3" />}
                       {event.status}
                     </span>

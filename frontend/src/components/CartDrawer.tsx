@@ -1537,9 +1537,9 @@ const OrdersList = ({
 
 const StatusPill = ({ label, tone }: { label: string; tone: 'success' | 'warning' | 'danger' }) => {
   const classes = tone === 'success'
-    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
+    ? 'border-emerald-800 bg-emerald-700 text-white dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200'
     : tone === 'danger'
-      ? 'border-red-500/40 bg-red-500/10 text-red-200'
-      : 'border-amber-500/40 bg-amber-500/10 text-amber-200';
-  return <span className={`rounded-full border px-2 py-1 text-center font-bold ${classes}`}>{label}</span>;
+      ? 'border-rose-800 bg-rose-700 text-white dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200'
+      : 'border-amber-800 bg-amber-700 text-white dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200';
+  return <span className={`rounded-full border px-2.5 py-1 text-center font-bold shadow-sm ${classes}`}>{label}</span>;
 };

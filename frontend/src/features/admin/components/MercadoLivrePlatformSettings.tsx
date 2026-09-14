@@ -41,7 +41,7 @@ export const MercadoLivrePlatformSettings: React.FC = () => {
 };
 
 const Status = ({ configured, label }: { configured: boolean; label: string }) => (
-  <div className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${configured ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-300' : 'border-amber-500/20 bg-amber-500/5 text-amber-300'}`}>
+  <div className={`flex items-center gap-2 rounded-lg border px-3 py-2 font-medium shadow-sm ${configured ? 'border-emerald-800 bg-emerald-700 text-white dark:border-emerald-500/20 dark:bg-emerald-500/5 dark:text-emerald-300' : 'border-amber-800 bg-amber-700 text-white dark:border-amber-500/20 dark:bg-amber-500/5 dark:text-amber-300'}`}>
     {configured ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <CircleAlert className="h-4 w-4 shrink-0" />}
     <span className="font-mono">{label}</span>
   </div>
