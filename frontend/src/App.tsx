@@ -5,10 +5,46 @@ import { LoadingProvider } from './context/LoadingContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { AdminApp } from './apps/admin/AdminApp';
 import { StoreApp } from './apps/store/StoreApp';
+import { LoginPage } from './apps/auth/LoginPage';
 import { ADMIN_TOKEN_KEY, CUSTOMER_TOKEN_KEY } from './services/api';
 import { getAppPathname, withBasePath } from './shared/basePath';
+import { isStoreTenantPath } from './shared/tenantRoutes';
 
-const getCurrentApp = () => (getAppPathname().startsWith('/admin') ? 'admin' : 'store');
+type AppMode = 'admin' | 'store' | 'auth';
+
+const resolveAppRoute = (): AppMode => {
+  const pathname = getAppPathname();
+
+  if (pathname.startsWith('/admin')) {
+    return 'admin';
+  }
+
+  if (pathname === '/login' || pathname.startsWith('/recuperar-senha') || pathname.startsWith('/reset-password')) {
+    return 'auth';
+  }
+
+  // Raiz '/' ou caminho sem tenant específico
+  if (!isStoreTenantPath(pathname)) {
+    const hasCustomerToken = Boolean(localStorage.getItem(CUSTOMER_TOKEN_KEY));
+    const hasAdminToken = Boolean(localStorage.getItem(ADMIN_TOKEN_KEY));
+
+    if (hasAdminToken) {
+      window.history.replaceState({}, '', withBasePath('/admin'));
+      return 'admin';
+    }
+
+    if (hasCustomerToken) {
+      window.history.replaceState({}, '', withBasePath('/az3d-studio/store'));
+      return 'store';
+    }
+
+    // Visitante não autenticado na raiz: redireciona para /login
+    window.history.replaceState({}, '', withBasePath('/login'));
+    return 'auth';
+  }
+
+  return 'store';
+};
 
 const consumeGoogleCallback = () => {
   if (!getAppPathname().startsWith('/auth/google/callback')) return;
@@ -17,7 +53,7 @@ const consumeGoogleCallback = () => {
   const token = params.get('token');
   const error = params.get('error');
   const scope = params.get('scope') || 'customer';
-  const returnTo = params.get('return_to') || (scope === 'admin' || scope === 'seller' ? '/admin' : '/');
+  const returnTo = params.get('return_to') || (scope === 'admin' || scope === 'seller' ? '/admin' : '/az3d-studio/store');
 
   if (token) {
     localStorage.setItem(scope === 'admin' || scope === 'seller' ? ADMIN_TOKEN_KEY : CUSTOMER_TOKEN_KEY, token);
@@ -29,13 +65,13 @@ const consumeGoogleCallback = () => {
 };
 
 export function App() {
-  const [currentApp, setCurrentApp] = useState<'admin' | 'store'>(() => {
+  const [currentApp, setCurrentApp] = useState<AppMode>(() => {
     consumeGoogleCallback();
-    return getCurrentApp();
+    return resolveAppRoute();
   });
 
   useEffect(() => {
-    const syncRoute = () => setCurrentApp(getCurrentApp());
+    const syncRoute = () => setCurrentApp(resolveAppRoute());
     window.addEventListener('popstate', syncRoute);
     return () => window.removeEventListener('popstate', syncRoute);
   }, []);
@@ -46,6 +82,10 @@ export function App() {
         {currentApp === 'admin' ? (
           <AuthProvider scope="admin">
             <AdminApp />
+          </AuthProvider>
+        ) : currentApp === 'auth' ? (
+          <AuthProvider scope="customer">
+            <LoginPage />
           </AuthProvider>
         ) : (
           <AuthProvider scope="customer">
@@ -60,3 +100,4 @@ export function App() {
 }
 
 export default App;
+

@@ -8,6 +8,7 @@ import (
 
 	"az3d-backend/config"
 	"az3d-backend/database"
+	"az3d-backend/internal/mailer"
 	"az3d-backend/models"
 	"az3d-backend/utils"
 
@@ -15,11 +16,15 @@ import (
 )
 
 type AuthHandler struct {
-	cfg *config.Config
+	cfg    *config.Config
+	mailer *mailer.Mailer
 }
 
 func NewAuthHandler(cfg *config.Config) *AuthHandler {
-	return &AuthHandler{cfg: cfg}
+	return &AuthHandler{
+		cfg:    cfg,
+		mailer: mailer.NewMailer(cfg),
+	}
 }
 
 // POST /api/auth/customer/register

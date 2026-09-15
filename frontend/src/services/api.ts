@@ -55,6 +55,12 @@ import {
   MLSearchInsight,
   MLListingAudit,
   MLProductOpportunity,
+  ChatMessage,
+  ChatConversation,
+  ChatConversationResponse,
+  ForgotPasswordResponse,
+  VerifyResetTokenResponse,
+  ResetPasswordResponse,
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
@@ -1087,4 +1093,95 @@ export const api = {
     return res.json();
   },
 
+  // Recuperação de Senha
+  forgotPassword: async (email: string, accountType?: string): Promise<ForgotPasswordResponse> => {
+    const res = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ email, account_type: accountType || '' }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro ao solicitar recuperação de senha');
+    return data;
+  },
+
+  verifyResetToken: async (token: string): Promise<VerifyResetTokenResponse> => {
+    const res = await fetch(`${API_BASE_URL}/auth/verify-reset-token?token=${encodeURIComponent(token)}`, {
+      headers: getHeaders(),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro ao validar token');
+    return data;
+  },
+
+  resetPassword: async (token: string, newPassword: string): Promise<ResetPasswordResponse> => {
+    const res = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ token, new_password: newPassword }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro ao redefinir senha');
+    return data;
+  },
+
+  // Chat Online - Comprador
+  getCustomerChatConversation: async (tenantId: number): Promise<ChatConversationResponse> => {
+    const res = await fetch(`${API_BASE_URL}/chat/tenant/${tenantId}/conversation`, {
+      headers: getHeaders(tenantId, CUSTOMER_TOKEN_KEY),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro ao conectar ao chat');
+    return data;
+  },
+
+  sendCustomerChatMessage: async (tenantId: number, message: string): Promise<ChatMessage> => {
+    const res = await fetch(`${API_BASE_URL}/chat/tenant/${tenantId}/messages`, {
+      method: 'POST',
+      headers: getHeaders(tenantId, CUSTOMER_TOKEN_KEY),
+      body: JSON.stringify({ message }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro ao enviar mensagem');
+    return data;
+  },
+
+  // Chat Online - Tenant Admin
+  getTenantChatConversations: async (tenantId?: number): Promise<ChatConversation[]> => {
+    const res = await fetch(`${API_BASE_URL}/admin/chat/conversations`, {
+      headers: getAdminHeaders(tenantId),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro ao listar conversas do chat');
+    return data;
+  },
+
+  getTenantChatMessages: async (conversationId: number, tenantId?: number): Promise<ChatConversationResponse> => {
+    const res = await fetch(`${API_BASE_URL}/admin/chat/conversations/${conversationId}/messages`, {
+      headers: getAdminHeaders(tenantId),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro ao carregar mensagens');
+    return data;
+  },
+
+  sendTenantChatMessage: async (conversationId: number, message: string, tenantId?: number): Promise<ChatMessage> => {
+    const res = await fetch(`${API_BASE_URL}/admin/chat/conversations/${conversationId}/messages`, {
+      method: 'POST',
+      headers: getAdminHeaders(tenantId),
+      body: JSON.stringify({ message }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro ao enviar resposta');
+    return data;
+  },
+
+  getTenantChatUnreadCount: async (tenantId?: number): Promise<{ unread_count: number }> => {
+    const res = await fetch(`${API_BASE_URL}/admin/chat/unread-count`, {
+      headers: getAdminHeaders(tenantId),
+    });
+    const data = await res.json();
+    if (!res.ok) return { unread_count: 0 };
+    return data;
+  },
 };

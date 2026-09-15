@@ -51,6 +51,9 @@ var tenantScopedTables = []string{
 	"marketplace_o_auth_sessions",
 	"filament_spools",
 	"custom3_d_quotes",
+	"password_reset_tokens",
+	"chat_conversations",
+	"chat_messages",
 }
 
 // OpenExistingDB opens the platform database without migrations or bootstrap.

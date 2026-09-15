@@ -69,6 +69,7 @@ func main() {
 	carrierHandler := handlers.NewCarrierHandler(cfg)
 	shipmentHandler := handlers.NewShipmentHandler(cfg)
 	platformHandler := handlers.NewPlatformHandler(cfg)
+	chatHandler := handlers.NewChatHandler()
 	handlers.StartTrackingSyncJob(bgCtx, cfg)
 	handlers.StartMarketplaceSyncJob(bgCtx, cfg, marketplaceHandler)
 	handlers.StartExpiredPixJob(bgCtx)
@@ -90,6 +91,9 @@ func main() {
 			auth.POST("/admin/login", authHandler.AdminLogin)
 			auth.POST("/register", authHandler.Register)
 			auth.POST("/login", authHandler.Login)
+			auth.POST("/forgot-password", authHandler.ForgotPassword)
+			auth.GET("/verify-reset-token", authHandler.VerifyResetToken)
+			auth.POST("/reset-password", authHandler.ResetPassword)
 			auth.GET("/google/start", authHandler.StartGoogleOAuth)
 			auth.GET("/google/callback", authHandler.CompleteGoogleOAuth)
 		}
@@ -118,6 +122,8 @@ func main() {
 			protected.POST("/products/:id/reviews", productHandler.UpsertProductReview)
 			protected.POST("/products/:id/favorite", productHandler.AddProductFavorite)
 			protected.DELETE("/products/:id/favorite", productHandler.RemoveProductFavorite)
+			protected.GET("/chat/tenant/:tenant_id/conversation", chatHandler.GetCustomerConversation)
+			protected.POST("/chat/tenant/:tenant_id/messages", chatHandler.SendCustomerMessage)
 		}
 
 		admin := api.Group("/admin")
@@ -195,6 +201,10 @@ func main() {
 			admin.PUT("/filaments/:id", handlers.UpdateFilamentSpool)
 			admin.DELETE("/filaments/:id", handlers.DeleteFilamentSpool)
 			admin.GET("/quotes/custom-3d", handlers.GetCustom3DQuotes)
+			admin.GET("/chat/conversations", chatHandler.GetTenantConversations)
+			admin.GET("/chat/conversations/:id/messages", chatHandler.GetTenantConversationMessages)
+			admin.POST("/chat/conversations/:id/messages", chatHandler.SendTenantMessage)
+			admin.GET("/chat/unread-count", chatHandler.GetTenantUnreadChatCount)
 		}
 
 		platform := api.Group("/admin/platform")

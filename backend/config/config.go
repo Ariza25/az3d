@@ -50,6 +50,13 @@ type Config struct {
 	SuperFreteToken            string
 	SuperFreteAPIBaseURL       string
 	SuperFreteOriginCEP        string
+	SMTPHost                   string
+	SMTPPort                   int
+	SMTPUser                   string
+	SMTPPassword               string
+	SMTPFrom                   string
+	SMTPTLSMode                string
+	HTTPWriteTimeout           int
 }
 
 func LoadConfig() *Config {
@@ -107,6 +114,13 @@ func LoadConfig() *Config {
 		SuperFreteToken:            firstNonEmpty(getEnv("SUPER_FRETE", ""), getEnv("SUPERFRETE_TOKEN", "")),
 		SuperFreteAPIBaseURL:       getEnv("SUPER_FRETE_API_BASE_URL", "https://api.superfrete.com/api/v0"),
 		SuperFreteOriginCEP:        getEnv("SUPER_FRETE_ORIGIN_CEP", "01310100"),
+		SMTPHost:                   getEnv("SMTP_HOST", ""),
+		SMTPPort:                   getEnvInt("SMTP_PORT", 587),
+		SMTPUser:                   getEnv("SMTP_USER", ""),
+		SMTPPassword:               getEnv("SMTP_PASSWORD", ""),
+		SMTPFrom:                   getEnv("SMTP_FROM", "AZ3D Studio <nao-responda@az3dstudio.com.br>"),
+		SMTPTLSMode:                strings.ToLower(getEnv("SMTP_TLS_MODE", "starttls")),
+		HTTPWriteTimeout:           getEnvInt("HTTP_WRITE_TIMEOUT", 15),
 	}
 	cfg.validate()
 	return cfg

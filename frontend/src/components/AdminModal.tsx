@@ -29,6 +29,7 @@ import { TenantFilamentInventoryPanel } from '../features/admin/components/Tenan
 import { AdminProductsTab } from '../features/admin/components/AdminProductsTab';
 import { AdminOrdersTab } from '../features/admin/components/AdminOrdersTab';
 import { ImageConverterTab } from '../features/admin/components/ImageConverterTab';
+import { TenantChatPanel } from '../features/admin/components/TenantChatPanel';
 import {
   Package,
   Store,
@@ -44,6 +45,7 @@ import {
   CheckCircle2,
   Sparkles,
   ArrowLeft,
+  MessageSquare,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -72,6 +74,7 @@ type AdminSection =
   | 'dashboard'
   | 'products'
   | 'orders'
+  | 'chat'
   | 'pipeline'
   | 'inventory'
   | 'filaments'
@@ -137,6 +140,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [syncingShipmentId, setSyncingShipmentId] = useState<number | 'all' | null>(null);
   const [shipmentForm, setShipmentForm] = useState({ order_id: 0, carrier: 'superfrete', tracking_code: '' });
   const [mappings, setMappings] = useState<MarketplaceProductMapping[]>([]);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
@@ -172,6 +176,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         setCarrierAccounts(carrierData);
         setShipments(shipmentData);
       }
+      api.getTenantChatUnreadCount(activeTenant.id)
+        .then((r) => setUnreadChatCount(r.unread_count || 0))
+        .catch(() => {});
     } catch (err: any) {
       console.error('Erro ao carregar dados do admin:', err);
       setMessage({ type: 'error', text: err.message || 'Erro ao carregar dados do painel.' });
@@ -309,8 +316,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const tenantNavigation: TabItem<AdminSection>[] = [
     { id: 'dashboard', label: 'Visão geral', icon: <BarChart3 className="h-4 w-4" /> },
     { id: 'products', label: 'Produtos', icon: <Package className="h-4 w-4" />, badge: products.length },
-    { id: 'pipeline', label: 'Pipeline 3D', icon: <Clock className="h-4 w-4" /> },
     { id: 'orders', label: 'Pedidos e envios', icon: <ShoppingBag className="h-4 w-4" />, badge: orders.length },
+    { id: 'chat', label: 'Mensagens & Chat', icon: <MessageSquare className="h-4 w-4" />, badge: unreadChatCount > 0 ? unreadChatCount : undefined },
+    { id: 'pipeline', label: 'Pipeline 3D', icon: <Clock className="h-4 w-4" /> },
     { id: 'inventory', label: 'Estoque', icon: <Package className="h-4 w-4" />, badge: lowStockItems.length > 0 ? lowStockItems.length : undefined },
     { id: 'filaments', label: 'Insumos 3D', icon: <Layers className="h-4 w-4" /> },
     { id: 'pricing', label: 'Precificação', icon: <Calculator className="h-4 w-4" /> },
@@ -569,6 +577,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             )}
 
             {activeTab === 'image_converter' && <ImageConverterTab />}
+
+            {activeTab === 'chat' && <TenantChatPanel tenantId={activeTenant?.id} />}
 
             {activeTab === 'settings' && (
               <div className="space-y-6">

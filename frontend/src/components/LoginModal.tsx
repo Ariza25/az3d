@@ -3,6 +3,7 @@ import { X, Lock, Mail, ArrowRight, AlertCircle, Layers, Chrome } from 'lucide-r
 import { useAuth } from '../context/AuthContext';
 import { ADMIN_TOKEN_KEY, api } from '../services/api';
 import { getAppReturnTo, withBasePath } from '../shared/basePath';
+import { ForgotPasswordModal } from './ForgotPasswordModal';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -43,6 +44,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const [password, setPassword] = useState(defaultPassword);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -197,9 +199,18 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           </div>
 
           <div>
-            <label className="text-xs font-mono uppercase text-slate-400 block mb-1">
-              Senha de acesso
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-mono uppercase text-slate-400">
+                Senha de acesso
+              </label>
+              <button
+                type="button"
+                onClick={() => setIsForgotPasswordOpen(true)}
+                className="text-[11px] text-laser-400 hover:text-laser-300 transition-colors"
+              >
+                Esqueceu a senha?
+              </button>
+            </div>
             <div className="relative">
               <input
                 type="password"
@@ -240,6 +251,14 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           </div>
         )}
       </div>
+
+      <ForgotPasswordModal
+        isOpen={isForgotPasswordOpen}
+        onClose={() => setIsForgotPasswordOpen(false)}
+        onSwitchToLogin={() => setIsForgotPasswordOpen(false)}
+        initialEmail={email}
+        initialAccountType={accountType}
+      />
     </div>
   );
 };

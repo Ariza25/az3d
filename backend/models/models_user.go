@@ -157,3 +157,25 @@ type TenantMarketplaceSettingsInput struct {
 	AutoCreateInternalOrders   bool   `json:"auto_create_internal_orders"`
 	AutoCreateFinancialEntries bool   `json:"auto_create_financial_entries"`
 }
+
+type PasswordResetToken struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	UserID    uint      `gorm:"not null;index" json:"user_id"`
+	User      *User     `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	TenantID  uint      `gorm:"default:1;index" json:"tenant_id"`
+	Token     string    `gorm:"size:128;not null;uniqueIndex" json:"token"`
+	ExpiresAt time.Time `gorm:"not null;index" json:"expires_at"`
+	Used      bool      `gorm:"default:false;index" json:"used"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type ForgotPasswordInput struct {
+	Email       string `json:"email" binding:"required,email"`
+	AccountType string `json:"account_type"` // "customer" | "seller" | ""
+}
+
+type ResetPasswordInput struct {
+	Token       string `json:"token" binding:"required"`
+	NewPassword string `json:"new_password" binding:"required,min=6"`
+}
+

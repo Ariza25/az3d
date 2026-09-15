@@ -10,6 +10,7 @@ import { RegisterModal } from '../../components/RegisterModal';
 import { UserSettingsModal } from '../../components/UserSettingsModal';
 import { Footer } from '../../components/Footer';
 import { FavoritesModal } from '../../components/FavoritesModal';
+import { ChatWidget } from '../../components/ChatWidget';
 import { Product, TenantSettings } from '../../types';
 import { useTenantCatalog } from '../../shared/hooks/useTenantCatalog';
 import { api } from '../../services/api';
@@ -369,6 +370,11 @@ export const StoreApp: React.FC = () => {
       <UserSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+      />
+
+      <ChatWidget
+        activeTenant={activeTenant}
+        onOpenLogin={() => setIsLoginOpen(true)}
       />
 
       {cartNotice && (

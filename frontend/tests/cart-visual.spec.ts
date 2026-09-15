@@ -98,7 +98,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('mostra um estado vazio orientado para a próxima ação', async ({ page }, testInfo) => {
-  await page.goto('/');
+  await page.goto('/az3d-studio/store');
   await page.getByRole('button', { name: 'Abrir carrinho de vendas' }).click();
 
   const dialog = page.getByRole('dialog');
@@ -125,7 +125,7 @@ test('permite revisar itens e avança para entrega sem sobrecarregar o drawer', 
     ],
   });
 
-  await page.goto('/');
+  await page.goto('/az3d-studio/store');
   await expect(page.getByRole('button', { name: 'Abrir meus pedidos' })).toBeVisible();
   await page.getByRole('button', { name: 'Abrir carrinho de vendas' }).click();
 

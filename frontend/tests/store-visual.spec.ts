@@ -176,7 +176,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('registra a home e o modal sem overflow horizontal', async ({ page }, testInfo) => {
-  await page.goto('/');
+  await page.goto('/az3d-studio/store');
   await expect(page.getByRole('heading', { name: 'AZ3D Studio' })).toBeVisible();
   await expect(page.getByText('3 produtos')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Produtos 3D' })).toBeVisible();
@@ -225,7 +225,7 @@ test('registra a home e o modal sem overflow horizontal', async ({ page }, testI
 });
 
 test('agrupa anuncios de cores e troca produto e galeria no modal', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/az3d-studio/store');
 
   await expect(page.getByRole('heading', { name: 'Vasinho Leitor', exact: true })).toHaveCount(1);
   await page.getByRole('heading', { name: 'Vasinho Leitor', exact: true }).click();
@@ -253,7 +253,7 @@ test('agrupa anuncios de cores e troca produto e galeria no modal', async ({ pag
 });
 
 test('pesquisa no painel de filtros sem perder as variacoes agrupadas', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/az3d-studio/store');
 
   const search = page.getByRole('searchbox', { name: 'Buscar produtos' });
   await expect(search).toBeVisible();
@@ -271,4 +271,10 @@ test('pesquisa no painel de filtros sem perder as variacoes agrupadas', async ({
   await expect(modal.getByRole('button', { name: 'Selecionar cor Vermelho' })).toBeVisible();
   await expect(modal.getByText('Importados do Mercado Livre')).toHaveCount(0);
   await expect(modal.getByText(/SKU VL01/)).toHaveCount(0);
+});
+
+test('redireciona raiz / para /login quando nao autenticado', async ({ page }) => {
+  await page.goto('/');
+  await expect(page).toHaveURL(/.*\/login/);
+  await expect(page.getByRole('heading', { name: 'Acessar Plataforma' })).toBeVisible();
 });
