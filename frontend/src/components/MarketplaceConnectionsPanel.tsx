@@ -58,17 +58,72 @@ export const MarketplaceConnectionsPanel: React.FC<Props> = ({ tenantId, product
   };
   const runSync = async (kind: 'catalog' | 'orders') => {
     if (!tenantId) return; setBusy(kind);
-    try { const result = kind === 'catalog' ? await api.syncMarketplaceProducts(PROVIDER, tenantId) : await api.syncMarketplaceOrders(PROVIDER, 7, tenantId); await loadData(); if (kind === 'catalog') onProductsImported?.(); onMessage({ type: 'success', text: result.results[0]?.message || 'Sincronização concluída.' }); }
-    catch (error: any) { onMessage({ type: 'error', text: error.message || 'Erro ao sincronizar' }); } finally { setBusy(null); }
+    try {
+      const result = kind === 'catalog' ? await api.syncMarketplaceProducts(PROVIDER, tenantId) : await api.syncMarketplaceOrders(PROVIDER, 7, tenantId);
+      await loadData();
+      if (kind === 'catalog') onProductsImported?.();
+      const firstRes = result.results[0];
+      const isExpired = firstRes?.status === 'token_expired' || (firstRes as any)?.requires_reconnect;
+      if (isExpired) {
+        onMessage({ type: 'error', text: `${firstRes?.message || 'Token expirado'}. Redirecionando para reconectar ao Mercado Livre...` });
+        setTimeout(() => { void connect(); }, 1200);
+        return;
+      }
+      onMessage({ type: firstRes?.status?.includes('error') ? 'error' : 'success', text: firstRes?.message || 'Sincronização concluída.' });
+    } catch (error: any) {
+      onMessage({ type: 'error', text: error.message || 'Erro ao sincronizar' });
+    } finally {
+      setBusy(null);
+    }
   };
   const updateAccount = (field: keyof MarketplaceAccount, value: boolean | string) => setAccount((prev) => ({ ...prev, [field]: value }));
   const updateSetting = (field: keyof TenantMarketplaceSettings, value: boolean) => setSettings((prev) => ({ ...prev, [field]: value }));
 
+  const isTokenExpiredOrMissing = !account.is_connected || account.sync_status === 'token_expired' || account.sync_status === 'pending_credentials';
+
   return <div className="space-y-5">
     <section className="rounded-2xl border border-amber-300/80 bg-amber-50/70 p-5 dark:border-yellow-500/30 dark:bg-yellow-500/10">
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between"><div className="flex gap-3"><Store className="mt-0.5 h-6 w-6 text-amber-700 dark:text-yellow-300" /><div><h4 className="font-bold text-slate-900 dark:text-white">Mercado Livre</h4><p className="text-xs text-slate-600 dark:text-slate-300">Produtos e pedidos entram automaticamente no tenant conectado.</p><div className="mt-2 flex flex-wrap gap-2 text-[10px] font-mono"><span className={account.is_connected ? 'rounded-full bg-emerald-700 px-2.5 py-1 font-bold text-white shadow-sm dark:bg-emerald-500/20 dark:text-emerald-300 dark:shadow-none' : 'rounded-full bg-amber-700 px-2.5 py-1 font-bold text-white shadow-sm dark:bg-amber-500/20 dark:text-amber-300 dark:shadow-none'}>{account.is_connected ? 'CONECTADO' : 'CONEXÃO PENDENTE'}</span>{account.seller_id && <span className="rounded-full border border-slate-300 bg-white px-2 py-1 text-slate-700 dark:border-transparent dark:bg-chumbo-900 dark:text-slate-300">SELLER {account.seller_id}</span>}<span className="rounded-full border border-slate-300 bg-white px-2 py-1 text-slate-700 dark:border-transparent dark:bg-chumbo-900 dark:text-slate-300">{account.sync_status || 'pendente'}</span></div></div></div><button onClick={connect} disabled={busy !== null} className="rounded-xl bg-amber-700 px-4 py-2 text-xs font-bold text-white shadow hover:bg-amber-800 disabled:opacity-50 dark:bg-yellow-300 dark:text-chumbo-950 dark:hover:bg-yellow-400">{account.is_connected ? 'Reconectar conta' : 'Conectar conta'}</button></div>
-      {account.last_sync_at && <p className="mt-3 text-[10px] text-slate-500 dark:text-slate-400">Última sincronização: {new Date(account.last_sync_at).toLocaleString('pt-BR')}</p>}{account.last_error && <p className="mt-3 rounded-xl border border-rose-300 bg-rose-700 p-3 text-xs text-white dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300">{account.last_error}</p>}
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div className="flex gap-3">
+          <Store className="mt-0.5 h-6 w-6 text-amber-700 dark:text-yellow-300" />
+          <div>
+            <h4 className="font-bold text-slate-900 dark:text-white">{account.account_name || 'Mercado Livre'}</h4>
+            <p className="text-xs text-slate-600 dark:text-slate-300">Produtos e pedidos entram automaticamente no tenant conectado.</p>
+            <div className="mt-2 flex flex-wrap gap-2 text-[10px] font-mono">
+              <span className={account.is_connected && account.sync_status !== 'token_expired' ? 'rounded-full bg-emerald-700 px-2.5 py-1 font-bold text-white shadow-sm dark:bg-emerald-500/20 dark:text-emerald-300 dark:shadow-none' : 'rounded-full bg-rose-700 px-2.5 py-1 font-bold text-white shadow-sm dark:bg-rose-500/20 dark:text-rose-300 dark:shadow-none'}>
+                {account.sync_status === 'token_expired' ? 'TOKEN EXPIRADO' : account.is_connected ? 'CONECTADO' : 'CONEXÃO PENDENTE'}
+              </span>
+              {account.seller_id && <span className="rounded-full border border-slate-300 bg-white px-2 py-1 text-slate-700 dark:border-transparent dark:bg-chumbo-900 dark:text-slate-300">SELLER {account.seller_id}</span>}
+              <span className="rounded-full border border-slate-300 bg-white px-2 py-1 text-slate-700 dark:border-transparent dark:bg-chumbo-900 dark:text-slate-300">{account.sync_status || 'pendente'}</span>
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={connect}
+          disabled={busy !== null}
+          className={`rounded-xl px-4 py-2 text-xs font-bold shadow disabled:opacity-50 ${isTokenExpiredOrMissing ? 'animate-pulse bg-rose-700 text-white hover:bg-rose-800 dark:bg-yellow-400 dark:text-slate-900 dark:hover:bg-yellow-500' : 'bg-amber-700 text-white hover:bg-amber-800 dark:bg-yellow-300 dark:text-chumbo-950 dark:hover:bg-yellow-400'}`}
+        >
+          {account.is_connected && account.sync_status !== 'token_expired' ? 'Reconectar conta' : 'Reconectar conta agora'}
+        </button>
+      </div>
+      {account.last_sync_at && <p className="mt-3 text-[10px] text-slate-500 dark:text-slate-400">Última sincronização: {new Date(account.last_sync_at).toLocaleString('pt-BR')}</p>}
+      {account.last_error && (
+        <div className="mt-3 flex flex-col gap-3 rounded-xl border border-rose-300 bg-rose-700 p-3.5 text-xs text-white dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300 sm:flex-row sm:items-center sm:justify-between">
+          <p className="flex-1 leading-relaxed">{account.last_error}</p>
+          {(isTokenExpiredOrMissing || account.last_error.toLowerCase().includes('reconect') || account.last_error.toLowerCase().includes('expirou') || account.last_error.toLowerCase().includes('credenciais') || account.last_error.toLowerCase().includes('oauth')) && (
+            <button
+              onClick={connect}
+              disabled={busy !== null}
+              className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-white px-3 py-1.5 font-bold text-rose-800 shadow transition-all hover:bg-rose-50 disabled:opacity-50 dark:bg-yellow-300 dark:text-chumbo-950 dark:hover:bg-yellow-400"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Reconectar conta agora
+            </button>
+          )}
+        </div>
+      )}
     </section>
+
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-chumbo-800 dark:bg-chumbo-950/60">
       <div className="flex items-center justify-between gap-3"><div><h4 className="font-bold text-slate-900 dark:text-white">Automação</h4><p className="text-xs text-slate-500 dark:text-slate-400">Cada fluxo pode ser ligado de forma independente.</p></div><ShieldCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /></div>
       <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-3">

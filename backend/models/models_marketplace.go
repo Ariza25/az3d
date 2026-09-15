@@ -115,6 +115,11 @@ func (account *MarketplaceAccount) BeforeSave(tx *gorm.DB) error {
 	return nil
 }
 
+func (account *MarketplaceAccount) AfterSave(tx *gorm.DB) error {
+	return account.AfterFind(tx)
+}
+
+
 type ExternalMarketplaceOrder struct {
 	ID              uint                           `gorm:"primaryKey" json:"id"`
 	TenantID        uint                           `gorm:"not null;index;uniqueIndex:idx_external_order_tenant_provider" json:"tenant_id"`

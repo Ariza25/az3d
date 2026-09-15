@@ -65,12 +65,14 @@ func (h *MarketplaceHandler) SyncMarketplaceProducts(c *gin.Context) {
 			continue
 		}
 		if err := h.ensureFreshMarketplaceToken(c.Request.Context(), &accounts[i]); err != nil {
+			requiresReconnect := accounts[i].SyncStatus == "token_expired" || accounts[i].SyncStatus == "pending_credentials" || accounts[i].SyncStatus == "refresh_token_error"
 			results = append(results, gin.H{
-				"provider": accounts[i].Provider,
-				"status":   accounts[i].SyncStatus,
-				"imported": 0,
-				"updated":  0,
-				"message":  accounts[i].LastError,
+				"provider":           accounts[i].Provider,
+				"status":             accounts[i].SyncStatus,
+				"requires_reconnect": requiresReconnect,
+				"imported":           0,
+				"updated":            0,
+				"message":            accounts[i].LastError,
 			})
 			continue
 		}
@@ -78,12 +80,14 @@ func (h *MarketplaceHandler) SyncMarketplaceProducts(c *gin.Context) {
 			accounts[i].SyncStatus = "identity_sync_error"
 			accounts[i].LastError = marketplaceConnectorErrorMessage(err)
 			_ = database.DB.Save(&accounts[i]).Error
+			requiresReconnect := accounts[i].SyncStatus == "token_expired" || marketplaces.IsUnauthorized(connector, err)
 			results = append(results, gin.H{
-				"provider": accounts[i].Provider,
-				"status":   accounts[i].SyncStatus,
-				"imported": 0,
-				"updated":  0,
-				"message":  accounts[i].LastError,
+				"provider":           accounts[i].Provider,
+				"status":             accounts[i].SyncStatus,
+				"requires_reconnect": requiresReconnect,
+				"imported":           0,
+				"updated":            0,
+				"message":            accounts[i].LastError,
 			})
 			continue
 		}
@@ -92,13 +96,15 @@ func (h *MarketplaceHandler) SyncMarketplaceProducts(c *gin.Context) {
 		totalCreated += outcome.Created
 		totalUpdated += outcome.Updated
 		totalEventsProcessed += outcome.EventsProcessed
+		requiresReconnect := accounts[i].SyncStatus == "token_expired" || accounts[i].SyncStatus == "pending_credentials" || accounts[i].SyncStatus == "refresh_token_error"
 		results = append(results, gin.H{
-			"provider":         accounts[i].Provider,
-			"status":           outcome.Status,
-			"imported":         outcome.Created,
-			"updated":          outcome.Updated,
-			"events_processed": outcome.EventsProcessed,
-			"message":          outcome.Message,
+			"provider":           accounts[i].Provider,
+			"status":             outcome.Status,
+			"requires_reconnect": requiresReconnect,
+			"imported":           outcome.Created,
+			"updated":            outcome.Updated,
+			"events_processed":   outcome.EventsProcessed,
+			"message":            outcome.Message,
 		})
 	}
 
@@ -119,6 +125,9 @@ type marketplaceCatalogSyncOutcome struct {
 }
 
 func (h *MarketplaceHandler) syncMarketplaceCatalogAccount(ctx context.Context, tenantID uint, account *models.MarketplaceAccount, connector marketplaces.Connector) marketplaceCatalogSyncOutcome {
+	if strings.TrimSpace(account.AccessToken) == "" && strings.TrimSpace(account.EncryptedCredentials) != "" {
+		_ = account.AfterFind(nil)
+	}
 	outcome := marketplaceCatalogSyncOutcome{Status: "catalog_synced"}
 	now := time.Now()
 	connectorAccount, _ := h.marketplaceConnectorAccount(*account)
@@ -239,6 +248,12 @@ func (h *MarketplaceHandler) syncMarketplaceCatalogAccount(ctx context.Context, 
 	outcome.Message = strings.Join(messageParts, "; ")
 
 	switch {
+	case catalogErr != nil && mercadolivre.IsUnauthorized(catalogErr):
+		outcome.Status = "token_expired"
+		account.IsConnected = false
+		account.SyncStatus = outcome.Status
+		account.LastError = "Token de acesso do Mercado Livre expirou ou é inválido. Reconecte a conta para reautorizar."
+		outcome.Message = account.LastError
 	case catalogErr != nil && len(items) == 0:
 		outcome.Status = "catalog_sync_error"
 	case len(failures) > 0 || catalogErr != nil:
@@ -246,6 +261,7 @@ func (h *MarketplaceHandler) syncMarketplaceCatalogAccount(ctx context.Context, 
 	default:
 		outcome.Status = "catalog_synced"
 	}
+
 	account.SyncStatus = outcome.Status
 	account.LastSyncAt = &now
 	if outcome.Status == "catalog_synced" {

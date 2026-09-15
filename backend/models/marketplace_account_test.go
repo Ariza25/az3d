@@ -24,4 +24,13 @@ func TestMarketplaceAccountCredentialHooksEncryptAndDecryptTokens(t *testing.T) 
 	if loaded.AccessToken != "access-secret" || loaded.RefreshToken != "refresh-secret" || loaded.AuthCode != "auth-secret" {
 		t.Fatalf("credentials were not restored after load: %#v", loaded)
 	}
+
+	// AfterSave should restore credentials on the saved model
+	if err := account.AfterSave(nil); err != nil {
+		t.Fatal(err)
+	}
+	if account.AccessToken != "access-secret" || account.RefreshToken != "refresh-secret" || account.AuthCode != "auth-secret" {
+		t.Fatalf("credentials were not restored after save: %#v", account)
+	}
 }
+

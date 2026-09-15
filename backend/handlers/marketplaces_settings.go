@@ -561,11 +561,17 @@ func (h *MarketplaceHandler) reconcileMarketplaceAccountIdentity(ctx context.Con
 		if err := database.DB.Save(account).Error; err != nil {
 			return false, err
 		}
+		if strings.TrimSpace(account.AccessToken) == "" && strings.TrimSpace(account.EncryptedCredentials) != "" {
+			_ = account.AfterFind(nil)
+		}
 	}
 	return changed, nil
 }
 
 func (h *MarketplaceHandler) ensureFreshMarketplaceToken(ctx context.Context, account *models.MarketplaceAccount) error {
+	if strings.TrimSpace(account.AccessToken) == "" && strings.TrimSpace(account.EncryptedCredentials) != "" {
+		_ = account.AfterFind(nil)
+	}
 	if account.TokenExpiresAt == nil {
 		if strings.TrimSpace(account.AccessToken) == "" {
 			account.SyncStatus = "pending_credentials"
@@ -649,6 +655,9 @@ func (h *MarketplaceHandler) marketplaceConnectorAccount(account models.Marketpl
 }
 
 func marketplaceAccountFromModel(account models.MarketplaceAccount) marketplaces.Account {
+	if strings.TrimSpace(account.AccessToken) == "" && strings.TrimSpace(account.EncryptedCredentials) != "" {
+		_ = account.AfterFind(nil)
+	}
 	return marketplaces.Account{
 		TenantID:     account.TenantID,
 		Provider:     normalizeProvider(account.Provider),
@@ -661,6 +670,7 @@ func marketplaceAccountFromModel(account models.MarketplaceAccount) marketplaces
 		AuthCode:     account.AuthCode,
 	}
 }
+
 
 func marketplaceConnectorErrorMessage(err error) string {
 	if err == nil {
