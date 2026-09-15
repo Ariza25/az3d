@@ -126,15 +126,34 @@ func (c *Connector) getJSONWithHeaders(ctx context.Context, endpoint string, tok
 		var detail string
 		body, _ := io.ReadAll(res.Body)
 		bodyStr := string(body)
-		if strings.Contains(bodyStr, "PA_UNAUTHORIZED_RESULT_FROM_POLICIES") || strings.Contains(bodyStr, "PolicyAgent") {
+		if res.StatusCode == http.StatusUnauthorized {
+			detail = "Token de acesso inválido ou expirado"
+		} else if strings.Contains(bodyStr, "PA_UNAUTHORIZED_RESULT_FROM_POLICIES") || strings.Contains(bodyStr, "PolicyAgent") {
 			detail = "Acesso negado por política do Mercado Livre (verifique pendências cadastrais/endereço no painel do Mercado Livre)"
 		} else if strings.Contains(bodyStr, "access_denied") {
 			detail = "Acesso negado às informações do anúncio pelo Mercado Livre"
 		} else if strings.Contains(bodyStr, "not allowed") {
 			detail = "Formato de ID inválido para o Mercado Livre"
 		}
+		if detail == "" && len(bodyStr) > 0 && res.StatusCode != http.StatusUnauthorized {
+			var meliErrResp struct {
+				Message string `json:"message"`
+				Error   string `json:"error"`
+			}
+			if jsonErr := json.Unmarshal(body, &meliErrResp); jsonErr == nil {
+				if meliErrResp.Message != "" {
+					detail = meliErrResp.Message
+				} else if meliErrResp.Error != "" {
+					detail = meliErrResp.Error
+				}
+			}
+		}
+		if token != "" && detail != "" {
+			detail = strings.ReplaceAll(detail, token, "[REDACTED]")
+		}
 		return &APIError{Operation: operation, StatusCode: res.StatusCode, Detail: detail}
 	}
+
 	if res.StatusCode == http.StatusNoContent {
 		return nil
 	}

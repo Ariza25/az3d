@@ -3,6 +3,7 @@ package mercadolivre
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -752,3 +753,56 @@ func TestNormalizeVariationsMultiPhotoAndVideoPerColor(t *testing.T) {
 		t.Fatalf("unexpected order of blue photos: %#v", bluePhotos)
 	}
 }
+
+func TestFetchCatalogPropagatesForbiddenPolicyErrorWhenAllRequestsFail(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"message":"PA_UNAUTHORIZED_RESULT_FROM_POLICIES: access blocked by policy"}`, http.StatusForbidden)
+	}))
+	defer server.Close()
+	t.Setenv("MELI_API_BASE_URL", server.URL)
+
+	_, err := New().FetchCatalog(context.Background(), mp.Account{
+		SellerID: "277527192", AccessToken: "valid-token",
+	})
+	if err == nil {
+		t.Fatal("expected error when all item search endpoints return 403, but got nil")
+	}
+
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected *APIError, got %T: %v", err, err)
+	}
+	if apiErr.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected StatusCode 403, got %d", apiErr.StatusCode)
+	}
+	if !strings.Contains(apiErr.Detail, "política do Mercado Livre") {
+		t.Fatalf("expected detail to mention Mercado Livre policy, got %q", apiErr.Detail)
+	}
+}
+
+func TestResolveAccountIdentityExtractsNickname(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/users/me" {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":       277527192,
+			"nickname": "AZ3D_STUDIO",
+		})
+	}))
+	defer server.Close()
+	t.Setenv("MELI_API_BASE_URL", server.URL)
+
+	identity, err := New().ResolveAccountIdentity(context.Background(), mp.Account{AccessToken: "some-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if identity.SellerID != "277527192" {
+		t.Fatalf("sellerID = %q, want 277527192", identity.SellerID)
+	}
+	if identity.AccountName != "AZ3D_STUDIO" {
+		t.Fatalf("accountName = %q, want AZ3D_STUDIO", identity.AccountName)
+	}
+}
+

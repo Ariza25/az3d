@@ -553,6 +553,10 @@ func (h *MarketplaceHandler) reconcileMarketplaceAccountIdentity(ctx context.Con
 	changed := strings.TrimSpace(account.SellerID) != sellerID
 	account.SellerID = sellerID
 	account.IsConnected = true
+	if nickname := strings.TrimSpace(identity.AccountName); nickname != "" && strings.TrimSpace(account.AccountName) != nickname {
+		account.AccountName = nickname
+		changed = true
+	}
 	if changed {
 		if err := database.DB.Save(account).Error; err != nil {
 			return false, err

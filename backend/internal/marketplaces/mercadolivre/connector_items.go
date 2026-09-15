@@ -95,6 +95,7 @@ func (c *Connector) fetchItemIDs(ctx context.Context, baseURL string, account mp
 	itemIDs := make([]string, 0, catalogPageSize)
 	seen := make(map[string]struct{})
 	var lastErr error
+	succeededRequests := 0
 
 	for _, status := range catalogSearchStatuses {
 		statusItemIDs, err := c.fetchItemIDsByStatus(ctx, baseURL, account, status)
@@ -109,6 +110,7 @@ func (c *Connector) fetchItemIDs(ctx context.Context, baseURL string, account mp
 			}
 			continue
 		}
+		succeededRequests++
 		for _, itemID := range statusItemIDs {
 			if _, exists := seen[itemID]; exists {
 				continue
@@ -118,33 +120,64 @@ func (c *Connector) fetchItemIDs(ctx context.Context, baseURL string, account mp
 		}
 	}
 
-	// Fallback 1: Se nenhum anúncio foi encontrado, tentar busca por scan
+	// Fallback 1: Se nenhum anúncio foi encontrado por seller_id, tentar busca via /users/me/items/search
+	if len(itemIDs) == 0 && account.SellerID != "" && account.SellerID != "me" {
+		meAccount := account
+		meAccount.SellerID = "me"
+		meIDs, meErr := c.fetchItemIDsByStatus(ctx, baseURL, meAccount, "")
+		if meErr == nil {
+			succeededRequests++
+			for _, itemID := range meIDs {
+				if _, exists := seen[itemID]; !exists {
+					seen[itemID] = struct{}{}
+					itemIDs = append(itemIDs, itemID)
+				}
+			}
+		} else {
+			var apiErr *APIError
+			if !errors.As(meErr, &apiErr) || apiErr.StatusCode != http.StatusNotFound {
+				lastErr = meErr
+			}
+		}
+	}
+
+	// Fallback 2: Se nenhum anúncio foi encontrado, tentar busca por scan
 	if len(itemIDs) == 0 {
 		scanIDs, err := c.fetchItemIDsByScan(ctx, baseURL, account)
-		if err == nil && len(scanIDs) > 0 {
-			for _, itemID := range scanIDs {
-				if _, exists := seen[itemID]; !exists {
-					seen[itemID] = struct{}{}
-					itemIDs = append(itemIDs, itemID)
+		if err == nil {
+			if len(scanIDs) > 0 {
+				for _, itemID := range scanIDs {
+					if _, exists := seen[itemID]; !exists {
+						seen[itemID] = struct{}{}
+						itemIDs = append(itemIDs, itemID)
+					}
 				}
 			}
+		} else if lastErr == nil {
+			lastErr = err
 		}
 	}
 
-	// Fallback 2: Se ainda nenhum anúncio foi encontrado, buscar os anúncios do vendedor pelo endpoint público do site Mercado Livre
+	// Fallback 3: Se ainda nenhum anúncio foi encontrado, buscar os anúncios do vendedor pelo endpoint público do site Mercado Livre
 	if len(itemIDs) == 0 {
 		siteIDs, err := c.fetchItemIDsBySiteSearch(ctx, baseURL, account)
-		if err == nil && len(siteIDs) > 0 {
-			for _, itemID := range siteIDs {
-				if _, exists := seen[itemID]; !exists {
-					seen[itemID] = struct{}{}
-					itemIDs = append(itemIDs, itemID)
+		if err == nil {
+			if len(siteIDs) > 0 {
+				for _, itemID := range siteIDs {
+					if _, exists := seen[itemID]; !exists {
+						seen[itemID] = struct{}{}
+						itemIDs = append(itemIDs, itemID)
+					}
 				}
 			}
+		} else if lastErr == nil {
+			lastErr = err
 		}
 	}
 
-	if len(itemIDs) == 0 && lastErr != nil && IsUnauthorized(lastErr) {
+	// Se nenhum anúncio foi encontrado e todas as consultas falharam com erro da API (ex: 403 Forbidden/Policy, 401 Unauthorized):
+	if len(itemIDs) == 0 && succeededRequests == 0 && lastErr != nil {
+		log.Printf("[mercadolivre] Falha ao listar anuncios do vendedor %s: %v", account.SellerID, lastErr)
 		return nil, lastErr
 	}
 

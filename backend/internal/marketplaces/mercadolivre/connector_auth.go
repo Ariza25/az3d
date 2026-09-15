@@ -59,7 +59,8 @@ func (c *Connector) ResolveAccountIdentity(ctx context.Context, account mp.Accou
 		baseURL = "https://api.mercadolibre.com"
 	}
 	var response struct {
-		ID int64 `json:"id"`
+		ID       int64  `json:"id"`
+		Nickname string `json:"nickname"`
 	}
 	if err := c.getJSON(ctx, baseURL+"/users/me", account.AccessToken, &response); err != nil {
 		return mp.AccountIdentity{}, err
@@ -67,7 +68,10 @@ func (c *Connector) ResolveAccountIdentity(ctx context.Context, account mp.Accou
 	if response.ID <= 0 {
 		return mp.AccountIdentity{}, errors.New("mercado livre /users/me nao retornou o seller do token")
 	}
-	return mp.AccountIdentity{SellerID: strconv.FormatInt(response.ID, 10)}, nil
+	return mp.AccountIdentity{
+		SellerID:    strconv.FormatInt(response.ID, 10),
+		AccountName: strings.TrimSpace(response.Nickname),
+	}, nil
 }
 
 func (c *Connector) TestOrderAccess(ctx context.Context, account mp.Account) error {

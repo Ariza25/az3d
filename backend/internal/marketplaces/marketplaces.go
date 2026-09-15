@@ -155,7 +155,8 @@ type CatalogItemFetcher interface {
 }
 
 type AccountIdentity struct {
-	SellerID string
+	SellerID    string
+	AccountName string
 }
 
 // AccountIdentityResolver lets a connector derive the seller identity from the

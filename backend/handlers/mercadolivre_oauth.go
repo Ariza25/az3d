@@ -167,6 +167,7 @@ func (h *MarketplaceHandler) MercadoLivreOAuthCallback(c *gin.Context) {
 	account.IsActive = true
 	account.SyncStatus = "connected"
 	account.LastError = ""
+	_, _ = h.reconcileMarketplaceAccountIdentity(c.Request.Context(), &account, mercadolivre.New())
 	if err := database.DB.Save(&account).Error; err != nil {
 		h.redirectMarketplaceOAuthResult(c, "error", session.TenantID)
 		return
