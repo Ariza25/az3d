@@ -157,7 +157,7 @@ func TestFetchCatalogIncludesInactiveItemsAndPaginates(t *testing.T) {
 			results := []string{}
 			total := 0
 			switch status {
-			case "":
+			case "active", "":
 				results, total = []string{"MLB-ACTIVE"}, 1
 			case "paused":
 				results, total = []string{"MLB-PAUSED", "MLB-ACTIVE"}, 3
@@ -211,7 +211,7 @@ func TestFetchCatalogIncludesInactiveItemsAndPaginates(t *testing.T) {
 	mu.Lock()
 	gotRequests := append([]string(nil), requests...)
 	mu.Unlock()
-	wantRequests := "[:0 paused:0 paused:2 closed:0 pending:0 not_yet_active:0 inactive:0]"
+	wantRequests := "[active:0 paused:0 paused:2 :0 closed:0 under_review:0 inactive:0 pending:0 not_yet_active:0 payment_required:0]"
 	if fmt.Sprint(gotRequests) != wantRequests {
 		t.Fatalf("requests = %v, want %s", gotRequests, wantRequests)
 	}
@@ -608,5 +608,147 @@ func TestNormalizeItemPreservesVideoAndSharedPhotosAcrossVariations(t *testing.T
 	}
 	if len(redImages) != 3 || redImages[0] != "https://img.example/red.jpg" {
 		t.Fatalf("unexpected red images gallery: %#v", redImages)
+	}
+}
+
+func TestFetchCatalogFallsBackToSiteSearchWhenUsersSearchIsEmpty(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/users/12345/items/search":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"paging":  map[string]any{"total": 0, "offset": 0, "limit": catalogPageSize},
+				"results": []string{},
+			})
+		case "/sites/MLB/search":
+			if r.URL.Query().Get("seller_id") != "12345" {
+				t.Fatalf("unexpected seller_id: %s", r.URL.Query().Get("seller_id"))
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"paging": map[string]any{"total": 2, "offset": 0, "limit": catalogPageSize},
+				"results": []map[string]any{
+					{"id": "MLB-SITE-1"},
+					{"id": "MLB-SITE-2"},
+				},
+			})
+		case "/items/bulk":
+			_ = json.NewEncoder(w).Encode([]map[string]any{
+				{
+					"status_code": http.StatusOK,
+					"body": map[string]any{
+						"id": "MLB-SITE-1", "title": "Vaso 3D Espiral", "price": 49.9,
+						"available_quantity": 5, "status": "active",
+						"pictures": []map[string]any{
+							{"id": "P1", "secure_url": "https://img.example/p1.jpg"},
+						},
+					},
+				},
+				{
+					"status_code": http.StatusOK,
+					"body": map[string]any{
+						"id": "MLB-SITE-2", "title": "Luminaria 3D Lua", "price": 89.9,
+						"available_quantity": 3, "status": "active",
+						"pictures": []map[string]any{
+							{"id": "P2", "secure_url": "https://img.example/p2.jpg"},
+						},
+					},
+				},
+			})
+		case "/items/MLB-SITE-1/description":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"plain_text": "Vaso espiral moderno impresso em 3D em PLA premium.",
+			})
+		case "/items/MLB-SITE-2/description":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"plain_text": "Luminaria lua com luz quente e textura lunar realista.",
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	t.Setenv("MELI_API_BASE_URL", server.URL)
+
+	result, err := New().FetchCatalog(context.Background(), mp.Account{
+		SellerID: "12345", AccessToken: "access-token",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Items) != 2 {
+		t.Fatalf("expected 2 items from fallback site search, got %d: %#v", len(result.Items), result.Items)
+	}
+	if result.Items[0].Description != "Vaso espiral moderno impresso em 3D em PLA premium." {
+		t.Fatalf("expected enriched description, got %q", result.Items[0].Description)
+	}
+	if result.Items[1].Description != "Luminaria lua com luz quente e textura lunar realista." {
+		t.Fatalf("expected enriched description, got %q", result.Items[1].Description)
+	}
+}
+
+func TestNormalizeVariationsMultiPhotoAndVideoPerColor(t *testing.T) {
+	item := mercadoItem{
+		ID:    "MLB-999",
+		Title: "Vaso Canelado Decorativo",
+		Price: 55.0,
+		Pictures: []mercadoPicture{
+			{ID: "BLUE-1", SecureURL: "https://img.example/blue1.jpg"},
+			{ID: "BLUE-2", SecureURL: "https://img.example/blue2.jpg"},
+			{ID: "BLUE-3", SecureURL: "https://img.example/blue3.jpg"},
+			{ID: "GOLD-1", SecureURL: "https://img.example/gold1.jpg"},
+			{ID: "GOLD-2", SecureURL: "https://img.example/gold2.jpg"},
+			{ID: "SHARED-1", SecureURL: "https://img.example/dims.jpg"},
+		},
+		VideoID: "https://www.youtube.com/watch?v=sample12345",
+		Variations: []mercadoVariation{
+			{
+				ID: 101, Price: 55.0, AvailableQuantity: 8,
+				PictureIDs: []string{"BLUE-1", "BLUE-2", "BLUE-3"},
+				AttributeCombinations: []mercadoAttribute{
+					{ID: "COLOR", Name: "Cor", ValueName: "Azul Metalico"},
+				},
+			},
+			{
+				ID: 102, Price: 60.0, AvailableQuantity: 4,
+				PictureIDs: []string{"GOLD-1", "GOLD-2"},
+				AttributeCombinations: []mercadoAttribute{
+					{ID: "COLOR", Name: "Cor", ValueName: "Dourado Seda"},
+				},
+			},
+		},
+	}
+
+	variants, stocks, images := normalizeVariations(item, "", "https://www.youtube.com/watch?v=sample12345", true)
+
+	if len(variants) != 2 {
+		t.Fatalf("expected 2 variants, got %d", len(variants))
+	}
+	if variants[0].ColorName != "Azul Metalico" || variants[1].ColorName != "Dourado Seda" {
+		t.Fatalf("unexpected variant color names: %q, %q", variants[0].ColorName, variants[1].ColorName)
+	}
+	if len(stocks) != 2 || stocks[0].StockQty != 8 || stocks[1].StockQty != 4 {
+		t.Fatalf("unexpected stocks: %#v", stocks)
+	}
+
+	// Azul Metálico: 3 fotos próprias + 1 foto geral (dims) = 4 fotos
+	// Dourado Seda: 2 fotos próprias + 1 foto geral (dims) = 3 fotos
+	// Total = 7 imagens
+	if len(images) != 7 {
+		t.Fatalf("expected 7 images total across variations, got %d: %#v", len(images), images)
+	}
+
+	bluePhotos := []string{}
+	for _, img := range images {
+		if img.ColorName == "Azul Metalico" {
+			bluePhotos = append(bluePhotos, img.ImageURL)
+			if img.VideoURL != "https://www.youtube.com/watch?v=sample12345" {
+				t.Fatalf("missing video url on blue image: %#v", img)
+			}
+		}
+	}
+	if len(bluePhotos) != 4 {
+		t.Fatalf("expected 4 photos for blue variation, got %d: %#v", len(bluePhotos), bluePhotos)
+	}
+	if bluePhotos[0] != "https://img.example/blue1.jpg" || bluePhotos[1] != "https://img.example/blue2.jpg" || bluePhotos[2] != "https://img.example/blue3.jpg" || bluePhotos[3] != "https://img.example/dims.jpg" {
+		t.Fatalf("unexpected order of blue photos: %#v", bluePhotos)
 	}
 }

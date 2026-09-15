@@ -26,7 +26,7 @@ const (
 	financialEnrichmentWorkers = 5
 )
 
-var catalogSearchStatuses = []string{"", "paused", "closed", "pending", "not_yet_active", "inactive"}
+var catalogSearchStatuses = []string{"active", "paused", "", "closed", "under_review", "inactive", "pending", "not_yet_active", "payment_required"}
 
 // APIError exposes only the HTTP status and operation. Response bodies are
 // intentionally omitted because Mercado Livre responses may contain sensitive
