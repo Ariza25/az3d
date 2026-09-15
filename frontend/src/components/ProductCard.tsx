@@ -4,6 +4,13 @@ import { ShoppingBag, Maximize2, Star } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { getAvailableColors, getColorVisual, getDefaultColor, getStockStatus, getStoreVariantProduct, money } from '../shared/storePresentation';
 
+const truncateDescription = (text?: string, maxLength = 120): string => {
+  if (!text) return '';
+  const clean = text.replace(/\s+/g, ' ').trim();
+  if (clean.length <= maxLength) return clean;
+  return clean.slice(0, maxLength).trim() + '...';
+};
+
 interface ProductCardProps {
   product: Product;
   onOpenModal: (product: Product) => void;
@@ -67,9 +74,20 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal }
             )}
           </div>
 
-          <p className="mt-1.5 hidden line-clamp-2 text-xs leading-relaxed text-slate-400 sm:block">
-            {product.description}
-          </p>
+          {product.description && (
+            <p
+              className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-slate-400 overflow-hidden"
+              style={{
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                maxHeight: '2.6rem',
+              }}
+              title={product.description}
+            >
+              {truncateDescription(product.description, 120)}
+            </p>
+          )}
         </div>
 
         {/* Available Color Swatches */}
