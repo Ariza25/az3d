@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ExternalLink, RefreshCw, Save, ShieldCheck, Store } from 'lucide-react';
+import { ExternalLink, RefreshCw, Save, ShieldCheck, Store, Unplug } from 'lucide-react';
 import { ExternalMarketplaceOrder, MarketplaceAccount, MarketplaceProductMapping, Product, TenantMarketplaceSettings } from '../types';
 import { api } from '../services/api';
 import { getAppPathname, withBasePath } from '../shared/basePath';
@@ -56,6 +56,26 @@ export const MarketplaceConnectionsPanel: React.FC<Props> = ({ tenantId, product
     try { const response = await api.startMarketplaceOAuth(PROVIDER, redirectUri(), tenantId); if (response.missing_config.length) throw new Error(`Configure: ${response.missing_config.join(', ')}`); window.location.assign(response.auth_url); }
     catch (error: any) { onMessage({ type: 'error', text: error.message || 'Erro ao iniciar conexão' }); setBusy(null); }
   };
+  const disconnect = async () => {
+    if (!tenantId) return;
+    if (!window.confirm('Tem certeza que deseja desconectar a conta do Mercado Livre? Seus anúncios importados no sistema permanecerão, mas a sincronização será pausada até você conectar novamente.')) {
+      return;
+    }
+    setBusy('disconnect');
+    try {
+      const response = await api.disconnectMarketplaceAccount(PROVIDER, tenantId);
+      setAccount({ ...defaultAccount, ...(response.account || {}) });
+      onMessage({
+        type: 'success',
+        text: 'Conta do Mercado Livre desconectada. Ao conectar novamente, garanta que esteja logado no Mercado Livre com sua conta de vendedor.',
+      });
+      await loadData();
+    } catch (error: any) {
+      onMessage({ type: 'error', text: error.message || 'Erro ao desconectar conta' });
+    } finally {
+      setBusy(null);
+    }
+  };
   const runSync = async (kind: 'catalog' | 'orders') => {
     if (!tenantId) return; setBusy(kind);
     try {
@@ -98,14 +118,33 @@ export const MarketplaceConnectionsPanel: React.FC<Props> = ({ tenantId, product
             </div>
           </div>
         </div>
-        <button
-          onClick={connect}
-          disabled={busy !== null}
-          className={`rounded-xl px-4 py-2 text-xs font-bold shadow disabled:opacity-50 ${isTokenExpiredOrMissing ? 'animate-pulse bg-rose-700 text-white hover:bg-rose-800 dark:bg-yellow-400 dark:text-slate-900 dark:hover:bg-yellow-500' : 'bg-amber-700 text-white hover:bg-amber-800 dark:bg-yellow-300 dark:text-chumbo-950 dark:hover:bg-yellow-400'}`}
-        >
-          {account.is_connected && account.sync_status !== 'token_expired' ? 'Reconectar conta' : 'Reconectar conta agora'}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {account.is_connected && (
+            <button
+              onClick={disconnect}
+              disabled={busy !== null}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-rose-300 bg-white px-3.5 py-2 text-xs font-bold text-rose-700 shadow-sm transition-colors hover:bg-rose-50 disabled:opacity-50 dark:border-rose-500/30 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/50"
+              title="Desconecta a conta e limpa as credenciais salvas"
+            >
+              <Unplug className="h-3.5 w-3.5" />
+              Desconectar conta
+            </button>
+          )}
+          <button
+            onClick={connect}
+            disabled={busy !== null}
+            className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold shadow disabled:opacity-50 ${isTokenExpiredOrMissing ? 'animate-pulse bg-rose-700 text-white hover:bg-rose-800 dark:bg-yellow-400 dark:text-slate-900 dark:hover:bg-yellow-500' : 'bg-amber-700 text-white hover:bg-amber-800 dark:bg-yellow-300 dark:text-chumbo-950 dark:hover:bg-yellow-400'}`}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${busy === 'oauth' ? 'animate-spin' : ''}`} />
+            {account.is_connected && account.sync_status !== 'token_expired' ? 'Reconectar conta' : 'Conectar conta agora'}
+          </button>
+        </div>
       </div>
+      {account.seller_id && (
+        <div className="mt-3 rounded-xl border border-amber-200/60 bg-white/60 p-2.5 text-[11px] text-slate-700 dark:border-yellow-500/20 dark:bg-chumbo-900/50 dark:text-slate-300">
+          <strong>Atenção ao Seller ID:</strong> A conta vinculada no Mercado Livre possui o ID de usuário <code className="font-mono font-bold text-amber-900 dark:text-yellow-300">{account.seller_id}</code>. Se você possui uma conta de compras pessoal e uma conta de vendedor (PJ/loja), garanta que autorizou a conta correta. Se os produtos forem de outra conta, clique em <strong>Desconectar conta</strong> acima, faça login no Mercado Livre com a conta vendedora e conecte novamente.
+        </div>
+      )}
       {account.last_sync_at && <p className="mt-3 text-[10px] text-slate-500 dark:text-slate-400">Última sincronização: {new Date(account.last_sync_at).toLocaleString('pt-BR')}</p>}
       {account.last_error && (
         <div className="mt-3 flex flex-col gap-3 rounded-xl border border-rose-300 bg-rose-700 p-3.5 text-xs text-white dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300 sm:flex-row sm:items-center sm:justify-between">

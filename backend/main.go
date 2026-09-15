@@ -175,6 +175,8 @@ func main() {
 			admin.POST("/marketplaces/accounts", marketplaceHandler.SaveMarketplaceAccount)
 			admin.POST("/marketplaces/oauth/start", marketplaceHandler.StartMarketplaceOAuth)
 			admin.POST("/marketplaces/oauth/callback", marketplaceHandler.CompleteMarketplaceOAuth)
+			admin.POST("/marketplaces/disconnect", marketplaceHandler.DisconnectMarketplaceAccount)
+			admin.DELETE("/marketplaces/accounts", marketplaceHandler.DisconnectMarketplaceAccount)
 			admin.POST("/marketplaces/refresh-tokens", marketplaceHandler.RefreshMarketplaceTokens)
 			admin.POST("/marketplaces/test", marketplaceHandler.TestMarketplaceConnection)
 			admin.GET("/marketplaces/mappings", marketplaceHandler.GetProductMappings)

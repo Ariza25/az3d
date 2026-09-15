@@ -1,6 +1,14 @@
 package handlers
 
-import "testing"
+import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/gin-gonic/gin"
+)
 
 func TestMarketplaceImportedProductStatusUsesConfiguredStatusForNewInactiveProduct(t *testing.T) {
 	tests := []struct {
@@ -34,3 +42,39 @@ func TestMarketplaceImportedProductStatusPublishesEveryMercadoLivreItem(t *testi
 		}
 	}
 }
+
+func TestDisconnectMarketplaceAccount(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mock := installMarketplaceOAuthMockDB(t)
+
+	// Expect UPDATE
+	mock.ExpectBegin()
+	mock.ExpectExec(`UPDATE "marketplace_accounts" SET`).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	// Expect SELECT First
+	mock.ExpectQuery(`SELECT .* FROM "marketplace_accounts"`).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "tenant_id", "provider", "is_connected", "sync_status", "seller_id"}).
+			AddRow(1, 1, "mercadolivre", false, "pending_credentials", ""))
+
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+	ctx.Set("tenant_id", uint(1))
+	ctx.Request = httptest.NewRequest("POST", "/api/admin/marketplaces/disconnect", strings.NewReader(`{"provider":"mercadolivre"}`))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	h := &MarketplaceHandler{}
+	h.DisconnectMarketplaceAccount(ctx)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "pending_credentials") {
+		t.Fatalf("response body expected pending_credentials: %s", w.Body.String())
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sqlmock expectations: %v", err)
+	}
+}
+

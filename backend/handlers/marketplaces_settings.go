@@ -431,6 +431,60 @@ func marketplaceOAuthCallbackMessage(account models.MarketplaceAccount) string {
 	return "Codigo OAuth salvo."
 }
 
+// POST /api/admin/marketplaces/disconnect
+func (h *MarketplaceHandler) DisconnectMarketplaceAccount(c *gin.Context) {
+	tenantID := getTenantID(c)
+	var input struct {
+		Provider string `json:"provider"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Dados invalidos"})
+		return
+	}
+	provider := normalizeProvider(input.Provider)
+	if provider == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Marketplace obrigatorio"})
+		return
+	}
+
+	updates := map[string]any{
+		"access_token":          "",
+		"refresh_token":         "",
+		"auth_code":             "",
+		"encrypted_credentials": "",
+		"token_expires_at":      nil,
+		"seller_id":             "",
+		"is_connected":          false,
+		"sync_status":           "pending_credentials",
+		"last_error":            "",
+	}
+
+	result := database.DB.Model(&models.MarketplaceAccount{}).
+		Where("tenant_id = ? AND provider = ?", tenantID, provider).
+		Updates(updates)
+
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Nao foi possivel desconectar o marketplace"})
+		return
+	}
+
+	var account models.MarketplaceAccount
+	if err := database.DB.Where("tenant_id = ? AND provider = ?", tenantID, provider).First(&account).Error; err != nil {
+		account = models.MarketplaceAccount{
+			TenantID:    tenantID,
+			Provider:    provider,
+			AccountName: marketplaceLabel(provider),
+			Marketplace: providerDefaultMarketplace(provider),
+			SyncStatus:  "pending_credentials",
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"account": account,
+		"message": "Conta desconectada com sucesso. Agora você pode conectar novamente.",
+	})
+}
+
 // POST /api/admin/marketplaces/refresh-tokens
 func (h *MarketplaceHandler) RefreshMarketplaceTokens(c *gin.Context) {
 	tenantID := getTenantID(c)

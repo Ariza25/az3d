@@ -917,6 +917,17 @@ export const api = {
     return body;
   },
 
+  disconnectMarketplaceAccount: async (provider: string, tenantId?: number): Promise<{ account: MarketplaceAccount; message: string }> => {
+    const res = await fetch(`${API_BASE_URL}/admin/marketplaces/disconnect`, {
+      method: 'POST',
+      headers: getAdminHeaders(tenantId),
+      body: JSON.stringify({ provider }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Erro ao desconectar conta do marketplace');
+    return body;
+  },
+
   syncMarketplaceProducts: async (provider?: string, tenantId?: number): Promise<{ imported: number; updated: number; events_processed: number; results: Array<{ provider: string; status: string; imported: number; updated: number; events_processed: number; message: string }> }> => {
     const res = await fetch(`${API_BASE_URL}/admin/marketplaces/sync-products`, {
       method: 'POST',
