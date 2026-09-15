@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Product } from '../types';
-import { Check, Heart, Layers, Minus, Play, Plus, ShoppingBag, Star, X } from 'lucide-react';
+import { Product, ProductReview } from '../types';
+import { Check, Heart, Layers, Minus, Play, Plus, ShoppingBag, Star, X, FileText, MessageSquare, Image as ImageIcon, Send, ShieldCheck, User } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
-import { getAvailableColors, getColorVisual, getDefaultColor, getStockStatus, getStoreVariantProduct, getTotalStock, money } from '../shared/storePresentation';
+import { getAvailableColors, getColorVisual, getDefaultColor, getStockStatus, getStoreVariantProduct, getTotalStock, money, optimizeImageUrl } from '../shared/storePresentation';
 import { FreightCalculatorWidget } from './FreightCalculatorWidget';
 
 interface ProductModalProps {
@@ -43,6 +43,42 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
   const [selectedMediaId, setSelectedMediaId] = useState('');
   const [selectedFreight, setSelectedFreight] = useState<{ code: string; name: string; price: number; deliveryDays: number } | null>(null);
 
+  // Avaliações e Comentários
+  const [reviews, setReviews] = useState<ProductReview[]>([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+  const [newRating, setNewRating] = useState(5);
+  const [newComment, setNewComment] = useState('');
+  const [newImageUrl, setNewImageUrl] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [reviewMsg, setReviewMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    if (!product?.id) return;
+    setLoadingReviews(true);
+    api.getProductReviews(product.id, product.tenant_id)
+      .then((data) => setReviews(data || []))
+      .catch(() => setReviews([]))
+      .finally(() => setLoadingReviews(false));
+  }, [product?.id, product?.tenant_id]);
+
+  const handleReviewSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!product?.id) return;
+    setSubmittingReview(true);
+    setReviewMsg(null);
+    try {
+      const created = await api.saveProductReview(product.id, newRating, newComment, newImageUrl, product.tenant_id);
+      setReviews((prev) => [created, ...prev.filter((r) => r.id !== created.id)]);
+      setNewComment('');
+      setNewImageUrl('');
+      setReviewMsg({ type: 'success', text: 'Avaliação enviada com sucesso!' });
+    } catch (err: any) {
+      setReviewMsg({ type: 'error', text: err.message || 'Erro ao enviar avaliação' });
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
   const availableColors = useMemo(() => {
     if (!product) return [];
     const names = getAvailableColors(product);
@@ -50,7 +86,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
     return normalizedNames.map((name) => {
       const variantProduct = getStoreVariantProduct(product, name);
       const image = variantProduct.color_images?.[0]?.image_url || variantProduct.image_url;
-      return { name, imageUrl: image || product.image_url, ...getColorVisual(name) };
+      return { name, imageUrl: optimizeImageUrl(image || product.image_url), ...getColorVisual(name) };
     });
   }, [product]);
 
@@ -99,11 +135,12 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
 
     const mediaList: ProductMedia[] = [];
     chosenPhotos.forEach((url, idx) => {
+      const optUrl = optimizeImageUrl(url);
       mediaList.push({
-        id: `img-${idx}-${url}`,
+        id: `img-${idx}-${optUrl}`,
         type: 'image',
-        url,
-        thumbnailUrl: url,
+        url: optUrl,
+        thumbnailUrl: optUrl,
       });
 
       // No Mercado Livre, o vídeo fica logo após a foto principal (2ª posição)
@@ -113,14 +150,14 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
           id: `vid-${videoUrl}`,
           type: 'video',
           url: videoUrl,
-          thumbnailUrl: ytThumb || url,
+          thumbnailUrl: ytThumb || optUrl,
         });
       }
     });
 
     if (videoUrl && !mediaList.some((m) => m.type === 'video')) {
       const ytThumb = getYouTubeThumbnail(videoUrl);
-      const fallbackThumb = mediaList[0]?.thumbnailUrl || activeProduct?.image_url || product.image_url;
+      const fallbackThumb = mediaList[0]?.thumbnailUrl || optimizeImageUrl(activeProduct?.image_url || product.image_url);
       mediaList.push({
         id: `vid-${videoUrl}`,
         type: 'video',
@@ -310,39 +347,42 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
           </div>
 
           <div className="flex min-h-0 flex-col bg-chumbo-900 p-5 sm:p-8 lg:overflow-y-auto lg:p-10">
-            <div className="flex-1">
-              <div className="flex items-center justify-between gap-3 pr-12">
-                <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-laser-400">
-                  <Layers className="h-4 w-4" />
-                  Detalhes do produto
+            <div className="space-y-6">
+              {/* 1. Header & Title */}
+              <div>
+                <div className="flex items-center justify-between gap-3 pr-12">
+                  <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-laser-400">
+                    <Layers className="h-4 w-4" />
+                    Detalhes do produto
+                  </div>
+                  <button
+                    type="button"
+                    onClick={toggleFavorite}
+                    className={`rounded-xl border p-2.5 transition-colors ${isFavorite ? 'border-rose-400/50 bg-rose-500/10 text-rose-300' : 'border-chumbo-700 bg-chumbo-950/70 text-slate-300 hover:border-chumbo-600 hover:text-white'}`}
+                    aria-label={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+                  >
+                    <Heart className={`h-4 w-4 ${isFavorite ? 'fill-rose-300' : ''}`} />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={toggleFavorite}
-                  className={`rounded-xl border p-2.5 transition-colors ${isFavorite ? 'border-rose-400/50 bg-rose-500/10 text-rose-300' : 'border-chumbo-700 bg-chumbo-950/70 text-slate-300 hover:border-chumbo-600 hover:text-white'}`}
-                  aria-label={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
-                >
-                  <Heart className={`h-4 w-4 ${isFavorite ? 'fill-rose-300' : ''}`} />
-                </button>
-              </div>
 
-              <h2 id="product-modal-title" className="mt-5 text-2xl font-extrabold leading-tight text-white sm:text-3xl lg:text-[2rem]">{product.title}</h2>
+                <h2 id="product-modal-title" className="mt-4 text-2xl font-extrabold leading-tight text-white sm:text-3xl lg:text-[2rem]">{product.title}</h2>
 
-              {hasRealReviews && (
-                <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
+                {hasRealReviews && (
+                  <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400">
                     <span className="inline-flex items-center gap-1 text-amber-300">
                       <Star className="h-3.5 w-3.5 fill-amber-300" />
                       <strong>{(activeProduct?.review_summary || product.review_summary)!.average_rating.toFixed(1)}</strong>
-                      <span className="text-slate-500">({(activeProduct?.review_summary || product.review_summary)!.review_count})</span>
+                      <span className="text-slate-500">({(activeProduct?.review_summary || product.review_summary)!.review_count} avaliações)</span>
                     </span>
-                </div>
-              )}
+                  </div>
+                )}
+              </div>
 
-              <p className="mt-6 whitespace-pre-line text-[15px] leading-7 text-slate-300">{activeProduct?.description || product.description}</p>
+              {feedback && <div className="rounded-xl border border-chumbo-700 bg-chumbo-950 p-3 text-xs text-slate-300">{feedback}</div>}
 
-              {feedback && <div className="mt-5 rounded-xl border border-chumbo-700 bg-chumbo-950 p-3 text-xs text-slate-300">{feedback}</div>}
-
-              <div className="mt-7 border-t border-chumbo-800 pt-6">
+              {/* 2. SEÇÃO DE COMPRA (Cores, Estoque, Frete, Total e Comprar) */}
+              <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4 sm:p-5 space-y-5">
+                {/* Seleção de cor */}
                 {availableColors.length > 1 ? (
                   <div>
                     <p className="text-sm text-slate-300">
@@ -360,7 +400,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
                           aria-label={`Selecionar cor ${color.name}`}
                           aria-pressed={selectedColor === color.name}
                         >
-                          <img src={color.imageUrl} alt="" className="h-full w-full rounded-lg object-cover" />
+                          <img src={color.imageUrl} alt="" loading="lazy" className="h-full w-full rounded-lg object-cover" />
                           <span
                             className="absolute bottom-1.5 left-1.5 h-3 w-3 rounded-full border shadow-sm"
                             style={{ backgroundColor: color.hex, borderColor: color.border }}
@@ -385,13 +425,14 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
                   </div>
                 )}
 
-                <div className={`mt-4 inline-flex items-center gap-2 text-xs font-semibold ${stockTextTone}`}>
+                {/* Estoque */}
+                <div className={`inline-flex items-center gap-2 text-xs font-semibold ${stockTextTone}`}>
                   <span className="h-1.5 w-1.5 rounded-full bg-current" />
                   {stockCopy}
                 </div>
 
-                {/* Simulador de Frete no Modal */}
-                <div className="mt-5 border-t border-chumbo-800 pt-5">
+                {/* Simulador de Frete */}
+                <div className="border-t border-chumbo-800 pt-4">
                   <FreightCalculatorWidget
                     compact
                     tenantId={product.tenant_id}
@@ -399,39 +440,172 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
                     onSelectOption={(opt) => setSelectedFreight(opt)}
                   />
                 </div>
-              </div>
-            </div>
 
-            <div className="mt-7 border-t border-chumbo-800 pt-6">
-              <div className="grid grid-cols-[1fr_auto] items-end gap-4 lg:grid-cols-[minmax(150px,1fr)_auto_minmax(220px,1.2fr)]">
-                <div aria-live="polite" aria-label="Total da compra">
-                  <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500">Total</span>
-                  <span className="mt-1 block whitespace-nowrap text-3xl font-extrabold text-white">{money(finalTotal)}</span>
-                  <div className="mt-1 flex flex-col text-[11px] text-slate-400">
-                    {quantity > 1 && <span>{quantity} × {money(selectedPrice)} cada</span>}
-                    {selectedFreight && <span className="font-mono text-laser-400 font-bold">+ Frete ({selectedFreight.name}): {money(selectedFreight.price)}</span>}
+                {/* Barra de Preço Total + Quantidade + Botão de Compra */}
+                <div className="border-t border-chumbo-800 pt-4">
+                  <div className="grid grid-cols-[1fr_auto] items-end gap-3 sm:gap-4 lg:grid-cols-[minmax(130px,1fr)_auto_minmax(180px,1.2fr)]">
+                    <div aria-live="polite" aria-label="Total da compra">
+                      <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500">Total</span>
+                      <span className="mt-1 block whitespace-nowrap text-2xl sm:text-3xl font-extrabold text-white">{money(finalTotal)}</span>
+                      <div className="mt-0.5 flex flex-col text-[11px] text-slate-400">
+                        {quantity > 1 && <span>{quantity} × {money(selectedPrice)} cada</span>}
+                        {selectedFreight && <span className="font-mono text-laser-400 font-bold">+ Frete ({selectedFreight.name}): {money(selectedFreight.price)}</span>}
+                      </div>
+                    </div>
+
+                    <div className="flex h-11 items-center rounded-xl border border-chumbo-700 bg-chumbo-900 p-1" aria-label="Quantidade">
+                      <button type="button" onClick={() => setQuantity(Math.max(1, quantity - 1))} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-chumbo-800 hover:text-white" aria-label="Diminuir quantidade">
+                        <Minus className="h-4 w-4" />
+                      </button>
+                      <span className="w-8 text-center text-sm font-bold text-white">{quantity}</span>
+                      <button type="button" onClick={() => setQuantity(Math.min(stockLimit || 1, quantity + 1))} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-chumbo-800 hover:text-white" aria-label="Aumentar quantidade">
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleAddToCart}
+                      disabled={stockLimit <= 0}
+                      className="col-span-2 flex h-11 sm:h-12 w-full items-center justify-center gap-2 rounded-xl bg-white px-5 text-sm font-extrabold text-chumbo-950 shadow-xl transition hover:bg-slate-200 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 lg:col-span-1"
+                    >
+                      <ShoppingBag className="h-4 w-4" />
+                      {stockLimit > 0 ? (isAuthenticated ? 'Adicionar' : 'Entrar para comprar') : 'Sem estoque'}
+                    </button>
                   </div>
                 </div>
+              </div>
 
-                <div className="flex h-12 items-center rounded-xl border border-chumbo-700 bg-chumbo-950 p-1" aria-label="Quantidade">
-                  <button type="button" onClick={() => setQuantity(Math.max(1, quantity - 1))} className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-chumbo-800 hover:text-white" aria-label="Diminuir quantidade">
-                    <Minus className="h-4 w-4" />
-                  </button>
-                  <span className="w-8 text-center text-sm font-bold text-white">{quantity}</span>
-                  <button type="button" onClick={() => setQuantity(Math.min(stockLimit || 1, quantity + 1))} className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-chumbo-800 hover:text-white" aria-label="Aumentar quantidade">
-                    <Plus className="h-4 w-4" />
-                  </button>
+              {/* 3. SEÇÃO DE DESCRIÇÃO DO PRODUTO (ABAIXO DA COMPRA) */}
+              <div className="border-t border-chumbo-800 pt-6">
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-laser-400" />
+                  Descrição do produto
+                </h3>
+                <p className="mt-3 whitespace-pre-line text-[14px] sm:text-[15px] leading-7 text-slate-300">
+                  {activeProduct?.description || product.description}
+                </p>
+              </div>
+
+              {/* 4. SEÇÃO DE AVALIAÇÕES, COMENTÁRIOS E FOTOS DOS CLIENTES (ABAIXO DA DESCRIÇÃO) */}
+              <div className="border-t border-chumbo-800 pt-6 space-y-5">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4 text-laser-400" />
+                    Avaliações e Fotos dos Clientes
+                  </h3>
+                  <span className="text-xs text-slate-400">
+                    {reviews.length} {reviews.length === 1 ? 'avaliação' : 'avaliações'}
+                  </span>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleAddToCart}
-                  disabled={stockLimit <= 0}
-                  className="col-span-2 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-white px-5 text-sm font-extrabold text-chumbo-950 shadow-xl transition hover:bg-slate-200 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 lg:col-span-1"
-                >
-                  <ShoppingBag className="h-4 w-4" />
-                  {stockLimit > 0 ? (isAuthenticated ? 'Adicionar' : 'Entrar para comprar') : 'Sem estoque'}
-                </button>
+                {/* Formulário de avaliação */}
+                {isAuthenticated ? (
+                  <form onSubmit={handleReviewSubmit} className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-300">Sua nota:</span>
+                      <div className="flex items-center gap-1">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button
+                            type="button"
+                            key={star}
+                            onClick={() => setNewRating(star)}
+                            className="p-1 text-amber-300 transition-transform hover:scale-110"
+                          >
+                            <Star className={`h-5 w-5 ${star <= newRating ? 'fill-amber-300 text-amber-300' : 'text-slate-600'}`} />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <textarea
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      placeholder="O que achou do produto? Deixe sua opinião sobre o acabamento, material e entrega..."
+                      rows={3}
+                      className="w-full rounded-xl border border-chumbo-700 bg-chumbo-900 p-3 text-xs text-white placeholder-slate-500 focus:border-laser-400 focus:outline-none"
+                    />
+
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <div className="relative flex-1">
+                        <ImageIcon className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                        <input
+                          type="url"
+                          value={newImageUrl}
+                          onChange={(e) => setNewImageUrl(e.target.value)}
+                          placeholder="Link da foto do produto recebido (opcional)"
+                          className="w-full rounded-xl border border-chumbo-700 bg-chumbo-900 py-2 pl-9 pr-3 text-xs text-white placeholder-slate-500 focus:border-laser-400 focus:outline-none"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={submittingReview}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-laser-400 px-4 py-2 text-xs font-bold text-chumbo-950 transition hover:bg-laser-300 disabled:opacity-50"
+                      >
+                        <Send className="h-3.5 w-3.5" />
+                        {submittingReview ? 'Enviando...' : 'Publicar avaliação'}
+                      </button>
+                    </div>
+
+                    {reviewMsg && (
+                      <p className={`text-xs ${reviewMsg.type === 'success' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {reviewMsg.text}
+                      </p>
+                    )}
+                  </form>
+                ) : (
+                  <div className="rounded-xl border border-chumbo-800 bg-chumbo-950/40 p-3 text-center text-xs text-slate-400">
+                    Faça login na sua conta para avaliar e compartilhar fotos deste produto.
+                  </div>
+                )}
+
+                {/* Lista de Avaliações */}
+                <div className="space-y-3">
+                  {reviews.map((rev) => (
+                    <div key={rev.id} className="rounded-xl border border-chumbo-800/80 bg-chumbo-950/50 p-3.5 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-chumbo-800 text-slate-300">
+                            <User className="h-3.5 w-3.5" />
+                          </div>
+                          <span className="font-semibold text-white">{rev.user?.name || rev.user?.email?.split('@')[0] || 'Cliente'}</span>
+                          {rev.is_verified_buyer && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-400 border border-emerald-500/20">
+                              <ShieldCheck className="h-3 w-3" /> Compra verificada
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-slate-500">{new Date(rev.created_at).toLocaleDateString('pt-BR')}</span>
+                      </div>
+
+                      <div className="mt-1.5 flex items-center gap-1 text-amber-300">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star key={star} className={`h-3 w-3 ${star <= rev.rating ? 'fill-amber-300 text-amber-300' : 'text-slate-700'}`} />
+                        ))}
+                      </div>
+
+                      {rev.comment && <p className="mt-2 leading-relaxed text-slate-300">{rev.comment}</p>}
+
+                      {rev.image_url && (
+                        <div className="mt-2.5">
+                          <img
+                            src={rev.image_url}
+                            alt="Foto do cliente"
+                            loading="lazy"
+                            className="h-24 w-24 rounded-lg object-cover border border-chumbo-700 cursor-pointer transition hover:scale-105"
+                            onClick={() => window.open(rev.image_url, '_blank')}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {!loadingReviews && reviews.length === 0 && (
+                    <p className="py-4 text-center text-xs text-slate-500">
+                      Ainda não há avaliações para este produto. Seja o primeiro a avaliar!
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -440,3 +614,4 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
     </div>
   );
 };
+

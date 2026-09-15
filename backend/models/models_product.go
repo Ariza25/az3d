@@ -117,16 +117,18 @@ type StockMovement struct {
 }
 
 type ProductReview struct {
-	ID        uint      `gorm:"primaryKey" json:"id"`
-	TenantID  uint      `gorm:"not null;index" json:"tenant_id"`
-	ProductID uint      `gorm:"not null;uniqueIndex:idx_review_product_user" json:"product_id"`
-	Product   *Product  `gorm:"foreignKey:ProductID" json:"product,omitempty"`
-	UserID    uint      `gorm:"not null;uniqueIndex:idx_review_product_user" json:"user_id"`
-	User      *User     `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	Rating    int       `gorm:"not null" json:"rating"`
-	Comment   string    `gorm:"type:text" json:"comment"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID              uint      `gorm:"primaryKey" json:"id"`
+	TenantID        uint      `gorm:"not null;index" json:"tenant_id"`
+	ProductID       uint      `gorm:"not null;uniqueIndex:idx_review_product_user" json:"product_id"`
+	Product         *Product  `gorm:"foreignKey:ProductID" json:"product,omitempty"`
+	UserID          uint      `gorm:"not null;uniqueIndex:idx_review_product_user" json:"user_id"`
+	User            *User     `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	Rating          int       `gorm:"not null" json:"rating"`
+	Comment         string    `gorm:"type:text" json:"comment"`
+	ImageURL        string    `gorm:"size:500" json:"image_url,omitempty"`
+	IsVerifiedBuyer bool      `gorm:"default:false" json:"is_verified_buyer"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 type ProductFavorite struct {
@@ -233,8 +235,9 @@ type ProductColorImageInput struct {
 }
 
 type ProductReviewInput struct {
-	Rating  int    `json:"rating" binding:"required,min=1,max=5"`
-	Comment string `json:"comment"`
+	Rating   int    `json:"rating" binding:"required,min=1,max=5"`
+	Comment  string `json:"comment"`
+	ImageURL string `json:"image_url"`
 }
 
 type ProductVariantInput struct {

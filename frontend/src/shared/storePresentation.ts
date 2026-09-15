@@ -182,3 +182,17 @@ export const getColorVisual = (name: string) => {
   if (normalized.includes('roxo') || normalized.includes('purple')) return { hex: '#7c3aed', border: '#a78bfa' };
   return { hex: '#64748b', border: '#94a3b8' };
 };
+
+export const optimizeImageUrl = (url?: string): string => {
+  if (!url) return '';
+  const trimmed = url.trim();
+  if (trimmed.includes('mlstatic.com')) {
+    const lower = trimmed.toLowerCase();
+    if (lower.endsWith('.webp')) return trimmed;
+    if (lower.endsWith('.jpg')) return trimmed.slice(0, -4) + '.webp';
+    if (lower.endsWith('.jpeg')) return trimmed.slice(0, -5) + '.webp';
+    if (lower.endsWith('.png')) return trimmed.slice(0, -4) + '.webp';
+  }
+  return trimmed;
+};
+

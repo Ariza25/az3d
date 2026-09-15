@@ -756,10 +756,7 @@ func (h *ProductHandler) UpsertProductReview(c *gin.Context) {
 		return
 	}
 
-	if !customerPurchasedProduct(tenantID, userID, productID) {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Avaliacao disponivel apenas para compradores deste produto"})
-		return
-	}
+	purchased := customerPurchasedProduct(tenantID, userID, productID)
 
 	var input models.ProductReviewInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -771,11 +768,13 @@ func (h *ProductHandler) UpsertProductReview(c *gin.Context) {
 	err := database.DB.Where("tenant_id = ? AND product_id = ? AND user_id = ?", tenantID, productID, userID).First(&review).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		review = models.ProductReview{
-			TenantID:  tenantID,
-			ProductID: productID,
-			UserID:    userID,
-			Rating:    input.Rating,
-			Comment:   input.Comment,
+			TenantID:        tenantID,
+			ProductID:       productID,
+			UserID:          userID,
+			Rating:          input.Rating,
+			Comment:         strings.TrimSpace(input.Comment),
+			ImageURL:        strings.TrimSpace(input.ImageURL),
+			IsVerifiedBuyer: purchased,
 		}
 		if err := database.DB.Create(&review).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao salvar avaliacao"})
@@ -786,13 +785,16 @@ func (h *ProductHandler) UpsertProductReview(c *gin.Context) {
 		return
 	} else {
 		review.Rating = input.Rating
-		review.Comment = input.Comment
+		review.Comment = strings.TrimSpace(input.Comment)
+		review.ImageURL = strings.TrimSpace(input.ImageURL)
+		review.IsVerifiedBuyer = purchased
 		if err := database.DB.Save(&review).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao atualizar avaliacao"})
 			return
 		}
 	}
 
+	_ = database.DB.Preload("User").First(&review, review.ID)
 	c.JSON(http.StatusOK, review)
 }
 

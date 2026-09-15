@@ -2,7 +2,7 @@ import React from 'react';
 import { Product } from '../types';
 import { ShoppingBag, Maximize2, Star } from 'lucide-react';
 import { useCart } from '../context/CartContext';
-import { getAvailableColors, getColorVisual, getDefaultColor, getStockStatus, getStoreVariantProduct, money } from '../shared/storePresentation';
+import { getAvailableColors, getColorVisual, getDefaultColor, getStockStatus, getStoreVariantProduct, money, optimizeImageUrl } from '../shared/storePresentation';
 
 const truncateDescription = (text?: string, maxLength = 120): string => {
   if (!text) return '';
@@ -18,7 +18,7 @@ interface ProductCardProps {
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal }) => {
   const { addToCart } = useCart();
-  const coverImage = product.color_images?.[0]?.image_url || product.image_url;
+  const coverImage = optimizeImageUrl(product.color_images?.[0]?.image_url || product.image_url);
   const stockStatus = getStockStatus(product);
   const colors = getAvailableColors(product).slice(0, 5);
   const rating = product.review_summary?.average_rating || product.rating;
@@ -35,6 +35,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal }
         <img
           src={coverImage}
           alt={product.title}
+          loading="lazy"
+          decoding="async"
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-chumbo-950 via-transparent to-transparent opacity-80" />

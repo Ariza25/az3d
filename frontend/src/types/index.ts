@@ -129,6 +129,8 @@ export interface ProductReview {
   user?: User;
   rating: number;
   comment?: string;
+  image_url?: string;
+  is_verified_buyer?: boolean;
   created_at: string;
   updated_at: string;
 }

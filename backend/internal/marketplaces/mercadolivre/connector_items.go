@@ -474,7 +474,27 @@ func sanitizeMediaURL(raw string) string {
 		return ""
 	}
 	if strings.HasPrefix(u, "http://") {
-		return "https://" + strings.TrimPrefix(u, "http://")
+		u = "https://" + strings.TrimPrefix(u, "http://")
+	}
+	if strings.Contains(u, "mlstatic.com") {
+		u = convertMLImageToWebP(u)
+	}
+	return u
+}
+
+func convertMLImageToWebP(u string) string {
+	lower := strings.ToLower(u)
+	if strings.HasSuffix(lower, ".webp") {
+		return u
+	}
+	if strings.HasSuffix(lower, ".jpg") {
+		return u[:len(u)-4] + ".webp"
+	}
+	if strings.HasSuffix(lower, ".jpeg") {
+		return u[:len(u)-5] + ".webp"
+	}
+	if strings.HasSuffix(lower, ".png") {
+		return u[:len(u)-4] + ".webp"
 	}
 	return u
 }

@@ -280,11 +280,11 @@ export const api = {
     return res.json();
   },
 
-  saveProductReview: async (productId: number, rating: number, comment = '', tenantId?: number): Promise<ProductReview> => {
+  saveProductReview: async (productId: number, rating: number, comment = '', imageUrl = '', tenantId?: number): Promise<ProductReview> => {
     const res = await fetch(`${API_BASE_URL}/products/${productId}/reviews`, {
       method: 'POST',
       headers: getHeaders(tenantId),
-      body: JSON.stringify({ rating, comment }),
+      body: JSON.stringify({ rating, comment, image_url: imageUrl }),
     });
 
     const data = await res.json();
