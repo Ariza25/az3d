@@ -888,13 +888,17 @@ func applyMercadoPagoPaymentToOrder(orderID uint, payment *mercadoPagoPaymentRes
 		switch payment.Status {
 		case "approved":
 			now := time.Now()
-			order.Status = "paid"
+			if order.Status == "pending_payment" || order.Status == "pending_confirmation" || order.Status == "pending" || order.Status == "paid" || order.Status == "confirmed" || order.Status == "" {
+				order.Status = "queued_printing"
+			}
 			order.PaidAt = &now
 		case "pending", "in_process", "in_mediation":
-			order.Status = "pending_payment"
+			if order.Status != "queued_printing" && order.Status != "in_printing" && order.Status != "post_processing" && order.Status != "ready_shipping" && order.Status != "shipped" && order.Status != "delivered" {
+				order.Status = "pending_payment"
+			}
 		case "rejected", "cancelled", "refunded", "charged_back":
 			order.Status = "cancelled"
-			if previousStatus != "cancelled" && previousStatus != "paid" {
+			if previousStatus != "cancelled" && previousStatus != "paid" && previousStatus != "queued_printing" && previousStatus != "in_printing" && previousStatus != "post_processing" && previousStatus != "ready_shipping" && previousStatus != "shipped" {
 				if err := releaseOrderStock(tx, order, "Liberacao automatica por pagamento "+payment.Status); err != nil {
 					return err
 				}

@@ -52,14 +52,19 @@ import {
 import { useAuth } from '../context/AuthContext';
 
 const ORDER_STATUS_LABELS: Record<string, string> = {
-  pending_confirmation: 'Aguardando confirmacao',
+  pending_confirmation: 'Aguardando confirmação',
   pending_payment: 'Aguardando pagamento',
+  queued_printing: 'Fila de Impressão',
+  in_printing: 'Em Impressão 3D',
+  post_processing: 'Pós-Processamento',
+  ready_shipping: 'Pronto / Expedição',
+  shipped: 'Enviado / Rastreio',
   paid: 'Pago',
   preparing: 'Em preparo',
-  delivered: 'Concluido',
+  delivered: 'Concluído',
   cancelled: 'Cancelado',
   pending: 'Pendente',
-  printing: 'Em preparo',
+  printing: 'Em Impressão 3D',
 };
 
 interface AdminModalProps {
@@ -499,6 +504,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             {activeTab === 'pipeline' && (
               <TenantOrdersPipelinePanel
                 orders={orders}
+                tenantId={activeTenant?.id}
                 onRefreshOrders={() => activeTenant && void loadTenantData('pipeline')}
               />
             )}

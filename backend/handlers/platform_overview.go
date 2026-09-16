@@ -115,7 +115,10 @@ func (h *PlatformHandler) GetPlatformOverview(c *gin.Context) {
 		Tenants:                  make([]PlatformTenantOverview, 0, len(tenants)),
 	}
 
-	openStatuses := []string{"pending_confirmation", "pending_payment", "paid", "preparing", "printing", "pending"}
+	openStatuses := []string{
+		"pending_confirmation", "pending_payment", "paid", "preparing", "printing", "pending",
+		"queued_printing", "in_printing", "post_processing", "ready_shipping", "shipped",
+	}
 	for _, tenant := range tenants {
 		row := PlatformTenantOverview{TenantID: tenant.ID, TenantName: tenant.Name, TenantSlug: tenant.Slug}
 		database.DB.Model(&models.Product{}).Where("tenant_id = ?", tenant.ID).Count(&row.ProductsCount)

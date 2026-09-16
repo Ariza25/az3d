@@ -283,7 +283,7 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 		}
 
 		if directPayment.Status == "approved" {
-			order.Status = "confirmed"
+			order.Status = "queued_printing"
 			now := time.Now().UTC()
 			order.PaidAt = &now
 		} else if directPayment.Status == "rejected" {
@@ -507,7 +507,8 @@ func (h *OrderHandler) GetOrderPaymentStatus(c *gin.Context) {
 	statusLower := strings.ToLower(strings.TrimSpace(order.Status))
 	paymentStatusLower := strings.ToLower(strings.TrimSpace(order.PaymentStatus))
 	isPaid := paymentStatusLower == "paid" || paymentStatusLower == "approved" || paymentStatusLower == "accredited" ||
-		statusLower == "confirmed" || statusLower == "paid" ||
+		statusLower == "confirmed" || statusLower == "paid" || statusLower == "queued_printing" || statusLower == "in_printing" ||
+		statusLower == "post_processing" || statusLower == "ready_shipping" || statusLower == "shipped" || statusLower == "delivered" ||
 		order.PaidAt != nil
 
 	c.JSON(http.StatusOK, gin.H{

@@ -15,6 +15,11 @@ func (h *OrderHandler) GetAllOrders(c *gin.Context) {
 
 	_ = CancelExpiredPixOrders(database.DB, tenantID)
 
+	// Sincroniza pedidos cujo pagamento ja foi aprovado mas o status ainda constava como aguardando pagamento
+	_ = database.DB.Model(&models.Order{}).
+		Where("tenant_id = ? AND (payment_status IN ('approved', 'paid') OR paid_at IS NOT NULL) AND status IN ('pending_payment', 'pending_confirmation', 'pending')", tenantID).
+		Update("status", "queued_printing").Error
+
 	var orders []models.Order
 	if err := database.DB.
 		Preload("User").
@@ -49,6 +54,12 @@ func (h *OrderHandler) UpdateOrderStatus(c *gin.Context) {
 		"pending_confirmation": true,
 		"pending_payment":      true,
 		"paid":                 true,
+		"confirmed":            true,
+		"queued_printing":      true,
+		"in_printing":          true,
+		"post_processing":      true,
+		"ready_shipping":       true,
+		"shipped":              true,
 		"preparing":            true,
 		"delivered":            true,
 		"cancelled":            true,

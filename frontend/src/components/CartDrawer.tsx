@@ -60,11 +60,16 @@ const detectCardBrand = (num: string): string => {
 };
 
 const ORDER_STATUS_LABELS: Record<string, string> = {
-  pending_confirmation: 'Aguardando confirmacao',
+  pending_confirmation: 'Aguardando confirmação',
   pending_payment: 'Aguardando pagamento',
+  queued_printing: 'Fila de Impressão',
+  in_printing: 'Em Impressão 3D',
+  post_processing: 'Pós-Processamento',
+  ready_shipping: 'Pronto para Envio',
+  shipped: 'Enviado',
   paid: 'Pago',
   preparing: 'Em preparo',
-  delivered: 'Concluido',
+  delivered: 'Concluído',
   cancelled: 'Cancelado',
 };
 
@@ -1552,7 +1557,13 @@ const OrdersList = ({
           order.payment_status !== 'approved' &&
           order.payment_status !== 'paid' &&
           order.status !== 'confirmed' &&
-          order.status !== 'paid';
+          order.status !== 'paid' &&
+          order.status !== 'queued_printing' &&
+          order.status !== 'in_printing' &&
+          order.status !== 'post_processing' &&
+          order.status !== 'ready_shipping' &&
+          order.status !== 'shipped' &&
+          order.status !== 'delivered';
 
         return (
           <div

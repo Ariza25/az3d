@@ -126,18 +126,23 @@ export const AdminOrdersTab: React.FC<AdminOrdersTabProps> = ({
                     value={o.status}
                     onChange={(e) => onStatusChange(o.id, e.target.value)}
                     className={`border border-slate-200 bg-white text-xs font-mono font-bold rounded-lg px-2 py-1 focus:outline-none dark:bg-chumbo-950 dark:border-chumbo-700 ${
-                      o.status === 'preparing' || o.status === 'paid'
-                        ? 'text-amber-600 dark:text-amber-400'
-                        : o.status === 'delivered'
+                      o.status === 'preparing' || o.status === 'paid' || o.status === 'queued_printing' || o.status === 'in_printing' || o.status === 'post_processing'
+                        ? 'text-cyan-600 dark:text-cyan-400'
+                        : o.status === 'delivered' || o.status === 'ready_shipping'
                         ? 'text-emerald-700 dark:text-emerald-400'
                         : 'text-slate-800 dark:text-slate-300'
                     }`}
                   >
-                    <option value="pending_confirmation">Aguardando confirmacao</option>
+                    <option value="pending_confirmation">Aguardando confirmação</option>
                     <option value="pending_payment">Aguardando pagamento</option>
+                    <option value="queued_printing">Fila de Impressão</option>
+                    <option value="in_printing">Em Impressão 3D</option>
+                    <option value="post_processing">Pós-Processamento</option>
+                    <option value="ready_shipping">Pronto / Expedição</option>
+                    <option value="shipped">Enviado / Rastreio</option>
                     <option value="paid">Pago</option>
                     <option value="preparing">Em preparo</option>
-                    <option value="delivered">Concluido</option>
+                    <option value="delivered">Concluído</option>
                     <option value="cancelled">Cancelado</option>
                   </select>
                 </td>

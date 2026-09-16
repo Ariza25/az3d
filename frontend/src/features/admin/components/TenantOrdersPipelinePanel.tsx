@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
 import { Order } from '../../../types';
-import { Cpu, ArrowRight, Search, RefreshCw, Package } from 'lucide-react';
+import { Cpu, ArrowRight, Search, RefreshCw, Package, CheckCircle2, AlertCircle } from 'lucide-react';
 import { money } from '../../../shared/storePresentation';
 import { api } from '../../../services/api';
 
 interface TenantOrdersPipelinePanelProps {
   orders: Order[];
   onRefreshOrders: () => void;
+  tenantId?: number;
 }
 
-const STAGES = [
+export const STAGES = [
   { id: 'pending_payment', label: 'Aguardando Pagamento', color: 'border-amber-800 bg-amber-700 text-white dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300' },
   { id: 'queued_printing', label: 'Fila de Impressão', color: 'border-cyan-800 bg-cyan-700 text-white dark:border-cyan-500/40 dark:bg-cyan-500/10 dark:text-cyan-300' },
   { id: 'in_printing', label: 'Em Impressão 3D', color: 'border-purple-800 bg-purple-700 text-white dark:border-purple-500/40 dark:bg-purple-500/10 dark:text-purple-300' },
@@ -18,16 +19,34 @@ const STAGES = [
   { id: 'shipped', label: 'Enviado / Rastreio', color: 'border-blue-800 bg-blue-700 text-white dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-blue-300' },
 ] as const;
 
+export const resolveOrderStageId = (order: Order): string => {
+  const s = order.status;
+  if (s === 'in_printing') return 'in_printing';
+  if (s === 'post_processing') return 'post_processing';
+  if (s === 'ready_shipping') return 'ready_shipping';
+  if (s === 'shipped' || s === 'delivered') return 'shipped';
+
+  const isPaid = order.payment_status === 'approved' || order.payment_status === 'paid' || !!order.paid_at;
+  if (s === 'queued_printing' || s === 'paid' || s === 'preparing' || s === 'confirmed' || isPaid) {
+    return 'queued_printing';
+  }
+
+  return 'pending_payment';
+};
+
 export const TenantOrdersPipelinePanel: React.FC<TenantOrdersPipelinePanelProps> = ({
   orders,
   onRefreshOrders,
+  tenantId,
 }) => {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [updatingOrderId, setUpdatingOrderId] = useState<number | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const filteredOrders = orders.filter((order) => {
-    const matchesStatus = filterStatus === 'all' || order.status === filterStatus;
+    const stageId = resolveOrderStageId(order);
+    const matchesStatus = filterStatus === 'all' || stageId === filterStatus;
     const matchesSearch =
       order.id.toString().includes(searchQuery) ||
       (order.recipient_name && order.recipient_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -37,11 +56,13 @@ export const TenantOrdersPipelinePanel: React.FC<TenantOrdersPipelinePanelProps>
 
   const handleAdvanceStatus = async (orderId: number, nextStatus: string) => {
     setUpdatingOrderId(orderId);
+    setErrorMessage(null);
     try {
-      await api.updateOrderStatus(orderId, nextStatus);
+      await api.updateOrderStatus(orderId, nextStatus, tenantId);
       onRefreshOrders();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Falha ao atualizar status do pedido', err);
+      setErrorMessage(err?.message || 'Falha ao atualizar status do pedido');
     } finally {
       setUpdatingOrderId(null);
     }
@@ -84,10 +105,26 @@ export const TenantOrdersPipelinePanel: React.FC<TenantOrdersPipelinePanelProps>
         </div>
       </div>
 
+      {errorMessage && (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
+            <span>{errorMessage}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setErrorMessage(null)}
+            className="text-red-600 hover:underline dark:text-red-400 font-semibold"
+          >
+            Fechar
+          </button>
+        </div>
+      )}
+
       {/* Stage Summary Cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {STAGES.map((stage) => {
-          const count = orders.filter((o) => o.status === stage.id || (stage.id === 'queued_printing' && o.status === 'preparing')).length;
+          const count = orders.filter((o) => resolveOrderStageId(o) === stage.id).length;
           const isActive = filterStatus === stage.id;
           return (
             <button
@@ -115,8 +152,10 @@ export const TenantOrdersPipelinePanel: React.FC<TenantOrdersPipelinePanelProps>
       ) : (
         <div className="space-y-3">
           {filteredOrders.map((order) => {
-            const currentStageIndex = STAGES.findIndex((s) => s.id === order.status || (s.id === 'queued_printing' && order.status === 'preparing'));
-            const nextStage = STAGES[currentStageIndex + 1];
+            const currentStageId = resolveOrderStageId(order);
+            const currentStageIndex = STAGES.findIndex((s) => s.id === currentStageId);
+            const nextStage = currentStageIndex >= 0 && currentStageIndex < STAGES.length - 1 ? STAGES[currentStageIndex + 1] : null;
+            const isCompleted = order.status === 'delivered';
 
             return (
               <article key={order.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-slate-300 dark:border-chumbo-800 dark:bg-chumbo-900/80 dark:hover:border-chumbo-700">
@@ -126,6 +165,9 @@ export const TenantOrdersPipelinePanel: React.FC<TenantOrdersPipelinePanelProps>
                     <span className="text-xs text-slate-500 dark:text-slate-400">· {new Date(order.created_at).toLocaleDateString('pt-BR')}</span>
                     <span className="rounded-full border border-slate-200 bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700 dark:border-chumbo-700 dark:bg-chumbo-950 dark:text-slate-300">
                       Cliente: {order.recipient_name || order.user?.name || 'Comprador'}
+                    </span>
+                    <span className="rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-0.5 text-xs font-semibold text-cyan-800 dark:border-cyan-800/60 dark:bg-cyan-950/50 dark:text-cyan-300">
+                      {STAGES.find((s) => s.id === currentStageId)?.label || order.status}
                     </span>
                   </div>
 
@@ -141,6 +183,23 @@ export const TenantOrdersPipelinePanel: React.FC<TenantOrdersPipelinePanelProps>
                         <span>Avançar para: {nextStage.label}</span>
                         <ArrowRight className="h-3.5 w-3.5" />
                       </button>
+                    )}
+                    {!nextStage && !isCompleted && currentStageId === 'shipped' && (
+                      <button
+                        type="button"
+                        disabled={updatingOrderId === order.id}
+                        onClick={() => handleAdvanceStatus(order.id, 'delivered')}
+                        className="flex items-center gap-1 rounded-xl bg-emerald-700 px-3 py-1.5 text-xs font-extrabold text-white border border-emerald-800 transition-all hover:bg-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/30 dark:hover:bg-emerald-500/30 disabled:opacity-50"
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        <span>Marcar como Concluído</span>
+                      </button>
+                    )}
+                    {isCompleted && (
+                      <span className="flex items-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        <span>Concluído</span>
+                      </span>
                     )}
                   </div>
                 </div>
