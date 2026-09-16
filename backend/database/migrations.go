@@ -45,6 +45,7 @@ func runAutoMigrate(db *gorm.DB) error {
 		&models.ProductPricingSnapshot{},
 		&models.ProductActualCost{},
 		&models.TenantFixedCost{},
+		&models.Coupon{},
 		&models.Order{},
 		&models.OrderItem{},
 		&models.MarketplaceProductMapping{},

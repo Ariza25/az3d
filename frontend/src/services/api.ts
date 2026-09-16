@@ -58,6 +58,9 @@ import {
   ChatMessage,
   ChatConversation,
   ChatConversationResponse,
+  Coupon,
+  CouponInput,
+  ValidateCouponResponse,
   ForgotPasswordResponse,
   VerifyResetTokenResponse,
   ResetPasswordResponse,
@@ -298,6 +301,17 @@ export const api = {
     });
     if (!res.ok) return { can_review: false, is_verified_buyer: false };
     return res.json();
+  },
+
+  validateCoupon: async (code: string, subtotal: number = 0, shipping: number = 0, tenantId?: number): Promise<ValidateCouponResponse> => {
+    const res = await fetch(`${API_BASE_URL}/coupons/validate`, {
+      method: 'POST',
+      headers: getHeaders(tenantId),
+      body: JSON.stringify({ code, subtotal, shipping }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro ao validar cupom');
+    return data;
   },
 
   addProductFavorite: async (productId: number, tenantId?: number): Promise<ProductFavorite> => {
@@ -689,6 +703,46 @@ export const api = {
 
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Erro ao salvar configuracoes da loja');
+    return data;
+  },
+
+  getAdminCoupons: async (tenantId?: number): Promise<Coupon[]> => {
+    const res = await fetch(`${API_BASE_URL}/admin/coupons`, {
+      headers: getAdminHeaders(tenantId),
+    });
+    if (!res.ok) throw new Error('Erro ao listar cupons');
+    return res.json();
+  },
+
+  createAdminCoupon: async (coupon: CouponInput, tenantId?: number): Promise<Coupon> => {
+    const res = await fetch(`${API_BASE_URL}/admin/coupons`, {
+      method: 'POST',
+      headers: getAdminHeaders(tenantId),
+      body: JSON.stringify(coupon),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro ao criar cupom');
+    return data;
+  },
+
+  updateAdminCoupon: async (id: number, coupon: Partial<CouponInput>, tenantId?: number): Promise<Coupon> => {
+    const res = await fetch(`${API_BASE_URL}/admin/coupons/${id}`, {
+      method: 'PUT',
+      headers: getAdminHeaders(tenantId),
+      body: JSON.stringify(coupon),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro ao atualizar cupom');
+    return data;
+  },
+
+  deleteAdminCoupon: async (id: number, tenantId?: number): Promise<{ message: string }> => {
+    const res = await fetch(`${API_BASE_URL}/admin/coupons/${id}`, {
+      method: 'DELETE',
+      headers: getAdminHeaders(tenantId),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro ao excluir cupom');
     return data;
   },
 

@@ -20,6 +20,8 @@ import {
   ReceiptText,
   ShieldCheck,
   ShoppingBag,
+  Sparkles,
+  Tag,
   Truck,
   Trash2,
   X,
@@ -27,8 +29,8 @@ import {
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
-import { CreateOrderResponse, Order, TenantSettings } from '../types';
-import { money } from '../shared/storePresentation';
+import { CreateOrderResponse, Order, TenantSettings, ValidateCouponResponse } from '../types';
+import { money, getWholesaleDiscount } from '../shared/storePresentation';
 import { FreightCalculatorWidget } from './FreightCalculatorWidget';
 import { TransparentPaymentModal } from './TransparentPaymentModal';
 
@@ -72,7 +74,6 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
     removeFromCart,
     updateQuantity,
     clearCart,
-    totalPrice,
     totalItems,
     isCartOpen,
     setIsCartOpen,
@@ -108,8 +109,94 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
   const [checkoutStep, setCheckoutStep] = useState<'items' | 'delivery'>('items');
   const [selectedFreight, setSelectedFreight] = useState<{ code: string; name: string; price: number; deliveryDays: number } | null>(null);
 
-  const freightAmount = (deliveryMethod === 'shipping' && selectedFreight) ? selectedFreight.price : 0;
-  const cartGrandTotal = totalPrice + freightAmount;
+  // Cupom de Desconto
+  const [couponInput, setCouponInput] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<ValidateCouponResponse | null>(null);
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [couponMessage, setCouponMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const handleApplyCoupon = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const clean = couponInput.trim();
+    if (!clean) return;
+    setCouponLoading(true);
+    setCouponMessage(null);
+    try {
+      const res = await api.validateCoupon(clean, 0, 0, tenantSettings?.tenant_id);
+      if (res.valid && res.code) {
+        setAppliedCoupon(res);
+        setCouponMessage({ type: 'success', text: `Cupom ${res.code} aplicado (-${res.discount_percent || 0}%)!` });
+      } else {
+        setAppliedCoupon(null);
+        setCouponMessage({ type: 'error', text: res.message || 'Cupom inválido ou expirado' });
+      }
+    } catch (err: any) {
+      setAppliedCoupon(null);
+      setCouponMessage({ type: 'error', text: err.message || 'Erro ao validar cupom' });
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponInput('');
+    setCouponMessage(null);
+  };
+
+  const cartCalculations = useMemo(() => {
+    let rawSubtotal = 0;
+    let totalWholesaleDiscount = 0;
+
+    const itemsWithPricing = cart.map((item) => {
+      const wholesale = getWholesaleDiscount(item.quantity);
+      const discountedUnit = wholesale.percent > 0 ? wholesale.calculateUnitPrice(item.product.price) : item.product.price;
+      const itemRaw = item.product.price * item.quantity;
+      const itemFinal = discountedUnit * item.quantity;
+      const itemDiscount = Math.round((itemRaw - itemFinal) * 100) / 100;
+
+      rawSubtotal += itemRaw;
+      totalWholesaleDiscount += itemDiscount;
+
+      return {
+        ...item,
+        wholesale,
+        discountedUnit,
+        itemDiscount,
+        itemFinal,
+      };
+    });
+
+    const subtotalAfterWholesale = Math.round((rawSubtotal - totalWholesaleDiscount) * 100) / 100;
+    const couponPercent = appliedCoupon?.discount_percent || 0;
+    const couponProductDiscount = appliedCoupon
+      ? Math.round(subtotalAfterWholesale * (couponPercent / 100) * 100) / 100
+      : 0;
+
+    const freightAmount = (deliveryMethod === 'shipping' && selectedFreight) ? selectedFreight.price : 0;
+    const couponShippingDiscount = (appliedCoupon?.applies_to_shipping && freightAmount > 0)
+      ? Math.round(freightAmount * (couponPercent / 100) * 100) / 100
+      : 0;
+
+    const finalFreight = Math.max(0, freightAmount - couponShippingDiscount);
+    const cartGrandTotal = Math.round((Math.max(0, subtotalAfterWholesale - couponProductDiscount) + finalFreight) * 100) / 100;
+    const totalDiscountAll = Math.round((totalWholesaleDiscount + couponProductDiscount + couponShippingDiscount) * 100) / 100;
+
+    return {
+      itemsWithPricing,
+      rawSubtotal,
+      totalWholesaleDiscount,
+      subtotalAfterWholesale,
+      couponProductDiscount,
+      freightAmount,
+      couponShippingDiscount,
+      finalFreight,
+      cartGrandTotal,
+      totalDiscountAll,
+    };
+  }, [cart, appliedCoupon, deliveryMethod, selectedFreight]);
+
+  const cartGrandTotal = cartCalculations.cartGrandTotal;
 
   const installmentOptions = useMemo(() => {
     const total = cartGrandTotal;
@@ -402,6 +489,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
         city,
         state,
         notes,
+        coupon_code: appliedCoupon?.code,
+        shipping_cost: cartCalculations.freightAmount,
         payment_method: paymentMethod,
         payer_cpf: payerCPF.replace(/\D/g, ''),
         card_number: paymentMethod === 'credit_card' ? cardNumber.replace(/\D/g, '') : undefined,
@@ -432,6 +521,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
       }
 
       clearCart();
+      setAppliedCoupon(null);
+      setCouponInput('');
+      setCouponMessage(null);
       setLastOrder(result.order);
       setActivePaymentResponse(result);
     } catch (err: any) {
@@ -607,7 +699,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
                   </div>
                 ) : checkoutStep === 'items' ? (
                   <div className="space-y-3">
-                    {cart.map((item) => (
+                    {cartCalculations.itemsWithPricing.map((item) => (
                       <article key={`${item.product.id}-${item.color}`} className="rounded-2xl border border-chumbo-800 bg-chumbo-900/65 p-3 sm:p-4">
                         <div className="flex gap-3.5 sm:gap-4">
                           <img
@@ -635,7 +727,23 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
                               </button>
                             </div>
 
-                            <div className="mt-4 flex items-end justify-between gap-3">
+                            {/* Detalhes de preço unitário e atacado */}
+                            {item.wholesale.percent > 0 ? (
+                              <div className="mt-2 flex items-center gap-2 flex-wrap">
+                                <span className="line-through text-xs text-slate-500">{money(item.product.price)}</span>
+                                <span className="text-xs font-bold text-emerald-400">{money(item.discountedUnit)} cada</span>
+                                <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-extrabold text-emerald-300">
+                                  -{item.wholesale.percent}% Atacado
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="mt-2 flex items-center gap-2">
+                                <span className="text-xs text-slate-400">{money(item.product.price)} cada</span>
+                                <span className="text-[10px] text-laser-400 font-medium">3+ un ganha atacado</span>
+                              </div>
+                            )}
+
+                            <div className="mt-3 flex items-end justify-between gap-3">
                               <div className="flex h-10 items-center rounded-xl border border-chumbo-700 bg-chumbo-950" aria-label={`Quantidade de ${item.product.title}`}>
                                 <button
                                   type="button"
@@ -657,7 +765,14 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
                               </div>
                               <div className="text-right">
                                 <span className="block text-[10px] uppercase tracking-wider text-slate-500">Subtotal</span>
-                                <strong className="mt-0.5 block text-base font-extrabold text-white">{money(item.product.price * item.quantity)}</strong>
+                                {item.wholesale.percent > 0 ? (
+                                  <div>
+                                    <span className="line-through text-xs text-slate-500 block leading-tight">{money(item.product.price * item.quantity)}</span>
+                                    <strong className="block text-base font-extrabold text-emerald-400">{money(item.itemFinal)}</strong>
+                                  </div>
+                                ) : (
+                                  <strong className="mt-0.5 block text-base font-extrabold text-white">{money(item.product.price * item.quantity)}</strong>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -1043,31 +1158,106 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
               </div>
 
               {cart.length > 0 && checkoutStep === 'items' && (
-                <footer className="space-y-4 border-t border-chumbo-800 bg-chumbo-900/90 px-5 py-5 sm:px-7">
-                  {selectedFreight ? (
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-xs text-slate-400">
-                        <span>Produtos ({totalItems} {totalItems === 1 ? 'item' : 'itens'})</span>
-                        <span className="font-mono text-slate-300">{money(totalPrice)}</span>
+                <footer className="space-y-3.5 border-t border-chumbo-800 bg-chumbo-900/90 px-5 py-5 sm:px-7">
+                  {/* Cupom de desconto */}
+                  <div className="rounded-xl border border-chumbo-800 bg-chumbo-950/80 p-2.5">
+                    {!appliedCoupon ? (
+                      <form onSubmit={handleApplyCoupon} className="flex gap-2">
+                        <div className="relative flex-1">
+                          <Tag className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-500" />
+                          <input
+                            type="text"
+                            value={couponInput}
+                            onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                            placeholder="Cupom de desconto"
+                            className="w-full rounded-lg border border-chumbo-700 bg-chumbo-900 py-1.5 pl-8 pr-2 text-xs font-mono uppercase text-white placeholder-slate-500 focus:border-laser-400 focus:outline-none"
+                          />
+                        </div>
+                        <button
+                          type="submit"
+                          disabled={couponLoading || !couponInput.trim()}
+                          className="rounded-lg border border-laser-400/40 bg-laser-400/10 px-3 py-1.5 text-xs font-bold text-laser-300 hover:bg-laser-400/20 disabled:opacity-40"
+                        >
+                          {couponLoading ? '...' : 'Aplicar'}
+                        </button>
+                      </form>
+                    ) : (
+                      <div className="flex items-center justify-between text-xs text-emerald-300">
+                        <div className="flex items-center gap-1.5">
+                          <Tag className="h-3.5 w-3.5 text-emerald-400" />
+                          <span className="font-mono font-bold">{appliedCoupon.code}</span>
+                          <span>(-{appliedCoupon.discount_percent}%)</span>
+                          {appliedCoupon.applies_to_shipping && (
+                            <span className="text-[10px] text-emerald-400 font-semibold">• Frete incluso</span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleRemoveCoupon}
+                          className="rounded p-1 text-slate-400 hover:bg-emerald-500/20 hover:text-white"
+                          aria-label="Remover cupom"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
                       </div>
+                    )}
+                    {couponMessage && (
+                      <p className={`mt-1 text-[11px] ${couponMessage.type === 'error' ? 'text-rose-400' : 'text-emerald-400'}`}>
+                        {couponMessage.text}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs text-slate-400">
+                      <span>Subtotal produtos ({totalItems} {totalItems === 1 ? 'item' : 'itens'})</span>
+                      <span className="font-mono text-slate-300">{money(cartCalculations.rawSubtotal)}</span>
+                    </div>
+                    {cartCalculations.totalWholesaleDiscount > 0 && (
+                      <div className="flex items-center justify-between text-xs text-emerald-400">
+                        <span className="flex items-center gap-1">
+                          <Sparkles className="h-3 w-3" />
+                          Desconto de Atacado
+                        </span>
+                        <span className="font-mono font-semibold">-{money(cartCalculations.totalWholesaleDiscount)}</span>
+                      </div>
+                    )}
+                    {cartCalculations.couponProductDiscount > 0 && (
+                      <div className="flex items-center justify-between text-xs text-emerald-400">
+                        <span className="flex items-center gap-1">
+                          <Tag className="h-3 w-3" />
+                          Cupom ({appliedCoupon?.code})
+                        </span>
+                        <span className="font-mono font-semibold">-{money(cartCalculations.couponProductDiscount)}</span>
+                      </div>
+                    )}
+                    {selectedFreight && (
                       <div className="flex items-center justify-between text-xs text-slate-400">
                         <span>Frete ({selectedFreight.name})</span>
-                        <span className="font-mono font-bold text-laser-400">{money(selectedFreight.price)}</span>
+                        <span className="font-mono font-bold text-laser-400">
+                          {cartCalculations.couponShippingDiscount > 0 ? (
+                            <>
+                              <span className="line-through text-slate-500 mr-1">{money(cartCalculations.freightAmount)}</span>
+                              <span>{money(cartCalculations.finalFreight)}</span>
+                            </>
+                          ) : (
+                            money(selectedFreight.price)
+                          )}
+                        </span>
                       </div>
-                      <div className="flex items-center justify-between pt-2 border-t border-chumbo-800">
+                    )}
+                    <div className="flex items-center justify-between pt-2 border-t border-chumbo-800">
+                      <div>
                         <span className="text-sm font-bold text-slate-200">Subtotal com frete</span>
-                        <span className="text-2xl font-extrabold text-white">{money(totalPrice + selectedFreight.price)}</span>
+                        {cartCalculations.totalDiscountAll > 0 && (
+                          <span className="block text-[11px] font-semibold text-emerald-400">
+                            Economia: {money(cartCalculations.totalDiscountAll)}
+                          </span>
+                        )}
                       </div>
+                      <span className="text-2xl font-extrabold text-white">{money(cartCalculations.cartGrandTotal)}</span>
                     </div>
-                  ) : (
-                    <div>
-                      <div className="flex items-center justify-between text-xs text-slate-400">
-                        <span>Subtotal · {totalItems} {totalItems === 1 ? 'item' : 'itens'}</span>
-                        <span className="text-2xl font-extrabold text-white">{money(totalPrice)}</span>
-                      </div>
-                      <p className="mt-1 text-[11px] text-slate-500">Calcule o frete acima ou continue para entrega.</p>
-                    </div>
-                  )}
+                  </div>
 
                   <button
                     type="button"
@@ -1085,22 +1275,107 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
               )}
 
               {cart.length > 0 && checkoutStep === 'delivery' && (
-                <footer className="border-t border-chumbo-850 bg-chumbo-900/90 px-5 py-5 sm:px-7 space-y-2">
+                <footer className="border-t border-chumbo-850 bg-chumbo-900/90 px-5 py-5 sm:px-7 space-y-2.5">
+                  {/* Cupom de desconto no checkout */}
+                  <div className="rounded-xl border border-chumbo-800 bg-chumbo-950/80 p-2.5">
+                    {!appliedCoupon ? (
+                      <form onSubmit={handleApplyCoupon} className="flex gap-2">
+                        <div className="relative flex-1">
+                          <Tag className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-500" />
+                          <input
+                            type="text"
+                            value={couponInput}
+                            onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                            placeholder="Cupom de desconto"
+                            className="w-full rounded-lg border border-chumbo-700 bg-chumbo-900 py-1.5 pl-8 pr-2 text-xs font-mono uppercase text-white placeholder-slate-500 focus:border-laser-400 focus:outline-none"
+                          />
+                        </div>
+                        <button
+                          type="submit"
+                          disabled={couponLoading || !couponInput.trim()}
+                          className="rounded-lg border border-laser-400/40 bg-laser-400/10 px-3 py-1.5 text-xs font-bold text-laser-300 hover:bg-laser-400/20 disabled:opacity-40"
+                        >
+                          {couponLoading ? '...' : 'Aplicar'}
+                        </button>
+                      </form>
+                    ) : (
+                      <div className="flex items-center justify-between text-xs text-emerald-300">
+                        <div className="flex items-center gap-1.5">
+                          <Tag className="h-3.5 w-3.5 text-emerald-400" />
+                          <span className="font-mono font-bold">{appliedCoupon.code}</span>
+                          <span>(-{appliedCoupon.discount_percent}%)</span>
+                          {appliedCoupon.applies_to_shipping && (
+                            <span className="text-[10px] text-emerald-400 font-semibold">• Frete incluso</span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleRemoveCoupon}
+                          className="rounded p-1 text-slate-400 hover:bg-emerald-500/20 hover:text-white"
+                          aria-label="Remover cupom"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    )}
+                    {couponMessage && (
+                      <p className={`mt-1 text-[11px] ${couponMessage.type === 'error' ? 'text-rose-400' : 'text-emerald-400'}`}>
+                        {couponMessage.text}
+                      </p>
+                    )}
+                  </div>
+
                   <div className="flex items-center justify-between text-xs text-slate-400">
                     <span>Subtotal produtos</span>
-                    <span className="font-mono font-semibold text-white">{money(totalPrice)}</span>
+                    <span className="font-mono font-semibold text-white">{money(cartCalculations.rawSubtotal)}</span>
                   </div>
+                  {cartCalculations.totalWholesaleDiscount > 0 && (
+                    <div className="flex items-center justify-between text-xs text-emerald-400">
+                      <span className="flex items-center gap-1">
+                        <Sparkles className="h-3 w-3" />
+                        Desconto de Atacado
+                      </span>
+                      <span className="font-mono font-semibold">-{money(cartCalculations.totalWholesaleDiscount)}</span>
+                    </div>
+                  )}
+                  {cartCalculations.couponProductDiscount > 0 && (
+                    <div className="flex items-center justify-between text-xs text-emerald-400">
+                      <span className="flex items-center gap-1">
+                        <Tag className="h-3 w-3" />
+                        Cupom ({appliedCoupon?.code})
+                      </span>
+                      <span className="font-mono font-semibold">-{money(cartCalculations.couponProductDiscount)}</span>
+                    </div>
+                  )}
                   {deliveryMethod === 'shipping' && (
                     <div className="flex items-center justify-between text-xs text-slate-400">
                       <span>Frete ({selectedFreight?.name || 'A definir'})</span>
                       <span className="font-mono font-bold text-laser-400">
-                        {selectedFreight ? money(selectedFreight.price) : 'Grátis / A calcular'}
+                        {selectedFreight ? (
+                          cartCalculations.couponShippingDiscount > 0 ? (
+                            <>
+                              <span className="line-through text-slate-500 mr-1">{money(cartCalculations.freightAmount)}</span>
+                              <span>{money(cartCalculations.finalFreight)}</span>
+                            </>
+                          ) : (
+                            money(selectedFreight.price)
+                          )
+                        ) : (
+                          'Grátis / A calcular'
+                        )}
                       </span>
                     </div>
                   )}
                   <div className="flex items-center justify-between pt-2 border-t border-chumbo-800">
-                    <span className="text-sm font-bold text-slate-200">Total do pedido</span>
-                    <span className="text-2xl font-extrabold text-white">{money(cartGrandTotal)}</span>
+                    <div>
+                      <span className="text-sm font-bold text-slate-200">Total do pedido</span>
+                      {cartCalculations.totalDiscountAll > 0 && (
+                        <span className="block text-[11px] font-semibold text-emerald-400">
+                          Economia: {money(cartCalculations.totalDiscountAll)}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-2xl font-extrabold text-white">{money(cartCalculations.cartGrandTotal)}</span>
                   </div>
                   <button
                     type="button"
@@ -1112,8 +1387,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
                       {isSubmitting
                         ? 'Processando pagamento...'
                         : paymentMethod === 'pix'
-                          ? `Gerar PIX e Pagar (${money(cartGrandTotal)})`
-                          : `Pagar com Cartão (${money(cartGrandTotal)})`}
+                          ? `Gerar PIX e Pagar (${money(cartCalculations.cartGrandTotal)})`
+                          : `Pagar com Cartão (${money(cartCalculations.cartGrandTotal)})`}
                     </span>
                     <ArrowRight className="h-4 w-4" />
                   </button>

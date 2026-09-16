@@ -70,6 +70,7 @@ func main() {
 	shipmentHandler := handlers.NewShipmentHandler(cfg)
 	platformHandler := handlers.NewPlatformHandler(cfg)
 	chatHandler := handlers.NewChatHandler()
+	couponHandler := handlers.NewCouponHandler()
 	handlers.StartTrackingSyncJob(bgCtx, cfg)
 	handlers.StartMarketplaceSyncJob(bgCtx, cfg, marketplaceHandler)
 	handlers.StartExpiredPixJob(bgCtx)
@@ -103,6 +104,7 @@ func main() {
 		api.GET("/products/:id", productHandler.GetProductByID)
 		api.GET("/products/:id/reviews", productHandler.GetProductReviews)
 		api.GET("/tenant/settings", tenantSettingsHandler.GetTenantSettings)
+		api.POST("/coupons/validate", couponHandler.ValidateCoupon)
 		api.POST("/shipping/calculate-quote", handlers.CalculateShippingQuote)
 		api.POST("/quotes/custom-3d", handlers.CreateCustom3DQuote)
 		api.POST("/quotes/parse-stl", handlers.ParseSTLFile)
@@ -169,6 +171,11 @@ func main() {
 			admin.POST("/payments/mercadopago/oauth/start", mercadoPagoHandler.StartOAuth)
 			admin.POST("/payments/mercadopago/oauth/refresh", mercadoPagoHandler.RefreshOAuth)
 			admin.DELETE("/payments/mercadopago/oauth", mercadoPagoHandler.DisconnectOAuth)
+
+			admin.GET("/coupons", couponHandler.GetTenantCoupons)
+			admin.POST("/coupons", couponHandler.CreateTenantCoupon)
+			admin.PUT("/coupons/:id", couponHandler.UpdateTenantCoupon)
+			admin.DELETE("/coupons/:id", couponHandler.DeleteTenantCoupon)
 
 			admin.GET("/marketplaces/settings", marketplaceHandler.GetMarketplaceSettings)
 			admin.PATCH("/marketplaces/settings", marketplaceHandler.UpdateMarketplaceSettings)

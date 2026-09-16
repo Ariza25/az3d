@@ -196,3 +196,44 @@ export const optimizeImageUrl = (url?: string): string => {
   return trimmed;
 };
 
+export interface WholesaleTierInfo {
+  percent: number;
+  label: string;
+  badge: string | null;
+  discountedUnitPrice: (originalPrice: number) => number;
+}
+
+export const getWholesaleDiscount = (qty: number) => {
+  if (qty >= 10) {
+    return {
+      percent: 7,
+      label: '7% OFF Atacado (10+ un)',
+      badge: '7% OFF Atacado',
+      calculateUnitPrice: (originalPrice: number) => Math.round(originalPrice * (1 - 0.07) * 100) / 100,
+    };
+  }
+  if (qty >= 6) {
+    return {
+      percent: 5,
+      label: '5% OFF Atacado (6 a 9 un)',
+      badge: '5% OFF Atacado',
+      calculateUnitPrice: (originalPrice: number) => Math.round(originalPrice * (1 - 0.05) * 100) / 100,
+    };
+  }
+  if (qty >= 3) {
+    return {
+      percent: 2,
+      label: '2% OFF Atacado (3 a 5 un)',
+      badge: '2% OFF Atacado',
+      calculateUnitPrice: (originalPrice: number) => Math.round(originalPrice * (1 - 0.02) * 100) / 100,
+    };
+  }
+  return {
+    percent: 0,
+    label: '',
+    badge: null,
+    calculateUnitPrice: (originalPrice: number) => originalPrice,
+  };
+};
+
+

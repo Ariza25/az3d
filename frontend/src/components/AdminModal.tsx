@@ -30,6 +30,7 @@ import { AdminProductsTab } from '../features/admin/components/AdminProductsTab'
 import { AdminOrdersTab } from '../features/admin/components/AdminOrdersTab';
 import { ImageConverterTab } from '../features/admin/components/ImageConverterTab';
 import { TenantChatPanel } from '../features/admin/components/TenantChatPanel';
+import { PromotionsManagementPanel } from '../features/admin/components/PromotionsManagementPanel';
 import {
   Package,
   Store,
@@ -46,6 +47,7 @@ import {
   Sparkles,
   ArrowLeft,
   MessageSquare,
+  Tag,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -74,6 +76,7 @@ type AdminSection =
   | 'dashboard'
   | 'products'
   | 'orders'
+  | 'promotions'
   | 'chat'
   | 'pipeline'
   | 'inventory'
@@ -93,6 +96,7 @@ const initialAdminSection = (): AdminSection => {
       'dashboard',
       'products',
       'orders',
+      'promotions',
       'pipeline',
       'inventory',
       'filaments',
@@ -317,6 +321,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     { id: 'dashboard', label: 'Visão geral', icon: <BarChart3 className="h-4 w-4" /> },
     { id: 'products', label: 'Produtos', icon: <Package className="h-4 w-4" />, badge: products.length },
     { id: 'orders', label: 'Pedidos e envios', icon: <ShoppingBag className="h-4 w-4" />, badge: orders.length },
+    { id: 'promotions', label: 'Cupons & Promoções', icon: <Tag className="h-4 w-4" /> },
     { id: 'chat', label: 'Mensagens & Chat', icon: <MessageSquare className="h-4 w-4" />, badge: unreadChatCount > 0 ? unreadChatCount : undefined },
     { id: 'pipeline', label: 'Pipeline 3D', icon: <Clock className="h-4 w-4" /> },
     { id: 'inventory', label: 'Estoque', icon: <Package className="h-4 w-4" />, badge: lowStockItems.length > 0 ? lowStockItems.length : undefined },
@@ -575,6 +580,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             {activeTab === 'intelligence' && (
               <MarketplaceIntelligencePanel tenantId={activeTenant?.id} products={products} />
             )}
+
+            {activeTab === 'promotions' && <PromotionsManagementPanel tenantId={activeTenant?.id} />}
 
             {activeTab === 'image_converter' && <ImageConverterTab />}
 

@@ -240,6 +240,8 @@ export interface CreateOrderPayload {
   city?: string;
   state?: string;
   notes?: string;
+  coupon_code?: string;
+  shipping_cost?: number;
   payment_method?: 'pix' | 'credit_card' | string;
   payer_cpf?: string;
   card_token?: string;
@@ -260,6 +262,8 @@ export interface OrderItem {
   product?: Product;
   quantity: number;
   unit_price: number;
+  original_price?: number;
+  discount_percent?: number;
   color: string;
 }
 
@@ -268,6 +272,12 @@ export interface Order {
   tenant_id?: number;
   user_id: number;
   user?: User;
+  subtotal_amount?: number;
+  shipping_cost?: number;
+  coupon_code?: string;
+  coupon_discount?: number;
+  wholesale_discount?: number;
+  discount_amount?: number;
   total_amount: number;
   status: string;
   items: OrderItem[];
@@ -1090,5 +1100,44 @@ export interface VerifyResetTokenResponse {
 export interface ResetPasswordResponse {
   message: string;
 }
+
+export interface Coupon {
+  id: number;
+  tenant_id: number;
+  code: string;
+  discount_percent: number;
+  applies_to_shipping: boolean;
+  is_active: boolean;
+  usage_limit: number;
+  usage_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CouponInput {
+  code: string;
+  discount_percent: number;
+  applies_to_shipping: boolean;
+  is_active?: boolean;
+  usage_limit?: number;
+}
+
+export interface ValidateCouponResponse {
+  valid: boolean;
+  code?: string;
+  discount_percent?: number;
+  applies_to_shipping?: boolean;
+  discount_amount?: number;
+  shipping_discount?: number;
+  total_discount?: number;
+  message?: string;
+}
+
+export interface WholesaleTier {
+  min_quantity: number;
+  discount_percent: number;
+  label: string;
+}
+
 
 

@@ -62,42 +62,50 @@ type Order struct {
 	Tenant          *Tenant         `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
 	UserID          uint            `gorm:"not null" json:"user_id"`
 	User            *User           `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	TotalAmount     float64         `gorm:"not null" json:"total_amount"`
-	Status          string          `gorm:"size:30;default:'pending_confirmation'" json:"status"`
-	Items           []OrderItem     `gorm:"foreignKey:OrderID" json:"items"`
-	Shipments       []OrderShipment `gorm:"foreignKey:OrderID" json:"shipments,omitempty"`
-	ShippingAddress string          `gorm:"type:text" json:"shipping_address"`
-	DeliveryMethod  string          `gorm:"size:30;default:'shipping'" json:"delivery_method"`
-	RecipientName   string          `gorm:"size:120" json:"recipient_name"`
-	RecipientPhone  string          `gorm:"size:40" json:"recipient_phone"`
-	ZipCode         string          `gorm:"size:20" json:"zip_code"`
-	City            string          `gorm:"size:80" json:"city"`
-	State           string          `gorm:"size:40" json:"state"`
-	Notes           string          `gorm:"type:text" json:"notes"`
-	PaymentProvider string          `gorm:"size:40" json:"payment_provider"`
-	PaymentMethod   string          `gorm:"size:40;default:'pix'" json:"payment_method"`
-	PaymentStatus   string          `gorm:"size:40;index" json:"payment_status"`
-	PaymentID       string          `gorm:"size:120;index" json:"payment_id"`
-	PaymentDetail   string          `gorm:"size:120" json:"payment_detail"`
-	PixQRCode       string          `gorm:"type:text" json:"pix_qr_code,omitempty"`
-	PixQRCodeBase64 string          `gorm:"type:text" json:"pix_qr_code_base64,omitempty"`
-	PixExpiration   *time.Time      `json:"pix_expiration,omitempty"`
-	MPPreferenceID  string          `gorm:"size:120;index" json:"mp_preference_id"`
-	MPInitPoint     string          `gorm:"type:text" json:"mp_init_point"`
-	MPSandboxPoint  string          `gorm:"type:text" json:"mp_sandbox_init_point"`
-	PaidAt          *time.Time      `json:"paid_at,omitempty"`
-	CreatedAt       time.Time       `json:"created_at"`
-	UpdatedAt       time.Time       `json:"updated_at"`
+	SubtotalAmount    float64         `gorm:"default:0" json:"subtotal_amount"`
+	ShippingCost      float64         `gorm:"default:0" json:"shipping_cost"`
+	CouponCode        string          `gorm:"size:50" json:"coupon_code,omitempty"`
+	CouponDiscount    float64         `gorm:"default:0" json:"coupon_discount"`
+	WholesaleDiscount float64         `gorm:"default:0" json:"wholesale_discount"`
+	DiscountAmount    float64         `gorm:"default:0" json:"discount_amount"`
+	TotalAmount       float64         `gorm:"not null" json:"total_amount"`
+	Status            string          `gorm:"size:30;default:'pending_confirmation'" json:"status"`
+	Items             []OrderItem     `gorm:"foreignKey:OrderID" json:"items"`
+	Shipments         []OrderShipment `gorm:"foreignKey:OrderID" json:"shipments,omitempty"`
+	ShippingAddress   string          `gorm:"type:text" json:"shipping_address"`
+	DeliveryMethod    string          `gorm:"size:30;default:'shipping'" json:"delivery_method"`
+	RecipientName     string          `gorm:"size:120" json:"recipient_name"`
+	RecipientPhone    string          `gorm:"size:40" json:"recipient_phone"`
+	ZipCode           string          `gorm:"size:20" json:"zip_code"`
+	City              string          `gorm:"size:80" json:"city"`
+	State             string          `gorm:"size:40" json:"state"`
+	Notes             string          `gorm:"type:text" json:"notes"`
+	PaymentProvider   string          `gorm:"size:40" json:"payment_provider"`
+	PaymentMethod     string          `gorm:"size:40;default:'pix'" json:"payment_method"`
+	PaymentStatus     string          `gorm:"size:40;index" json:"payment_status"`
+	PaymentID         string          `gorm:"size:120;index" json:"payment_id"`
+	PaymentDetail     string          `gorm:"size:120" json:"payment_detail"`
+	PixQRCode         string          `gorm:"type:text" json:"pix_qr_code,omitempty"`
+	PixQRCodeBase64   string          `gorm:"type:text" json:"pix_qr_code_base64,omitempty"`
+	PixExpiration     *time.Time      `json:"pix_expiration,omitempty"`
+	MPPreferenceID    string          `gorm:"size:120;index" json:"mp_preference_id"`
+	MPInitPoint       string          `gorm:"type:text" json:"mp_init_point"`
+	MPSandboxPoint    string          `gorm:"type:text" json:"mp_sandbox_init_point"`
+	PaidAt            *time.Time      `json:"paid_at,omitempty"`
+	CreatedAt         time.Time       `json:"created_at"`
+	UpdatedAt         time.Time       `json:"updated_at"`
 }
 
 type OrderItem struct {
-	ID        uint     `gorm:"primaryKey" json:"id"`
-	OrderID   uint     `gorm:"not null" json:"order_id"`
-	ProductID uint     `gorm:"not null" json:"product_id"`
-	Product   *Product `gorm:"foreignKey:ProductID" json:"product,omitempty"`
-	Quantity  int      `gorm:"not null" json:"quantity"`
-	UnitPrice float64  `gorm:"not null" json:"unit_price"`
-	Color     string   `gorm:"size:50;default:'Preto Slate'" json:"color"`
+	ID              uint     `gorm:"primaryKey" json:"id"`
+	OrderID         uint     `gorm:"not null" json:"order_id"`
+	ProductID       uint     `gorm:"not null" json:"product_id"`
+	Product         *Product `gorm:"foreignKey:ProductID" json:"product,omitempty"`
+	Quantity        int      `gorm:"not null" json:"quantity"`
+	UnitPrice       float64  `gorm:"not null" json:"unit_price"`
+	OriginalPrice   float64  `gorm:"default:0" json:"original_price"`
+	DiscountPercent float64  `gorm:"default:0" json:"discount_percent"`
+	Color           string   `gorm:"size:50;default:'Preto Slate'" json:"color"`
 }
 
 type CreateOrderItemInput struct {
@@ -116,6 +124,8 @@ type CreateOrderInput struct {
 	City            string                 `json:"city"`
 	State           string                 `json:"state"`
 	Notes           string                 `json:"notes"`
+	CouponCode      string                 `json:"coupon_code"`
+	ShippingCost    float64                `json:"shipping_cost"`
 	PaymentMethod   string                 `json:"payment_method"` // "pix", "credit_card"
 	PayerCPF        string                 `json:"payer_cpf"`
 	CardToken       string                 `json:"card_token"`

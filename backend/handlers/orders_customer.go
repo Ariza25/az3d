@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"log"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -26,6 +27,17 @@ func NewOrderHandler(payments ...*MercadoPagoHandler) *OrderHandler {
 		handler.payments = payments[0]
 	}
 	return handler
+}
+
+func getWholesaleDiscountPercent(qty int) float64 {
+	if qty >= 10 {
+		return 7.0
+	} else if qty >= 6 {
+		return 5.0
+	} else if qty >= 3 {
+		return 2.0
+	}
+	return 0.0
 }
 
 func (h *OrderHandler) CreateOrder(c *gin.Context) {
@@ -65,7 +77,8 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 
 	var order models.Order
 	if err := database.DB.Transaction(func(tx *gorm.DB) error {
-		var totalAmount float64
+		var subtotalWithoutWholesale float64
+		var subtotalWithWholesale float64
 		var orderItems []models.OrderItem
 
 		for _, itemInput := range input.Items {
@@ -119,31 +132,75 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 				return colorStockErr
 			}
 
-			totalAmount += unitPrice * float64(itemInput.Quantity)
+			wholesalePct := getWholesaleDiscountPercent(itemInput.Quantity)
+			itemUnitPrice := unitPrice
+			if wholesalePct > 0 {
+				itemUnitPrice = math.Round((unitPrice * (1.0 - (wholesalePct / 100.0))) * 100) / 100
+			}
+
+			subtotalWithoutWholesale += unitPrice * float64(itemInput.Quantity)
+			subtotalWithWholesale += itemUnitPrice * float64(itemInput.Quantity)
+
 			orderItems = append(orderItems, models.OrderItem{
-				ProductID: product.ID,
-				Quantity:  itemInput.Quantity,
-				UnitPrice: unitPrice,
-				Color:     color,
+				ProductID:       product.ID,
+				Quantity:        itemInput.Quantity,
+				UnitPrice:       itemUnitPrice,
+				OriginalPrice:   unitPrice,
+				DiscountPercent: wholesalePct,
+				Color:           color,
 			})
 		}
 
+		wholesaleDiscount := math.Round((subtotalWithoutWholesale-subtotalWithWholesale)*100) / 100
+
+		// Validar e aplicar cupom
+		var coupon models.Coupon
+		var couponCode string
+		var couponDiscount float64
+		var shippingDiscount float64
+		cleanCouponCode := strings.ToUpper(strings.TrimSpace(input.CouponCode))
+
+		if cleanCouponCode != "" {
+			if err := tx.Where("tenant_id = ? AND code = ? AND is_active = ?", tenantID, cleanCouponCode, true).First(&coupon).Error; err == nil {
+				if coupon.UsageLimit == 0 || coupon.UsageCount < coupon.UsageLimit {
+					couponCode = coupon.Code
+					couponDiscount = math.Round((subtotalWithWholesale*(coupon.DiscountPercent/100.0))*100) / 100
+					if coupon.AppliesToShipping && input.ShippingCost > 0 {
+						shippingDiscount = math.Round((input.ShippingCost*(coupon.DiscountPercent/100.0))*100) / 100
+					}
+					coupon.UsageCount++
+					_ = tx.Save(&coupon)
+				}
+			}
+		}
+
+		shippingFinal := math.Max(0, input.ShippingCost-shippingDiscount)
+		totalAmount := (subtotalWithWholesale - couponDiscount) + shippingFinal
+		totalAmount = math.Round(totalAmount*100) / 100
+		totalDiscount := wholesaleDiscount + couponDiscount + shippingDiscount
+
 		order = models.Order{
-			TenantID:        tenantID,
-			UserID:          userID,
-			TotalAmount:     totalAmount,
-			Status:          "pending_payment",
-			Items:           orderItems,
-			ShippingAddress: input.ShippingAddress,
-			DeliveryMethod:  deliveryMethod,
-			RecipientName:   input.RecipientName,
-			RecipientPhone:  input.RecipientPhone,
-			ZipCode:         input.ZipCode,
-			City:            input.City,
-			State:           input.State,
-			Notes:           input.Notes,
-			PaymentProvider: "mercadopago",
-			PaymentStatus:   "pending",
+			TenantID:          tenantID,
+			UserID:            userID,
+			SubtotalAmount:    subtotalWithoutWholesale,
+			ShippingCost:      input.ShippingCost,
+			CouponCode:        couponCode,
+			CouponDiscount:    couponDiscount,
+			WholesaleDiscount: wholesaleDiscount,
+			DiscountAmount:    totalDiscount,
+			TotalAmount:       totalAmount,
+			Status:            "pending_payment",
+			Items:             orderItems,
+			ShippingAddress:   input.ShippingAddress,
+			DeliveryMethod:    deliveryMethod,
+			RecipientName:     input.RecipientName,
+			RecipientPhone:    input.RecipientPhone,
+			ZipCode:           input.ZipCode,
+			City:              input.City,
+			State:             input.State,
+			Notes:             input.Notes,
+			PaymentProvider:   "mercadopago",
+			PaymentStatus:     "pending",
 		}
 
 		if err := tx.Create(&order).Error; err != nil {

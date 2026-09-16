@@ -46,6 +46,7 @@ func TestTenantScopedTablesCoversPersistedTenantModels(t *testing.T) {
 		models.ProductPricingSnapshot{},
 		models.ProductActualCost{},
 		models.TenantFixedCost{},
+		models.Coupon{},
 		models.Order{},
 		models.MarketplaceProductMapping{},
 		models.MarketplaceAccount{},

@@ -38,6 +38,7 @@ var tenantScopedTables = []string{
 	"product_pricing_snapshots",
 	"product_actual_costs",
 	"tenant_fixed_costs",
+	"coupons",
 	"orders",
 	"marketplace_integrations",
 	"marketplace_product_mappings",
