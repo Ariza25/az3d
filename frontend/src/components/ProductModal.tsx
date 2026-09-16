@@ -257,6 +257,24 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
     };
   }, [product, onClose]);
 
+  const wholesale = useMemo(() => getWholesaleDiscount(quantity), [quantity]);
+  const reviewSummary = useMemo(() => {
+    if (reviews.length > 0) {
+      const avg = reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
+      return {
+        average_rating: avg,
+        review_count: reviews.length,
+      };
+    }
+    if (activeProduct?.review_summary && activeProduct.review_summary.review_count > 0) {
+      return activeProduct.review_summary;
+    }
+    if (product?.review_summary && product.review_summary.review_count > 0) {
+      return product.review_summary;
+    }
+    return { average_rating: 0, review_count: 0 };
+  }, [reviews, activeProduct?.review_summary, product?.review_summary]);
+
   if (!product) return null;
 
   const selectedVariant = activeProduct?.variants?.find(
@@ -264,7 +282,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
   );
   const selectedStock = activeProduct?.color_stocks?.find((stock) => stock.color_name === selectedColor);
   const selectedPrice = selectedVariant?.price ?? activeProduct?.price ?? product.price;
-  const wholesale = useMemo(() => getWholesaleDiscount(quantity), [quantity]);
   const unitPrice = wholesale.percent > 0 ? wholesale.calculateUnitPrice(selectedPrice) : selectedPrice;
   const rawSubtotal = selectedPrice * quantity;
   const wholesaleSubtotal = unitPrice * quantity;
@@ -283,22 +300,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
   const finalFreight = Math.max(0, freightPrice - couponShippingDiscount);
   const finalTotal = Math.max(0, wholesaleSubtotal - couponProductDiscount) + finalFreight;
   const stockLimit = product.store_variants?.length ? getTotalStock(activeProduct || product) : (selectedStock?.stock_qty ?? product.stock_qty);
-  const reviewSummary = useMemo(() => {
-    if (reviews.length > 0) {
-      const avg = reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
-      return {
-        average_rating: avg,
-        review_count: reviews.length,
-      };
-    }
-    if (activeProduct?.review_summary && activeProduct.review_summary.review_count > 0) {
-      return activeProduct.review_summary;
-    }
-    if (product.review_summary && product.review_summary.review_count > 0) {
-      return product.review_summary;
-    }
-    return { average_rating: 0, review_count: 0 };
-  }, [reviews, activeProduct?.review_summary, product.review_summary]);
   const hasRealReviews = reviewSummary.review_count > 0;
   const stockStatus = getStockStatus({ ...(activeProduct || product), color_stocks: undefined, stock_qty: stockLimit, in_stock: stockLimit > 0 && Boolean(activeProduct?.in_stock ?? product.in_stock) });
   const stockTextTone = !stockStatus.canBuy ? 'text-red-300' : stockLimit <= 3 ? 'text-amber-300' : 'text-emerald-300';
@@ -338,6 +339,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
     setQuantity(1);
   };
 
+  const mainImageUrl = activeMedia?.url || activeProduct?.image_url || product.image_url || '';
+  const blurImageUrl = activeMedia?.thumbnailUrl || product.image_url || mainImageUrl || '';
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/80 p-3 backdrop-blur-md sm:p-6"
@@ -361,7 +365,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
 
         <div className="grid lg:h-[700px] lg:max-h-[calc(100vh-2rem)] lg:grid-cols-[54fr_46fr]">
           <div className="relative min-h-[340px] overflow-hidden bg-chumbo-950 p-3 sm:min-h-[440px] lg:min-h-0">
-            <img src={activeMedia?.thumbnailUrl || product.image_url} alt="" className="absolute inset-0 h-full w-full scale-110 object-cover opacity-20 blur-2xl" aria-hidden="true" />
+            {blurImageUrl && (
+              <img src={blurImageUrl} alt="" className="absolute inset-0 h-full w-full scale-110 object-cover opacity-20 blur-2xl" aria-hidden="true" />
+            )}
             <div className="absolute inset-0 bg-gradient-to-br from-chumbo-950/35 via-chumbo-950/55 to-chumbo-950" />
             <div className={`relative z-10 grid h-full w-full p-3 sm:p-5 ${mediaChoices.length > 1 ? 'grid-cols-[76px_minmax(0,1fr)]' : ''}`}>
               {mediaChoices.length > 1 && (
@@ -381,7 +387,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
                         }`}
                         aria-label={media.type === 'video' ? 'Ver vídeo do produto' : `Ver foto ${index + 1} da cor ${selectedColor}`}
                       >
-                        <img src={media.thumbnailUrl} alt="" className="h-full w-full rounded-lg object-cover" />
+                        {media.thumbnailUrl && (
+                          <img src={media.thumbnailUrl} alt="" className="h-full w-full rounded-lg object-cover" />
+                        )}
                         {media.type === 'video' && (
                           <div className="absolute inset-0 flex items-center justify-center bg-black/45 backdrop-blur-[1px]">
                             <div className="flex h-6 w-6 items-center justify-center rounded-full bg-laser-400 text-chumbo-950 shadow-md">
@@ -415,17 +423,21 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
                     )
                   ) : (
                     <>
-                      <img
-                        src={activeMedia?.url || activeProduct?.image_url || product.image_url}
-                        alt=""
-                        aria-hidden="true"
-                        className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-20 blur-xl scale-110"
-                      />
-                      <img
-                        src={activeMedia?.url || activeProduct?.image_url || product.image_url}
-                        alt={product.title}
-                        className="relative z-10 h-full w-full object-contain p-2 transition-transform duration-300 hover:scale-[1.02]"
-                      />
+                      {mainImageUrl && (
+                        <img
+                          src={mainImageUrl}
+                          alt=""
+                          aria-hidden="true"
+                          className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-20 blur-xl scale-110"
+                        />
+                      )}
+                      {mainImageUrl && (
+                        <img
+                          src={mainImageUrl}
+                          alt={product.title}
+                          className="relative z-10 h-full w-full object-contain p-2 transition-transform duration-300 hover:scale-[1.02]"
+                        />
+                      )}
                     </>
                   )}
                 </div>

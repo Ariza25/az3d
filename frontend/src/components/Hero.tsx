@@ -80,7 +80,7 @@ export const Hero: React.FC<HeroProps> = ({
               <button
                 type="button"
                 onClick={() => onOpenProduct?.(featuredProduct)}
-                className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-chumbo-950 border border-chumbo-700 px-4 py-3 text-sm font-extrabold text-white transition hover:bg-chumbo-800 shadow-sm"
+                className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-3 text-sm font-extrabold transition shadow-md active:scale-95"
               >
                 Ver produto
                 <ArrowRight className="h-4 w-4" />

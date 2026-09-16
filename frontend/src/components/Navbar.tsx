@@ -195,7 +195,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
                 <button
                   onClick={onOpenRegister}
-                  className="rounded-xl border border-chumbo-700/60 bg-white px-3 py-2 text-xs font-bold text-cyan-600 dark:text-chumbo-950 shadow-md transition-all duration-200 hover:bg-slate-50 dark:hover:bg-slate-200 active:scale-95 sm:px-4 sm:text-sm"
+                  className="rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-2 text-xs font-bold shadow-md transition-all duration-200 active:scale-95 sm:px-4 sm:text-sm"
                 >
                   Cadastrar
                 </button>

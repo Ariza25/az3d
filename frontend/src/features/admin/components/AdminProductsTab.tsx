@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Product, Category, Tenant } from '../../../types';
 import { Button, SearchInput } from '../../../components/ui';
-import { Edit2, Plus, Trash2 } from 'lucide-react';
+import { Edit2, Plus, Trash2, Calculator } from 'lucide-react';
 import { CatalogCategoriesPanel } from '../../../components/CatalogCategoriesPanel';
+import { ProductPricingDetailsModal } from './ProductPricingDetailsModal';
 
 export interface AdminProductsTabProps {
   products: Product[];
@@ -28,6 +29,7 @@ export const AdminProductsTab: React.FC<AdminProductsTabProps> = ({
   onMessage,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [pricingProduct, setPricingProduct] = useState<Product | null>(null);
 
   const filteredProducts = products.filter((p) =>
     p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -63,10 +65,9 @@ export const AdminProductsTab: React.FC<AdminProductsTabProps> = ({
             <thead className="border-b border-slate-200 bg-slate-50 text-slate-600 font-mono uppercase text-[10px] dark:border-chumbo-800 dark:bg-chumbo-950 dark:text-slate-400">
               <tr>
                 <th className="p-3">Produto</th>
-                <th className="p-3">Material 3D</th>
-                <th className="p-3">Resolução / Tempo</th>
                 <th className="p-3">Preço Unitário</th>
                 <th className="p-3">Estoque</th>
+                <th className="p-3">Precificação</th>
                 <th className="p-3 text-right">Ações</th>
               </tr>
             </thead>
@@ -86,15 +87,6 @@ export const AdminProductsTab: React.FC<AdminProductsTabProps> = ({
                       </div>
                     </div>
                   </td>
-                  <td className="p-3">
-                    <span className="bg-slate-100 text-slate-800 dark:bg-chumbo-800 dark:text-slate-200 px-2 py-0.5 rounded-md font-mono text-[11px] border border-slate-200 dark:border-transparent">
-                      {p.material}
-                    </span>
-                  </td>
-                  <td className="p-3 font-mono text-slate-500 dark:text-slate-400">
-                    <div>{p.layer_height}</div>
-                    <div className="text-[10px] text-slate-500">{p.print_time}</div>
-                  </td>
                   <td className="p-3 font-bold text-slate-900 dark:text-white">
                     R$ {p.price.toFixed(2).replace('.', ',')}
                   </td>
@@ -106,6 +98,17 @@ export const AdminProductsTab: React.FC<AdminProductsTabProps> = ({
                     >
                       {p.in_stock ? `${p.stock_qty} un` : 'Esgotado'}
                     </span>
+                  </td>
+                  <td className="p-3">
+                    <button
+                      type="button"
+                      onClick={() => setPricingProduct(p)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white dark:bg-laser-500/20 dark:hover:bg-laser-500/30 dark:text-laser-400 dark:border dark:border-laser-500/30 text-xs font-bold transition-all shadow-xs active:scale-95"
+                      title="Ver detalhes de custos, margem e engenharia de precificação"
+                    >
+                      <Calculator className="w-3.5 h-3.5" />
+                      <span>Ver detalhes</span>
+                    </button>
                   </td>
                   <td className="p-3 text-right">
                     <div className="flex items-center justify-end space-x-2">
@@ -129,7 +132,7 @@ export const AdminProductsTab: React.FC<AdminProductsTabProps> = ({
               ))}
               {filteredProducts.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-slate-400 font-mono text-xs">
+                  <td colSpan={5} className="p-8 text-center text-slate-400 font-mono text-xs">
                     Nenhum produto cadastrado neste tenant.
                   </td>
                 </tr>
@@ -138,6 +141,14 @@ export const AdminProductsTab: React.FC<AdminProductsTabProps> = ({
           </table>
         </div>
       </div>
+
+      {pricingProduct && (
+        <ProductPricingDetailsModal
+          product={pricingProduct}
+          tenantId={activeTenant?.id}
+          onClose={() => setPricingProduct(null)}
+        />
+      )}
 
       <CatalogCategoriesPanel
         tenantId={activeTenant?.id}

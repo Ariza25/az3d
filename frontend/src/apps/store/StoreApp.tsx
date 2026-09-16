@@ -320,10 +320,12 @@ export const StoreApp: React.FC = () => {
         }}
       />
 
-      <ProductModal
-        product={selectedProduct}
-        onClose={closeProduct}
-      />
+      {selectedProduct && (
+        <ProductModal
+          product={selectedProduct}
+          onClose={closeProduct}
+        />
+      )}
 
       <CartDrawer
         onOpenLogin={() => setIsLoginOpen(true)}
