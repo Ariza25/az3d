@@ -335,11 +335,19 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
                       />
                     )
                   ) : (
-                    <img
-                      src={activeMedia?.url || activeProduct?.image_url || product.image_url}
-                      alt={product.title}
-                      className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
-                    />
+                    <>
+                      <img
+                        src={activeMedia?.url || activeProduct?.image_url || product.image_url}
+                        alt=""
+                        aria-hidden="true"
+                        className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-20 blur-xl scale-110"
+                      />
+                      <img
+                        src={activeMedia?.url || activeProduct?.image_url || product.image_url}
+                        alt={product.title}
+                        className="relative z-10 h-full w-full object-contain p-2 transition-transform duration-300 hover:scale-[1.02]"
+                      />
+                    </>
                   )}
                 </div>
               </div>
