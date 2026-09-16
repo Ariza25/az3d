@@ -52,6 +52,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
   const [submittingReview, setSubmittingReview] = useState(false);
   const [reviewMsg, setReviewMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  const [canReview, setCanReview] = useState(false);
+
   useEffect(() => {
     if (!product?.id) return;
     setLoadingReviews(true);
@@ -60,6 +62,16 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
       .catch(() => setReviews([]))
       .finally(() => setLoadingReviews(false));
   }, [product?.id, product?.tenant_id]);
+
+  useEffect(() => {
+    if (!product?.id || !isAuthenticated) {
+      setCanReview(false);
+      return;
+    }
+    api.checkReviewEligibility(product.id, product.tenant_id)
+      .then((res) => setCanReview(Boolean(res.can_review)))
+      .catch(() => setCanReview(false));
+  }, [product?.id, product?.tenant_id, isAuthenticated]);
 
   const handleReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -220,7 +232,23 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
   const purchaseTotal = selectedPrice * quantity;
   const finalTotal = purchaseTotal + (selectedFreight?.price || 0);
   const stockLimit = product.store_variants?.length ? getTotalStock(activeProduct || product) : (selectedStock?.stock_qty ?? product.stock_qty);
-  const hasRealReviews = Boolean(activeProduct?.review_summary?.review_count || product.review_summary?.review_count);
+  const reviewSummary = useMemo(() => {
+    if (reviews.length > 0) {
+      const avg = reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
+      return {
+        average_rating: avg,
+        review_count: reviews.length,
+      };
+    }
+    if (activeProduct?.review_summary && activeProduct.review_summary.review_count > 0) {
+      return activeProduct.review_summary;
+    }
+    if (product.review_summary && product.review_summary.review_count > 0) {
+      return product.review_summary;
+    }
+    return { average_rating: 0, review_count: 0 };
+  }, [reviews, activeProduct?.review_summary, product.review_summary]);
+  const hasRealReviews = reviewSummary.review_count > 0;
   const stockStatus = getStockStatus({ ...(activeProduct || product), color_stocks: undefined, stock_qty: stockLimit, in_stock: stockLimit > 0 && Boolean(activeProduct?.in_stock ?? product.in_stock) });
   const stockTextTone = !stockStatus.canBuy ? 'text-red-300' : stockLimit <= 3 ? 'text-amber-300' : 'text-emerald-300';
   const stockCopy = stockLimit <= 0
@@ -373,17 +401,29 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
                   </button>
                 </div>
 
-                <h2 id="product-modal-title" className="mt-4 text-2xl font-extrabold leading-tight text-white sm:text-3xl lg:text-[2rem]">{product.title}</h2>
-
-                {hasRealReviews && (
-                  <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400">
-                    <span className="inline-flex items-center gap-1 text-amber-300">
-                      <Star className="h-3.5 w-3.5 fill-amber-300" />
-                      <strong>{(activeProduct?.review_summary || product.review_summary)!.average_rating.toFixed(1)}</strong>
-                      <span className="text-slate-500">({(activeProduct?.review_summary || product.review_summary)!.review_count} avaliações)</span>
-                    </span>
+                <div className="mt-4">
+                  <h2 id="product-modal-title" className="text-2xl font-extrabold leading-tight text-white sm:text-3xl lg:text-[2rem]">{product.title}</h2>
+                  <div className="mt-2 flex items-center justify-end">
+                    {hasRealReviews ? (
+                      <div className="inline-flex items-center gap-1.5 text-xs text-slate-400">
+                        <div className="flex items-center gap-0.5 text-amber-300">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star
+                              key={star}
+                              className={`h-4 w-4 ${star <= Math.round(reviewSummary.average_rating) ? 'fill-amber-300 text-amber-300' : 'text-slate-700'}`}
+                            />
+                          ))}
+                        </div>
+                        <strong className="text-white text-sm">{reviewSummary.average_rating.toFixed(1)}</strong>
+                        <span className="text-slate-500">({reviewSummary.review_count} {reviewSummary.review_count === 1 ? 'avaliação' : 'avaliações'})</span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-slate-500">
+                        Ainda sem avaliações
+                      </span>
+                    )}
                   </div>
-                )}
+                </div>
               </div>
 
               {feedback && <div className="rounded-xl border border-chumbo-700 bg-chumbo-950 p-3 text-xs text-slate-300">{feedback}</div>}
@@ -509,61 +549,71 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
 
                 {/* Formulário de avaliação */}
                 {isAuthenticated ? (
-                  <form onSubmit={handleReviewSubmit} className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-slate-300">Sua nota:</span>
-                      <div className="flex items-center gap-1">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <button
-                            type="button"
-                            key={star}
-                            onClick={() => setNewRating(star)}
-                            className="p-1 text-amber-300 transition-transform hover:scale-110"
-                          >
-                            <Star className={`h-5 w-5 ${star <= newRating ? 'fill-amber-300 text-amber-300' : 'text-slate-600'}`} />
-                          </button>
-                        ))}
+                  canReview ? (
+                    <form onSubmit={handleReviewSubmit} className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-slate-300">Sua nota:</span>
+                        <div className="flex items-center gap-1">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                              type="button"
+                              key={star}
+                              onClick={() => setNewRating(star)}
+                              className="p-1 text-amber-300 transition-transform hover:scale-110"
+                            >
+                              <Star className={`h-5 w-5 ${star <= newRating ? 'fill-amber-300 text-amber-300' : 'text-slate-600'}`} />
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
 
-                    <textarea
-                      value={newComment}
-                      onChange={(e) => setNewComment(e.target.value)}
-                      placeholder="O que achou do produto? Deixe sua opinião sobre o acabamento, material e entrega..."
-                      rows={3}
-                      className="w-full rounded-xl border border-chumbo-700 bg-chumbo-900 p-3 text-xs text-white placeholder-slate-500 focus:border-laser-400 focus:outline-none"
-                    />
+                      <textarea
+                        value={newComment}
+                        onChange={(e) => setNewComment(e.target.value)}
+                        placeholder="O que achou do produto? Deixe sua opinião sobre o acabamento, material e entrega..."
+                        rows={3}
+                        className="w-full rounded-xl border border-chumbo-700 bg-chumbo-900 p-3 text-xs text-white placeholder-slate-500 focus:border-laser-400 focus:outline-none"
+                      />
 
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <div className="relative flex-1">
-                        <ImageIcon className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
-                        <input
-                          type="url"
-                          value={newImageUrl}
-                          onChange={(e) => setNewImageUrl(e.target.value)}
-                          placeholder="Link da foto do produto recebido (opcional)"
-                          className="w-full rounded-xl border border-chumbo-700 bg-chumbo-900 py-2 pl-9 pr-3 text-xs text-white placeholder-slate-500 focus:border-laser-400 focus:outline-none"
-                        />
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <div className="relative flex-1">
+                          <ImageIcon className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                          <input
+                            type="url"
+                            value={newImageUrl}
+                            onChange={(e) => setNewImageUrl(e.target.value)}
+                            placeholder="Link da foto do produto recebido (opcional)"
+                            className="w-full rounded-xl border border-chumbo-700 bg-chumbo-900 py-2 pl-9 pr-3 text-xs text-white placeholder-slate-500 focus:border-laser-400 focus:outline-none"
+                          />
+                        </div>
+                        <button
+                          type="submit"
+                          disabled={submittingReview}
+                          className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-laser-400 px-4 py-2 text-xs font-bold text-chumbo-950 transition hover:bg-laser-300 disabled:opacity-50"
+                        >
+                          <Send className="h-3.5 w-3.5" />
+                          {submittingReview ? 'Enviando...' : 'Publicar avaliação'}
+                        </button>
                       </div>
-                      <button
-                        type="submit"
-                        disabled={submittingReview}
-                        className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-laser-400 px-4 py-2 text-xs font-bold text-chumbo-950 transition hover:bg-laser-300 disabled:opacity-50"
-                      >
-                        <Send className="h-3.5 w-3.5" />
-                        {submittingReview ? 'Enviando...' : 'Publicar avaliação'}
-                      </button>
-                    </div>
 
-                    {reviewMsg && (
-                      <p className={`text-xs ${reviewMsg.type === 'success' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {reviewMsg.text}
-                      </p>
-                    )}
-                  </form>
+                      {reviewMsg && (
+                        <p className={`text-xs ${reviewMsg.type === 'success' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {reviewMsg.text}
+                        </p>
+                      )}
+                    </form>
+                  ) : (
+                    <div className="rounded-xl border border-chumbo-800 bg-chumbo-950/40 p-3.5 text-center text-xs text-slate-400">
+                      <div className="flex items-center justify-center gap-1.5 font-semibold text-slate-300 mb-1">
+                        <ShieldCheck className="h-4 w-4 text-laser-400" />
+                        Avaliação exclusiva para compradores
+                      </div>
+                      <p>Apenas clientes autenticados que compraram este produto podem publicar avaliações e fotos.</p>
+                    </div>
+                  )
                 ) : (
                   <div className="rounded-xl border border-chumbo-800 bg-chumbo-950/40 p-3 text-center text-xs text-slate-400">
-                    Faça login na sua conta para avaliar e compartilhar fotos deste produto.
+                    Faça login com a conta utilizada na compra para avaliar este produto.
                   </div>
                 )}
 

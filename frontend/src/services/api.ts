@@ -292,6 +292,14 @@ export const api = {
     return data;
   },
 
+  checkReviewEligibility: async (productId: number, tenantId?: number): Promise<{ can_review: boolean; is_verified_buyer: boolean }> => {
+    const res = await fetch(`${API_BASE_URL}/products/${productId}/review-eligibility`, {
+      headers: getHeaders(tenantId),
+    });
+    if (!res.ok) return { can_review: false, is_verified_buyer: false };
+    return res.json();
+  },
+
   addProductFavorite: async (productId: number, tenantId?: number): Promise<ProductFavorite> => {
     const res = await fetch(`${API_BASE_URL}/products/${productId}/favorite`, {
       method: 'POST',

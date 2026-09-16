@@ -738,6 +738,30 @@ func (h *ProductHandler) GetProductReviews(c *gin.Context) {
 	c.JSON(http.StatusOK, reviews)
 }
 
+// GET /api/products/:id/review-eligibility
+func (h *ProductHandler) GetReviewEligibility(c *gin.Context) {
+	tenantID := getTenantID(c)
+	productID, ok := parseProductIDParam(c)
+	if !ok {
+		return
+	}
+
+	userID, ok := getCustomerUserID(c)
+	if !ok {
+		return
+	}
+
+	role, _ := c.Get("userRole")
+	isAdmin := role == "admin" || role == "master"
+	purchased := customerPurchasedProduct(tenantID, userID, productID)
+
+	c.JSON(http.StatusOK, gin.H{
+		"can_review":        purchased || isAdmin,
+		"is_verified_buyer": purchased,
+		"is_admin":          isAdmin,
+	})
+}
+
 // POST /api/products/:id/reviews
 func (h *ProductHandler) UpsertProductReview(c *gin.Context) {
 	tenantID := getTenantID(c)
@@ -757,6 +781,13 @@ func (h *ProductHandler) UpsertProductReview(c *gin.Context) {
 	}
 
 	purchased := customerPurchasedProduct(tenantID, userID, productID)
+	role, _ := c.Get("userRole")
+	isAdmin := role == "admin" || role == "master"
+
+	if !purchased && !isAdmin {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Somente clientes que compraram este produto podem avaliá-lo."})
+		return
+	}
 
 	var input models.ProductReviewInput
 	if err := c.ShouldBindJSON(&input); err != nil {

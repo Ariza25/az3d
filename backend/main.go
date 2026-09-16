@@ -119,6 +119,7 @@ func main() {
 			protected.POST("/orders", orderHandler.CreateOrder)
 			protected.GET("/orders/my-orders", orderHandler.GetMyOrders)
 			protected.GET("/favorites", productHandler.GetMyFavorites)
+			protected.GET("/products/:id/review-eligibility", productHandler.GetReviewEligibility)
 			protected.POST("/products/:id/reviews", productHandler.UpsertProductReview)
 			protected.POST("/products/:id/favorite", productHandler.AddProductFavorite)
 			protected.DELETE("/products/:id/favorite", productHandler.RemoveProductFavorite)
