@@ -112,13 +112,11 @@ export const TenantOrdersPipelinePanel: React.FC<TenantOrdersPipelinePanelProps>
       setFilamentCheckResult(checkData);
       setAvailableSpools(spoolsData || []);
 
-      // Prepopulate selected spools map from suggestions
+      // Prepopulate selected spools map strictly from exact color/material matches
       const initialMap: Record<number, number> = {};
       checkData.items.forEach((item) => {
         if (item.matching_spool_id) {
           initialMap[item.order_item_id] = item.matching_spool_id;
-        } else if (spoolsData && spoolsData.length > 0) {
-          initialMap[item.order_item_id] = spoolsData[0].id;
         }
       });
       setSelectedSpoolMap(initialMap);

@@ -231,29 +231,29 @@ func CheckOrderFilament(c *gin.Context) {
 		itemMaterialLower := strings.ToLower(strings.TrimSpace(itemMaterial))
 
 		// 1. Exact or partial color + material match
-		for i := range spools {
-			sColor := strings.ToLower(strings.TrimSpace(spools[i].ColorName))
-			sMat := strings.ToLower(strings.TrimSpace(spools[i].MaterialType))
-			if (strings.Contains(sColor, itemColorLower) || strings.Contains(itemColorLower, sColor)) &&
-				(strings.Contains(sMat, itemMaterialLower) || strings.Contains(itemMaterialLower, sMat)) {
-				matched = &spools[i]
-				break
-			}
-		}
-
-		// 2. Color match only
-		if matched == nil && itemColorLower != "" {
+		if itemColorLower != "" {
 			for i := range spools {
 				sColor := strings.ToLower(strings.TrimSpace(spools[i].ColorName))
-				if strings.Contains(sColor, itemColorLower) || strings.Contains(itemColorLower, sColor) {
+				sMat := strings.ToLower(strings.TrimSpace(spools[i].MaterialType))
+				if (strings.Contains(sColor, itemColorLower) || strings.Contains(itemColorLower, sColor)) &&
+					(strings.Contains(sMat, itemMaterialLower) || strings.Contains(itemMaterialLower, sMat)) {
 					matched = &spools[i]
 					break
 				}
 			}
-		}
 
-		// 3. Material match only
-		if matched == nil {
+			// 2. Color match only (if material didn't match exactly)
+			if matched == nil {
+				for i := range spools {
+					sColor := strings.ToLower(strings.TrimSpace(spools[i].ColorName))
+					if strings.Contains(sColor, itemColorLower) || strings.Contains(itemColorLower, sColor) {
+						matched = &spools[i]
+						break
+					}
+				}
+			}
+		} else {
+			// If no specific color was requested on the order item, match by material
 			for i := range spools {
 				sMat := strings.ToLower(strings.TrimSpace(spools[i].MaterialType))
 				if strings.Contains(sMat, itemMaterialLower) || strings.Contains(itemMaterialLower, sMat) {
@@ -261,11 +261,6 @@ func CheckOrderFilament(c *gin.Context) {
 					break
 				}
 			}
-		}
-
-		// 4. Fallback to any active spool if available
-		if matched == nil && len(spools) > 0 {
-			matched = &spools[0]
 		}
 
 		itemCheck := OrderFilamentItemCheck{

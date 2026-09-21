@@ -12,8 +12,9 @@ import {
   UploadCloud,
   X,
   Zap,
+  Layers,
 } from 'lucide-react';
-import { Parsed3MFResult, Product, TenantSettings } from '../types';
+import { Parsed3MFResult, Product, TenantSettings, FilamentSpool } from '../types';
 import { SlicerSettingsModal } from './SlicerSettingsModal';
 import {
   DEFAULT_PRINTING_PRICING,
@@ -80,7 +81,15 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [parsed3MFInfo, setParsed3MFInfo] = useState<Parsed3MFResult | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [registeredSpools, setRegisteredSpools] = useState<FilamentSpool[]>([]);
+  const [selectedSpoolId, setSelectedSpoolId] = useState<number | ''>('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    api.getFilamentSpools(tenantId)
+      .then((data) => setRegisteredSpools(data || []))
+      .catch(() => setRegisteredSpools([]));
+  }, [tenantId]);
 
   useEffect(() => {
     setInput((prev) => ({
@@ -503,6 +512,49 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
             <Field label="Peso suporte" field="supportWeightGrams" step="0.1" suffix="g" />
             <Field label="Tempo total" field="printMinutes" step="1" suffix="min" />
           </div>
+
+          {/* Selecionar Carretel Ativo do Estoque */}
+          {registeredSpools.length > 0 && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-chumbo-800 dark:bg-chumbo-950/40">
+              <label className="block space-y-1">
+                <div className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  <span className="flex items-center gap-1.5">
+                    <Layers className="h-3.5 w-3.5 text-cyan-600 dark:text-laser-400" />
+                    <span>Usar Carretel Cadastrado (Preço e Material do Estoque)</span>
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400">
+                    {registeredSpools.length} carretéis disponíveis
+                  </span>
+                </div>
+                <select
+                  value={selectedSpoolId}
+                  onChange={(e) => {
+                    const id = Number(e.target.value);
+                    setSelectedSpoolId(id || '');
+                    const spool = registeredSpools.find((s) => s.id === id);
+                    if (spool) {
+                      const nextInput = {
+                        ...input,
+                        spoolPrice: spool.price_per_kg,
+                        spoolWeightGrams: spool.spool_weight_g || 1000,
+                        material: spool.material_type,
+                      };
+                      setInput(nextInput);
+                      void runCalculation(nextInput);
+                    }
+                  }}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-900 focus:border-cyan-600 focus:outline-none dark:border-chumbo-700 dark:bg-chumbo-900 dark:text-white"
+                >
+                  <option value="">Selecione um carretel para precificar...</option>
+                  {registeredSpools.map((spool) => (
+                    <option key={spool.id} value={spool.id}>
+                      {spool.name} ({spool.vendor ? `${spool.vendor} · ` : ''}{spool.material_type} {spool.color_name}) - {currencyBRL(spool.price_per_kg)}/kg (Restante: {Math.round(spool.remaining_weight_g)}g)
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <Field label="Preco do rolo" field="spoolPrice" suffix="R$" />
