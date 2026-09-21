@@ -211,6 +211,8 @@ export interface ProductInput {
   status?: string;
   variants?: ProductVariant[];
   color_stocks?: ProductColorStock[];
+  model_3d_url?: string;
+  slicer_settings?: string;
   pricing_snapshot?: PrintingPricingInput;
 }
 
@@ -508,6 +510,7 @@ export interface Parsed3MFResult {
   infill_percent?: number;
   slicer_detected?: string;
   file_name: string;
+  thumbnail_base64?: string;
   settings?: SlicerConfigDetails;
   raw_settings_json?: string;
 }

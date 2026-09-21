@@ -3,6 +3,7 @@ package threemfparser
 import (
 	"archive/zip"
 	"bufio"
+	"encoding/base64"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
@@ -79,6 +80,7 @@ type Parsed3MF struct {
 	InfillPercent      int                 `json:"infill_percent"`
 	SlicerDetected     string              `json:"slicer_detected"`
 	FileName           string              `json:"file_name"`
+	ThumbnailBase64    string              `json:"thumbnail_base64,omitempty"`
 	Settings           SlicerConfigDetails `json:"settings"`
 	RawSettingsJSON    string              `json:"raw_settings_json,omitempty"`
 }
@@ -135,6 +137,25 @@ func Parse3MF(reader io.ReaderAt, size int64, fileName string) (*Parsed3MF, erro
 			if err == nil {
 				parseModelDimensions(rc, result)
 				rc.Close()
+			}
+		}
+
+		// Embedded sliced plate thumbnail (Bambu/Orca plate_1.png or Prusa thumbnail.png)
+		if (strings.HasSuffix(nameLower, ".png") || strings.HasSuffix(nameLower, ".jpg") || strings.HasSuffix(nameLower, ".jpeg")) &&
+			(strings.Contains(nameLower, "plate_") || strings.Contains(nameLower, "thumbnail") || strings.Contains(nameLower, "top_file")) {
+			if result.ThumbnailBase64 == "" || strings.Contains(nameLower, "plate_1.png") || strings.Contains(nameLower, "thumbnail.png") {
+				rc, err := f.Open()
+				if err == nil {
+					data, err := io.ReadAll(rc)
+					rc.Close()
+					if err == nil && len(data) > 0 {
+						mime := "image/png"
+						if strings.HasSuffix(nameLower, ".jpg") || strings.HasSuffix(nameLower, ".jpeg") {
+							mime = "image/jpeg"
+						}
+						result.ThumbnailBase64 = fmt.Sprintf("data:%s;base64,%s", mime, base64.StdEncoding.EncodeToString(data))
+					}
+				}
 			}
 		}
 	}

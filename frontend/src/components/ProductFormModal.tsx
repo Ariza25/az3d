@@ -1,7 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { Product, Category, ProductInput } from '../types';
-import { X, Layers, Save, PackagePlus, AlertCircle, Plus, Trash2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Product, Category, ProductInput, Parsed3MFResult } from '../types';
+import {
+  X,
+  Layers,
+  Save,
+  PackagePlus,
+  AlertCircle,
+  Plus,
+  Trash2,
+  UploadCloud,
+  Loader2,
+  CheckCircle2,
+  SlidersHorizontal,
+} from 'lucide-react';
 import { api, resolveApiAssetUrl } from '../services/api';
+import { SlicerSettingsModal } from './SlicerSettingsModal';
 
 interface ProductFormModalProps {
   isOpen: boolean;
@@ -36,6 +49,7 @@ const createDefaultProductInput = (categoryId: number): ProductInput => ({
   print_time: '8 horas',
   dimensions: '120 x 120 x 150 mm',
   weight: '180g',
+  slicer_settings: '',
   in_stock: true,
   stock_qty: 10,
   status: 'active',
@@ -54,6 +68,12 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [isParsing3MF, setIsParsing3MF] = useState(false);
+  const [isDragging3MF, setIsDragging3MF] = useState(false);
+  const [parsed3MF, setParsed3MF] = useState<Parsed3MFResult | null>(null);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const fileInput3MFRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (productToEdit) {
@@ -86,6 +106,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
         print_time: productToEdit.print_time,
         dimensions: productToEdit.dimensions,
         weight: productToEdit.weight,
+        slicer_settings: productToEdit.slicer_settings || '',
         in_stock: productToEdit.in_stock,
         stock_qty: productToEdit.stock_qty,
         status: productToEdit.status || 'active',
@@ -111,6 +132,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
     } else {
       setFormData(createDefaultProductInput(categories[0]?.id || 1));
     }
+    setParsed3MF(null);
     setError(null);
   }, [productToEdit, categories, isOpen]);
 
@@ -242,6 +264,66 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
       ...prev,
       variants: (prev.variants || []).filter((_, variantIndex) => variantIndex !== index),
     }));
+  };
+
+  const formatPrintDuration = (minutes: number) => {
+    if (!minutes || minutes <= 0) return '';
+    const rounded = Math.round(minutes);
+    const hours = Math.floor(rounded / 60);
+    const mins = rounded % 60;
+    if (hours === 0) return `${mins} min`;
+    if (mins === 0) return `${hours} horas`;
+    return `${hours}h ${mins}m`;
+  };
+
+  const handle3MFUpload = async (file: File) => {
+    if (!file.name.toLowerCase().endsWith('.3mf')) {
+      setError('Por favor envie um arquivo com extensão .3mf.');
+      return;
+    }
+
+    setIsParsing3MF(true);
+    setError(null);
+
+    try {
+      const data = await api.parse3MF(file);
+      setParsed3MF(data);
+
+      setFormData((prev) => {
+        const next = { ...prev };
+        if (data.product_weight_grams > 0) {
+          next.weight = `${Math.round(data.product_weight_grams)}g`;
+        }
+        if (data.print_minutes > 0) {
+          next.print_time = formatPrintDuration(data.print_minutes);
+        }
+        if (data.dimensions) {
+          next.dimensions = data.dimensions;
+        }
+        if (data.material) {
+          next.material = data.material;
+        }
+        if (data.layer_height) {
+          next.layer_height = data.layer_height;
+        }
+        if (data.raw_settings_json) {
+          next.slicer_settings = data.raw_settings_json;
+        }
+        if (data.thumbnail_base64 && (!prev.image_url || prev.image_url === DEFAULT_PRODUCT_IMAGE_URL)) {
+          next.image_url = data.thumbnail_base64;
+          if (next.color_images && next.color_images.length > 0) {
+            next.color_images = next.color_images.map((img, idx) =>
+              idx === 0 ? { ...img, image_url: data.thumbnail_base64! } : img
+            );
+          }
+        }
+        return next;
+      });
+    } catch (err: any) {
+      setError(err.message || 'Falha ao processar arquivo .3mf');
+    } finally {
+      setIsParsing3MF(false);
+    }
   };
 
   return (
@@ -573,6 +655,128 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               <span className="uppercase tracking-widest font-bold">Especificações Técnicas de Fatiamento 3D</span>
             </div>
 
+            {/* Assistente de Fatiamento .3MF (Opcional) */}
+            <div className="rounded-2xl border border-cyan-800/40 bg-cyan-950/20 p-4 space-y-3 dark:border-laser-500/30 dark:bg-laser-950/20">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono font-bold uppercase text-cyan-400 dark:text-laser-400">
+                    Importar Arquivo .3MF do Fatiador
+                  </span>
+                  <span className="rounded-md bg-cyan-900/50 px-2 py-0.5 text-[10px] font-mono font-semibold text-cyan-300 border border-cyan-700/50 dark:bg-laser-500/20 dark:text-laser-300 dark:border-laser-500/30">
+                    Opcional
+                  </span>
+                </div>
+                {formData.slicer_settings && (
+                  <button
+                    type="button"
+                    onClick={() => setIsDetailsModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-cyan-400 hover:text-cyan-300 underline underline-offset-4 dark:text-laser-300 dark:hover:text-laser-200 transition-colors"
+                  >
+                    <SlidersHorizontal className="h-3.5 w-3.5" />
+                    <span>Ver ficha técnica salva</span>
+                  </button>
+                )}
+              </div>
+
+              <p className="text-xs text-slate-400">
+                Se desejar preencher automaticamente peso, tempo, resolução, dimensões e configurações técnicas, arraste ou selecione o arquivo <strong>.3MF</strong> (Bambu Studio, OrcaSlicer ou PrusaSlicer) abaixo:
+              </p>
+
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDragging3MF(true);
+                }}
+                onDragLeave={() => setIsDragging3MF(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDragging3MF(false);
+                  if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                    handle3MFUpload(e.dataTransfer.files[0]);
+                  }
+                }}
+                onClick={() => fileInput3MFRef.current?.click()}
+                className={`relative flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-4 text-center transition-all ${
+                  isDragging3MF
+                    ? 'border-cyan-400 bg-cyan-900/30 dark:border-laser-400 dark:bg-laser-500/20'
+                    : 'border-chumbo-700 bg-chumbo-950/60 hover:border-cyan-500/60 hover:bg-chumbo-950/90 dark:border-chumbo-700 dark:hover:border-laser-500/60'
+                }`}
+              >
+                <input
+                  ref={fileInput3MFRef}
+                  type="file"
+                  accept=".3mf"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      handle3MFUpload(e.target.files[0]);
+                    }
+                  }}
+                />
+                {isParsing3MF ? (
+                  <div className="flex items-center gap-2 text-xs font-semibold text-cyan-400 dark:text-laser-400">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Lendo dados e configurações do arquivo .3MF...</span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col sm:flex-row items-center gap-2">
+                    <UploadCloud className="h-5 w-5 text-cyan-400 dark:text-laser-400" />
+                    <span className="text-xs text-slate-300">
+                      Clique ou arraste o <strong>.3MF</strong> para auto-preencher os dados técnicos
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {parsed3MF && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-cyan-700/40 bg-cyan-950/40 p-3 shadow-inner dark:border-laser-500/30 dark:bg-laser-950/40">
+                  <div className="flex items-center gap-3">
+                    {parsed3MF.thumbnail_base64 ? (
+                      <img
+                        src={parsed3MF.thumbnail_base64}
+                        alt="Miniatura .3MF"
+                        className="h-12 w-12 rounded-lg object-cover border border-cyan-600/40 shadow-sm shrink-0"
+                      />
+                    ) : (
+                      <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-400" />
+                    )}
+                    <div className="text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-white">
+                          {parsed3MF.file_name}
+                        </span>
+                        <span className="rounded-md bg-cyan-900/60 px-1.5 py-0.5 text-[10px] font-mono font-semibold text-cyan-300 dark:bg-laser-500/20 dark:text-laser-300">
+                          {parsed3MF.slicer_detected || 'Fatiador 3MF'}
+                        </span>
+                      </div>
+                      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-mono text-slate-300">
+                        {parsed3MF.product_weight_grams > 0 && (
+                          <span>Peso: <strong className="text-white">{Math.round(parsed3MF.product_weight_grams)}g</strong></span>
+                        )}
+                        {parsed3MF.print_minutes > 0 && (
+                          <span>• Tempo: <strong className="text-white">{formatPrintDuration(parsed3MF.print_minutes)}</strong></span>
+                        )}
+                        {parsed3MF.dimensions && (
+                          <span>• Dimensões: <strong className="text-white">{parsed3MF.dimensions}</strong></span>
+                        )}
+                        {parsed3MF.material && (
+                          <span>• Material: <strong className="text-white">{parsed3MF.material}</strong></span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsDetailsModalOpen(true)}
+                    className="flex items-center gap-1.5 rounded-xl border border-cyan-500/50 bg-cyan-500/20 px-3 py-1.5 text-xs font-bold text-cyan-200 hover:bg-cyan-500/30 dark:border-laser-400/40 dark:bg-laser-500/20 dark:text-laser-200 dark:hover:bg-laser-500/30 transition-colors"
+                  >
+                    <SlidersHorizontal className="h-3.5 w-3.5" />
+                    <span>Ver detalhes</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-mono text-slate-400 block uppercase">Material Utilizado</label>
@@ -662,6 +866,15 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
         </form>
 
       </div>
+
+      <SlicerSettingsModal
+        isOpen={isDetailsModalOpen}
+        onClose={() => setIsDetailsModalOpen(false)}
+        settings={parsed3MF?.settings}
+        rawJson={formData.slicer_settings}
+        title={formData.title ? `Configurações: ${formData.title}` : 'Configurações de Fatiamento (.3MF)'}
+        slicerName={parsed3MF?.slicer_detected || 'Fatiador 3MF'}
+      />
     </div>
   );
 };
