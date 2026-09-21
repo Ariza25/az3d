@@ -678,7 +678,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
             </div>
           ) : (
             <>
-              <div className="flex-1 overflow-y-auto px-5 py-6 sm:px-7">
+              <div className="flex-1 overflow-y-auto px-3.5 py-4 sm:px-7 sm:py-6">
                 {errorMessage && (
                   <div className="mb-5 flex items-center gap-2 rounded-xl border border-red-800/80 bg-red-950/60 p-3.5 text-xs text-red-200" role="alert">
                     <AlertCircle className="h-4 w-4 shrink-0 text-red-400" />
@@ -705,19 +705,19 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
                 ) : checkoutStep === 'items' ? (
                   <div className="space-y-3">
                     {cartCalculations.itemsWithPricing.map((item) => (
-                      <article key={`${item.product.id}-${item.color}`} className="rounded-2xl border border-chumbo-800 bg-chumbo-900/65 p-3 sm:p-4">
-                        <div className="flex gap-3.5 sm:gap-4">
+                      <article key={`${item.product.id}-${item.color}`} className="rounded-2xl border border-chumbo-800 bg-chumbo-900/65 p-2.5 sm:p-4">
+                        <div className="flex gap-3 sm:gap-4">
                           <img
                             src={item.product.color_images?.find((image) => image.color_name === item.color)?.image_url || item.product.image_url}
                             alt={item.product.title}
-                            className="h-24 w-24 shrink-0 rounded-xl border border-chumbo-700 object-cover sm:h-28 sm:w-28"
+                            className="h-20 w-20 sm:h-28 sm:w-28 shrink-0 rounded-xl border border-chumbo-700 object-cover"
                           />
 
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-start justify-between gap-2 sm:gap-3">
                               <div className="min-w-0">
-                                <h4 className="line-clamp-2 text-sm font-bold leading-5 text-white sm:text-base">{item.product.title}</h4>
-                                <span className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-400">
+                                <h4 className="line-clamp-2 text-xs sm:text-base font-bold leading-snug sm:leading-5 text-white">{item.product.title}</h4>
+                                <span className="mt-1 flex items-center gap-1.5 text-xs text-slate-400">
                                   <Layers className="h-3.5 w-3.5 text-laser-400" />
                                   {item.color}
                                 </span>
@@ -725,7 +725,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
                               <button
                                 type="button"
                                 onClick={() => removeFromCart(item.product.id, item.color)}
-                                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
+                                className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
                                 aria-label={`Remover ${item.product.title}`}
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -734,7 +734,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
 
                             {/* Detalhes de preço unitário e atacado */}
                             {item.wholesale.percent > 0 ? (
-                              <div className="mt-2 flex items-center gap-2 flex-wrap">
+                              <div className="mt-1.5 flex items-center gap-2 flex-wrap">
                                 <span className="line-through text-xs text-slate-500">{money(item.product.price)}</span>
                                 <span className="text-xs font-bold text-emerald-400">{money(item.discountedUnit)} cada</span>
                                 <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-extrabold text-emerald-300">
@@ -742,33 +742,33 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onOpenLogin, tenantSetti
                                 </span>
                               </div>
                             ) : (
-                              <div className="mt-2 flex items-center gap-2">
+                              <div className="mt-1.5 flex items-center gap-2">
                                 <span className="text-xs text-slate-400">{money(item.product.price)} cada</span>
                                 <span className="text-[10px] text-laser-400 font-medium">3+ un ganha atacado</span>
                               </div>
                             )}
 
-                            <div className="mt-3 flex items-end justify-between gap-3">
-                              <div className="flex h-10 items-center rounded-xl border border-chumbo-700 bg-chumbo-950" aria-label={`Quantidade de ${item.product.title}`}>
+                            <div className="mt-2.5 sm:mt-3 flex items-end justify-between gap-2 sm:gap-3">
+                              <div className="flex h-8 sm:h-10 items-center rounded-xl border border-chumbo-700 bg-chumbo-950" aria-label={`Quantidade de ${item.product.title}`}>
                                 <button
                                   type="button"
                                   onClick={() => updateQuantity(item.product.id, item.color, item.quantity - 1)}
-                                  className="flex h-full w-10 items-center justify-center text-slate-400 transition-colors hover:text-white"
+                                  className="flex h-full w-8 sm:w-10 items-center justify-center text-slate-400 transition-colors hover:text-white"
                                   aria-label={`Diminuir quantidade de ${item.product.title}`}
                                 >
                                   <Minus className="h-3.5 w-3.5" />
                                 </button>
-                                <span className="min-w-7 text-center font-mono text-sm font-bold text-white">{item.quantity}</span>
+                                <span className="min-w-6 sm:min-w-7 text-center font-mono text-xs sm:text-sm font-bold text-white">{item.quantity}</span>
                                 <button
                                   type="button"
                                   onClick={() => updateQuantity(item.product.id, item.color, item.quantity + 1)}
-                                  className="flex h-full w-10 items-center justify-center text-slate-400 transition-colors hover:text-white"
+                                  className="flex h-full w-8 sm:w-10 items-center justify-center text-slate-400 transition-colors hover:text-white"
                                   aria-label={`Aumentar quantidade de ${item.product.title}`}
                                 >
                                   <Plus className="h-3.5 w-3.5" />
                                 </button>
                               </div>
-                              <div className="text-right">
+                              <div className="text-right shrink-0">
                                 <span className="block text-[10px] uppercase tracking-wider text-slate-500">Subtotal</span>
                                 {item.wholesale.percent > 0 ? (
                                   <div>

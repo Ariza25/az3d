@@ -14,10 +14,22 @@ export default defineConfig({
   projects: [
     {
       name: 'desktop-chromium',
-      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 1000 } },
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
     {
-      name: 'mobile-chromium',
+      name: 'tablet-ipad',
+      use: { ...devices['iPad Mini'], defaultBrowserType: 'chromium' },
+    },
+    {
+      name: 'mobile-iphone-se',
+      use: { ...devices['iPhone SE'], defaultBrowserType: 'chromium' },
+    },
+    {
+      name: 'mobile-iphone-14',
+      use: { ...devices['iPhone 14'], defaultBrowserType: 'chromium' },
+    },
+    {
+      name: 'mobile-pixel-7',
       use: { ...devices['Pixel 7'] },
     },
   ],

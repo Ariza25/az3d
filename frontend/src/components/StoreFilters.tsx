@@ -58,7 +58,7 @@ export const StoreFilters: React.FC<StoreFiltersProps> = ({
               <div className="relative min-w-0 flex-1">
                 <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" aria-hidden="true" />
                 <input
-                  type="text"
+                  type="search"
                   inputMode="search"
                   value={searchQuery}
                   onChange={(event) => onSearchChange(event.target.value)}

@@ -93,7 +93,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
     if (!product?.id) return;
     setLoadingReviews(true);
     api.getProductReviews(product.id, product.tenant_id)
-      .then((data) => setReviews(data || []))
+      .then((data) => setReviews(Array.isArray(data) ? data : []))
       .catch(() => setReviews([]))
       .finally(() => setLoadingReviews(false));
   }, [product?.id, product?.tenant_id]);
@@ -369,9 +369,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
               <img src={blurImageUrl} alt="" className="absolute inset-0 h-full w-full scale-110 object-cover opacity-20 blur-2xl" aria-hidden="true" />
             )}
             <div className="absolute inset-0 bg-gradient-to-br from-chumbo-950/35 via-chumbo-950/55 to-chumbo-950" />
-            <div className={`relative z-10 grid h-full w-full p-3 sm:p-5 ${mediaChoices.length > 1 ? 'grid-cols-[76px_minmax(0,1fr)]' : ''}`}>
+            <div className={`relative z-10 flex flex-col-reverse sm:grid h-full w-full p-2 sm:p-5 ${mediaChoices.length > 1 ? 'sm:grid-cols-[76px_minmax(0,1fr)]' : ''}`}>
               {mediaChoices.length > 1 && (
-                <div className="flex max-h-full flex-col gap-2 overflow-y-auto border-r border-white/10 bg-chumbo-950/80 p-2 backdrop-blur-md">
+                <div className="flex shrink-0 flex-row gap-2 overflow-x-auto border-t sm:border-t-0 sm:border-r border-white/10 bg-chumbo-950/80 p-2 backdrop-blur-md sm:flex-col sm:overflow-y-auto no-scrollbar">
                   {mediaChoices.map((media, index) => {
                     const isCurrent = media.id === activeMedia?.id;
                     return (
@@ -380,7 +380,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
                         key={media.id}
                         onClick={() => setSelectedMediaId(media.id)}
                         onMouseEnter={() => setSelectedMediaId(media.id)}
-                        className={`relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border-2 bg-chumbo-900 p-0.5 transition-all duration-150 ${
+                        className={`relative h-12 w-12 sm:h-14 sm:w-14 shrink-0 overflow-hidden rounded-xl border-2 bg-chumbo-900 p-0.5 transition-all duration-150 ${
                           isCurrent
                             ? 'border-laser-400 shadow-[0_0_0_2px_rgba(34,211,238,0.25)] scale-105'
                             : 'border-chumbo-700 opacity-70 hover:border-chumbo-500 hover:opacity-100'
@@ -445,8 +445,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
             </div>
           </div>
 
-          <div className="flex min-h-0 flex-col bg-chumbo-900 p-5 sm:p-8 lg:overflow-y-auto lg:p-10">
-            <div className="space-y-6">
+          <div className="flex min-h-0 flex-col bg-chumbo-900 p-4 sm:p-8 lg:overflow-y-auto lg:p-10">
+            <div className="space-y-4 sm:space-y-6">
               {/* 1. Header & Title */}
               <div>
                 <div className="flex items-center justify-between gap-3 pr-12">
@@ -464,8 +464,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
                   </button>
                 </div>
 
-                <div className="mt-4">
-                  <h2 id="product-modal-title" className="text-2xl font-extrabold leading-tight text-white sm:text-3xl lg:text-[2rem]">{product.title}</h2>
+                <div className="mt-3">
+                  <h2 id="product-modal-title" className="text-xl font-extrabold leading-tight text-white sm:text-3xl lg:text-[2rem]">{product.title}</h2>
                   <div className="mt-2 flex items-center justify-end">
                     {hasRealReviews ? (
                       <div className="inline-flex items-center gap-1.5 text-xs text-slate-400">
@@ -492,21 +492,21 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
               {feedback && <div className="rounded-xl border border-chumbo-700 bg-chumbo-950 p-3 text-xs text-slate-300">{feedback}</div>}
 
               {/* 2. SEÇÃO DE COMPRA (Cores, Estoque, Frete, Total e Comprar) */}
-              <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-4 sm:p-5 space-y-5">
+              <div className="rounded-2xl border border-chumbo-800 bg-chumbo-950/60 p-3.5 sm:p-5 space-y-4 sm:space-y-5">
                 {/* Seleção de cor */}
                 {availableColors.length > 1 ? (
                   <div>
                     <p className="text-sm text-slate-300">
                       Cor: <strong className="font-bold text-white">{selectedColor}</strong>
                     </p>
-                    <div className="mt-3 flex flex-wrap items-center gap-2.5" role="group" aria-label="Escolha a cor">
+                    <div className="mt-2.5 flex flex-wrap items-center gap-2 sm:gap-2.5" role="group" aria-label="Escolha a cor">
                       {availableColors.map((color) => (
                         <button
                           type="button"
                           key={color.name}
                           onClick={() => selectColor(color.name)}
                           onMouseEnter={() => selectColor(color.name)}
-                          className={`relative h-16 w-16 overflow-hidden rounded-xl border-2 bg-chumbo-950 p-0.5 transition ${selectedColor === color.name ? 'border-laser-400 shadow-[0_0_0_2px_rgba(34,211,238,0.16)] scale-105' : 'border-chumbo-700 hover:border-chumbo-500'}`}
+                          className={`relative h-13 w-13 sm:h-16 sm:w-16 overflow-hidden rounded-xl border-2 bg-chumbo-950 p-0.5 transition ${selectedColor === color.name ? 'border-laser-400 shadow-[0_0_0_2px_rgba(34,211,238,0.16)] scale-105' : 'border-chumbo-700 hover:border-chumbo-500'}`}
                           title={color.name}
                           aria-label={`Selecionar cor ${color.name}`}
                           aria-pressed={selectedColor === color.name}

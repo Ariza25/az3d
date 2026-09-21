@@ -132,7 +132,7 @@ test('permite revisar itens e avança para entrega sem sobrecarregar o drawer', 
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText('3 itens', { exact: true })).toBeVisible();
-  await expect(dialog.getByText('R$ 188,90', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('R$ 188,90', { exact: true }).first()).toBeVisible();
   await expect(dialog.getByText('Nome de quem recebe')).toHaveCount(0);
 
   await page.screenshot({
@@ -141,10 +141,10 @@ test('permite revisar itens e avança para entrega sem sobrecarregar o drawer', 
   });
 
   await dialog.getByRole('button', { name: 'Aumentar quantidade de Suporte escultural para celular' }).click();
-  await expect(dialog.getByText('R$ 268,80', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('R$ 268,80', { exact: true }).first()).toBeVisible();
   await dialog.getByRole('button', { name: 'Remover Organizador modular de mesa' }).click();
   await expect(dialog.getByText('Organizador modular de mesa')).toHaveCount(0);
-  await expect(dialog.getByText('R$ 159,80', { exact: true })).toHaveCount(2);
+  await expect(dialog.getByText('R$ 159,80', { exact: true })).toHaveCount(3);
 
   await dialog.getByRole('button', { name: 'Continuar para entrega' }).click();
   await expect(dialog.getByRole('heading', { name: 'Entrega e contato' })).toBeVisible();

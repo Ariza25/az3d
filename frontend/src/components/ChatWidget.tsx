@@ -16,6 +16,7 @@ import { api } from '../services/api';
 interface ChatWidgetProps {
   activeTenant: Tenant | null;
   onOpenLogin: () => void;
+  hasFloatingBottomBar?: boolean;
 }
 
 const QUICK_QUESTIONS = [
@@ -25,7 +26,7 @@ const QUICK_QUESTIONS = [
   'Vocês entregam para minha cidade?',
 ];
 
-export const ChatWidget: React.FC<ChatWidgetProps> = ({ activeTenant, onOpenLogin }) => {
+export const ChatWidget: React.FC<ChatWidgetProps> = ({ activeTenant, onOpenLogin, hasFloatingBottomBar }) => {
   const { user, isAuthenticated } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -137,14 +138,14 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ activeTenant, onOpenLogi
     <>
       {/* Botão Flutuante (quando fechado) */}
       {!isOpen && (
-        <div className="fixed bottom-6 right-6 z-40 animate-in fade-in zoom-in-95 duration-200">
+        <div className={`fixed z-40 transition-all duration-200 ${hasFloatingBottomBar ? 'bottom-20 right-4 sm:bottom-6 sm:right-6' : 'bottom-4 right-4 sm:bottom-6 sm:right-6'}`}>
           <button
             type="button"
             onClick={handleToggle}
-            className="group flex items-center gap-3 rounded-full border border-laser-400/40 bg-chumbo-950/95 py-3 px-5 text-white shadow-2xl backdrop-blur-md transition-all hover:scale-105 hover:border-laser-400 hover:shadow-laser-500/20 active:scale-95"
+            className="group flex items-center gap-2.5 sm:gap-3 rounded-full border border-laser-400/40 bg-chumbo-950/95 p-2.5 sm:py-3 sm:px-5 text-white shadow-2xl backdrop-blur-md transition-all hover:scale-105 hover:border-laser-400 hover:shadow-laser-500/20 active:scale-95"
             aria-label="Abrir chat online"
           >
-            <div className="relative flex h-10 w-10 items-center justify-center rounded-full bg-laser-400 text-chumbo-950 shadow-md">
+            <div className="relative flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-laser-400 text-chumbo-950 shadow-md">
               <MessageCircle className="h-5 w-5 stroke-[2.2]" />
               {/* Indicador de status online */}
               <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5">

@@ -377,6 +377,7 @@ export const StoreApp: React.FC = () => {
       <ChatWidget
         activeTenant={activeTenant}
         onOpenLogin={() => setIsLoginOpen(true)}
+        hasFloatingBottomBar={totalItems > 0 && !cartNotice && !selectedProduct}
       />
 
       {cartNotice && (
@@ -401,7 +402,7 @@ export const StoreApp: React.FC = () => {
         </div>
       )}
 
-      {totalItems > 0 && !cartNotice && (
+      {totalItems > 0 && !cartNotice && !selectedProduct && (
         <div className="fixed bottom-4 left-4 right-4 z-40 sm:hidden">
           <button
             onClick={openCart}

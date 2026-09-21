@@ -45,7 +45,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <AZ3DLogo className="h-9 w-9 shrink-0 transition-transform duration-300 group-hover:scale-105 sm:h-10 sm:w-10" />
               )}
               <div className="min-w-0">
-                <span className="block max-w-[118px] truncate text-lg font-extrabold tracking-wide text-white sm:max-w-none sm:text-2xl sm:tracking-wider">
+                <span className="block max-w-[88px] min-[400px]:max-w-[120px] truncate text-base font-extrabold tracking-wide text-white sm:max-w-none sm:text-2xl sm:tracking-wider">
                   {storeName}
                 </span>
                 <span className="-mt-1 hidden text-[10px] font-medium uppercase tracking-widest text-slate-400 sm:block">
