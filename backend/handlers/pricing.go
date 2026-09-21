@@ -1,7 +1,10 @@
 package handlers
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"sort"
@@ -11,6 +14,7 @@ import (
 
 	"az3d-backend/database"
 	"az3d-backend/internal/services"
+	"az3d-backend/internal/threemfparser"
 	"az3d-backend/models"
 
 	"github.com/gin-gonic/gin"
@@ -382,6 +386,7 @@ func createProductPricingSnapshot(tenantID uint, productID uint, input models.Pr
 		NetAfterFees:        result.NetAfterFees,
 		Profit:              result.Profit,
 		ProfitMarginPercent: result.ProfitMarginPercent,
+		SlicerSettings:      input.SlicerSettings,
 	}
 	return database.DB.Create(&snapshot).Error
 }
@@ -678,8 +683,40 @@ func (h *PricingHandler) ApplyToProduct(c *gin.Context) {
 
 	normalizedInput, result := calculatePricingForTenant(tenantID, input)
 	product.Price = math.Round(result.SuggestedPrice*100) / 100
+
+	// Atualizar peso real calculado
+	totalWeight := normalizedInput.ProductWeightGrams + normalizedInput.SupportWeightGrams
+	if totalWeight > 0 {
+		product.Weight = fmt.Sprintf("%.2fg", totalWeight)
+	}
+
+	// Atualizar tempo estimado de impressão
+	if normalizedInput.PrintMinutes > 0 {
+		hTotal := int(normalizedInput.PrintMinutes) / 60
+		mTotal := int(normalizedInput.PrintMinutes) % 60
+		if hTotal > 0 {
+			product.PrintTime = fmt.Sprintf("%dh %02dmin", hTotal, mTotal)
+		} else {
+			product.PrintTime = fmt.Sprintf("%d min", mTotal)
+		}
+	}
+
+	// Atualizar dimensões, material e camada se fornecidos
+	if strings.TrimSpace(input.Dimensions) != "" {
+		product.Dimensions = strings.TrimSpace(input.Dimensions)
+	}
+	if strings.TrimSpace(input.Material) != "" {
+		product.Material = strings.TrimSpace(input.Material)
+	}
+	if strings.TrimSpace(input.LayerHeight) != "" {
+		product.LayerHeight = strings.TrimSpace(input.LayerHeight)
+	}
+	if strings.TrimSpace(input.SlicerSettings) != "" {
+		product.SlicerSettings = strings.TrimSpace(input.SlicerSettings)
+	}
+
 	if err := database.DB.Save(&product).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao atualizar preco do produto"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao atualizar preco e dados do produto"})
 		return
 	}
 	if err := createProductPricingSnapshot(tenantID, productID, normalizedInput); err != nil {
@@ -692,6 +729,40 @@ func (h *PricingHandler) ApplyToProduct(c *gin.Context) {
 		"input":   normalizedInput,
 		"result":  result,
 	})
+}
+
+// Parse3MFFile extrai dados técnicos de tempo, peso, dimensões e fatiamento de um arquivo .3mf enviado
+func (h *PricingHandler) Parse3MFFile(c *gin.Context) {
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Arquivo .3mf obrigatório no campo 'file'"})
+		return
+	}
+
+	file, err := fileHeader.Open()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Falha ao abrir arquivo enviado: " + err.Error()})
+		return
+	}
+	defer file.Close()
+
+	readerAt, ok := file.(io.ReaderAt)
+	if !ok {
+		data, err := io.ReadAll(file)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Falha ao ler dados do arquivo: " + err.Error()})
+			return
+		}
+		readerAt = bytes.NewReader(data)
+	}
+
+	parsed, err := threemfparser.Parse3MF(readerAt, fileHeader.Size, fileHeader.Filename)
+	if err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Não foi possível processar o arquivo .3mf: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, parsed)
 }
 
 func (h *PricingHandler) GetProductSnapshots(c *gin.Context) {

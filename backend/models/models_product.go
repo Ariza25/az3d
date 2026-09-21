@@ -39,12 +39,13 @@ type Product struct {
 	ColorStocks []ProductColorStock `gorm:"foreignKey:ProductID" json:"color_stocks,omitempty"`
 
 	// Especificações Técnicas de Impressão 3D
-	Material    string `gorm:"size:100;default:'PLA Premium'" json:"material"`
-	LayerHeight string `gorm:"size:50;default:'0.16mm'" json:"layer_height"`
-	PrintTime   string `gorm:"size:50;default:'8 horas'" json:"print_time"`
-	Dimensions  string `gorm:"size:100;default:'120 x 120 x 150 mm'" json:"dimensions"`
-	Weight      string `gorm:"size:50;default:'180g'" json:"weight"`
-	InStock     bool   `gorm:"default:true" json:"in_stock"`
+	Material       string `gorm:"size:100;default:'PLA Premium'" json:"material"`
+	LayerHeight    string `gorm:"size:50;default:'0.16mm'" json:"layer_height"`
+	PrintTime      string `gorm:"size:50;default:'8 horas'" json:"print_time"`
+	Dimensions     string `gorm:"size:100;default:'120 x 120 x 150 mm'" json:"dimensions"`
+	Weight         string `gorm:"size:50;default:'180g'" json:"weight"`
+	SlicerSettings string `gorm:"type:text" json:"slicer_settings,omitempty"`
+	InStock        bool   `gorm:"default:true" json:"in_stock"`
 	StockQty    int    `gorm:"default:10" json:"stock_qty"`
 	Status      string `gorm:"size:20;default:'active';index" json:"status"`
 

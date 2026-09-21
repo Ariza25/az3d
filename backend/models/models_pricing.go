@@ -101,6 +101,7 @@ type ProductPricingSnapshot struct {
 	NetAfterFees        float64   `json:"net_after_fees"`
 	Profit              float64   `json:"profit"`
 	ProfitMarginPercent float64   `json:"profit_margin_percent"`
+	SlicerSettings      string    `gorm:"type:text" json:"slicer_settings,omitempty"`
 	CreatedAt           time.Time `json:"created_at"`
 }
 
@@ -160,6 +161,10 @@ type PricingCalculationInput struct {
 	MaterialPresetID    uint    `json:"materialPresetId"`
 	PrinterPresetID     uint    `json:"printerPresetId"`
 	PlatformFeePresetID uint    `json:"platformFeePresetId"`
+	Dimensions          string  `json:"dimensions,omitempty"`
+	Material            string  `json:"material,omitempty"`
+	LayerHeight         string  `json:"layerHeight,omitempty"`
+	SlicerSettings      string  `json:"slicerSettings,omitempty"`
 }
 
 type PricingCalculationResult struct {

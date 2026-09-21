@@ -17,6 +17,7 @@ import {
   PrintingPricingInput,
   PricingCalculationResponse,
   ProductPricingSnapshot,
+  Parsed3MFResult,
   TenantFixedCost,
   ProductActualCost,
   ProductActualCostInput,
@@ -775,6 +776,26 @@ export const api = {
 
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Erro ao aplicar precificacao ao produto');
+    return data;
+  },
+
+  parse3MF: async (file: File, tenantId?: number): Promise<Parsed3MFResult> => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const headers: Record<string, string> = {};
+    if (tenantId) headers['X-Tenant-ID'] = String(tenantId);
+    const token = localStorage.getItem('az3d_token');
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch(`${API_BASE_URL}/admin/pricing/parse-3mf`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Falha ao processar arquivo .3mf');
     return data;
   },
 

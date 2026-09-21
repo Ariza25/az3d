@@ -1,6 +1,20 @@
-import React, { useEffect, useState } from 'react';
-import { Calculator, Clock, DollarSign, Loader2, PackageCheck, Percent, Save, Zap } from 'lucide-react';
-import { Product, TenantSettings } from '../types';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  Calculator,
+  CheckCircle2,
+  Clock,
+  DollarSign,
+  Loader2,
+  PackageCheck,
+  Percent,
+  Save,
+  SlidersHorizontal,
+  UploadCloud,
+  X,
+  Zap,
+} from 'lucide-react';
+import { Parsed3MFResult, Product, TenantSettings } from '../types';
+import { SlicerSettingsModal } from './SlicerSettingsModal';
 import {
   DEFAULT_PRINTING_PRICING,
   EXCEL_BASE_PRODUCTS,
@@ -60,6 +74,13 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
   const [isApplying, setIsApplying] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  const [isParsing3MF, setIsParsing3MF] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [parsed3MFInfo, setParsed3MFInfo] = useState<Parsed3MFResult | null>(null);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     setInput((prev) => ({
@@ -148,10 +169,22 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     if (!productId || !result) return;
     setIsApplying(true);
     setError(null);
+    setSuccessMsg(null);
     try {
-      const response = await api.applyProductPricing(productId, input, tenantId);
+      const response = await api.applyProductPricing(
+        productId,
+        {
+          ...input,
+          dimensions: parsed3MFInfo?.dimensions || input.dimensions,
+          material: parsed3MFInfo?.material || input.material,
+          layerHeight: parsed3MFInfo?.layer_height || input.layerHeight,
+          slicerSettings: parsed3MFInfo?.raw_settings_json || input.slicerSettings,
+        },
+        tenantId
+      );
       setResult(response.result);
       onProductPricingApplied?.(response.product);
+      setSuccessMsg(`Configurações e preço sugerido aplicados ao item "${response.product.title}" com sucesso!`);
     } catch (err: any) {
       setError(err.message || 'Erro ao aplicar preco ao produto');
     } finally {
@@ -161,17 +194,59 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
 
   const loadProduct = (productId: string) => {
     setSelectedProductId(productId);
+    setParsed3MFInfo(null);
+    setSuccessMsg(null);
     const product = products.find((item) => String(item.id) === productId);
     if (!product) return;
     setInput((prev) => ({
       ...prev,
       productWeightGrams: parseWeightGrams(product.weight),
       printMinutes: parsePrintMinutes(product.print_time),
+      dimensions: product.dimensions || '',
+      material: product.material || '',
+      layerHeight: product.layer_height || '',
+      slicerSettings: product.slicer_settings || '',
     }));
     setResult(null);
     setExcelRows([]);
     setSaved(false);
   };
+
+  const handle3MFUpload = async (file: File) => {
+    if (!file.name.toLowerCase().endsWith('.3mf')) {
+      setError('Por favor envie um arquivo com extensão .3mf.');
+      return;
+    }
+
+    setIsParsing3MF(true);
+    setError(null);
+    setSuccessMsg(null);
+
+    try {
+      const data = await api.parse3MF(file, tenantId);
+      setParsed3MFInfo(data);
+
+      const nextInput: PrintingPricingInput = {
+        ...input,
+        productWeightGrams: data.product_weight_grams > 0 ? data.product_weight_grams : input.productWeightGrams,
+        supportWeightGrams: data.support_weight_grams > 0 ? data.support_weight_grams : 0,
+        printMinutes: data.print_minutes > 0 ? data.print_minutes : input.printMinutes,
+        dimensions: data.dimensions || input.dimensions,
+        material: data.material || input.material,
+        layerHeight: data.layer_height || input.layerHeight,
+        slicerSettings: data.raw_settings_json || input.slicerSettings,
+      };
+
+      setInput(nextInput);
+      await runCalculation(nextInput);
+    } catch (err: any) {
+      setError(err.message || 'Falha ao processar arquivo .3mf');
+    } finally {
+      setIsParsing3MF(false);
+    }
+  };
+
+  const selectedProduct = products.find((item) => String(item.id) === selectedProductId);
 
   const applyBaseProduct = (name: string) => {
     const item = EXCEL_BASE_PRODUCTS.find((product) => product.name === name);
@@ -184,6 +259,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
     };
     setInput(nextInput);
     setSelectedProductId('');
+    setParsed3MFInfo(null);
     setResult(null);
     setExcelRows([]);
     setSaved(false);
@@ -265,23 +341,162 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
         </div>
       )}
 
+      {successMsg && (
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-800 dark:text-emerald-300">
+          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          <span>{successMsg}</span>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-chumbo-800 dark:bg-chumbo-900/60 lg:col-span-2">
-          <label className="block space-y-1.5">
-            <span className="text-[10px] font-mono font-bold uppercase text-slate-600 dark:text-slate-400">Carregar produto cadastrado</span>
-            <select
-              value={selectedProductId}
-              onChange={(e) => loadProduct(e.target.value)}
-              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 shadow-sm focus:border-cyan-700 focus:outline-none dark:border-chumbo-800 dark:bg-chumbo-950 dark:text-white dark:focus:border-laser-400"
-            >
-              <option value="">Selecionar produto...</option>
-              {products.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.title} ({item.sku || 'sem sku'})
-                </option>
-              ))}
-            </select>
-          </label>
+          {/* Seção de Seleção de Produto e Importação .3MF */}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <label className="block space-y-1.5">
+              <span className="text-[10px] font-mono font-bold uppercase text-slate-600 dark:text-slate-400">
+                1. Carregar produto cadastrado
+              </span>
+              <select
+                value={selectedProductId}
+                onChange={(e) => loadProduct(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 shadow-sm focus:border-cyan-700 focus:outline-none dark:border-chumbo-800 dark:bg-chumbo-950 dark:text-white dark:focus:border-laser-400"
+              >
+                <option value="">Selecionar produto...</option>
+                {products.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.title} ({item.sku || 'sem sku'})
+                  </option>
+                ))}
+              </select>
+              {selectedProduct && (
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                  <span>Peso: <strong className="text-slate-700 dark:text-slate-200">{selectedProduct.weight || '--'}</strong></span>
+                  <span>•</span>
+                  <span>Tempo: <strong className="text-slate-700 dark:text-slate-200">{selectedProduct.print_time || '--'}</strong></span>
+                  <span>•</span>
+                  <span>Dimensões: <strong className="text-slate-700 dark:text-slate-200">{selectedProduct.dimensions || '--'}</strong></span>
+                  {selectedProduct.slicer_settings && (
+                    <>
+                      <span>•</span>
+                      <button
+                        type="button"
+                        onClick={() => setIsDetailsModalOpen(true)}
+                        className="inline-flex items-center gap-1 font-bold text-cyan-700 hover:underline dark:text-laser-300"
+                      >
+                        <SlidersHorizontal className="h-3 w-3" />
+                        <span>Ver detalhes de fatiamento</span>
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </label>
+
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-mono font-bold uppercase text-slate-600 dark:text-slate-400">
+                2. Importar arquivo .3MF (Bambu / Orca / Prusa)
+              </span>
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDragging(true);
+                }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDragging(false);
+                  if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                    handle3MFUpload(e.dataTransfer.files[0]);
+                  }
+                }}
+                onClick={() => fileInputRef.current?.click()}
+                className={`relative flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-3 text-center transition-all ${
+                  isDragging
+                    ? 'border-cyan-500 bg-cyan-50/50 dark:border-laser-400 dark:bg-laser-500/10'
+                    : 'border-slate-300 bg-slate-50/60 hover:bg-slate-100/80 dark:border-chumbo-800 dark:bg-chumbo-950/40 dark:hover:bg-chumbo-900/40'
+                }`}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".3mf"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      handle3MFUpload(e.target.files[0]);
+                    }
+                  }}
+                />
+                {isParsing3MF ? (
+                  <div className="flex items-center gap-2 text-xs font-semibold text-cyan-700 dark:text-laser-400">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Lendo dados de fatiamento do .3MF...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <UploadCloud className="h-4 w-4 text-cyan-600 dark:text-laser-400" />
+                    <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                      Clique ou arraste o <strong>.3MF</strong> para auto-preencher
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Banner com informações extraídas do .3MF */}
+          {parsed3MFInfo && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-cyan-300 bg-cyan-50/80 p-3 shadow-sm dark:border-laser-500/40 dark:bg-laser-500/10">
+              <div className="flex items-center gap-2.5">
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                <div className="text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-900 dark:text-white">
+                      {parsed3MFInfo.file_name}
+                    </span>
+                    <span className="rounded-md bg-cyan-100 px-1.5 py-0.5 text-[10px] font-mono font-semibold text-cyan-800 dark:bg-laser-500/20 dark:text-laser-300">
+                      {parsed3MFInfo.slicer_detected || 'Fatiador 3MF'}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-mono text-slate-600 dark:text-slate-300">
+                    {parsed3MFInfo.product_weight_grams > 0 && (
+                      <span>Filamento: <strong className="text-slate-900 dark:text-white">{parsed3MFInfo.product_weight_grams} g</strong></span>
+                    )}
+                    {parsed3MFInfo.print_minutes > 0 && (
+                      <span>• Tempo: <strong className="text-slate-900 dark:text-white">{formatPrintDuration(parsed3MFInfo.print_minutes)}</strong></span>
+                    )}
+                    {parsed3MFInfo.dimensions && (
+                      <span>• Dimensões: <strong className="text-slate-900 dark:text-white">{parsed3MFInfo.dimensions}</strong></span>
+                    )}
+                    {parsed3MFInfo.layer_height && (
+                      <span>• Camada: <strong className="text-slate-900 dark:text-white">{parsed3MFInfo.layer_height}</strong></span>
+                    )}
+                    {parsed3MFInfo.material && (
+                      <span>• Material: <strong className="text-slate-900 dark:text-white">{parsed3MFInfo.material}</strong></span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsDetailsModalOpen(true)}
+                  className="flex items-center gap-1.5 rounded-lg border border-cyan-300 bg-white px-2.5 py-1 text-xs font-semibold text-cyan-800 shadow-xs hover:bg-cyan-100/70 dark:border-laser-500/40 dark:bg-chumbo-950 dark:text-laser-300 dark:hover:bg-chumbo-900 transition-colors"
+                >
+                  <SlidersHorizontal className="h-3.5 w-3.5" />
+                  <span>Ver detalhes</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setParsed3MFInfo(null)}
+                  className="rounded-lg p-1 text-slate-400 hover:bg-slate-200/50 hover:text-slate-600 dark:hover:bg-chumbo-800 dark:hover:text-slate-200"
+                  title="Fechar resumo do 3MF"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <Field label="Peso modelo" field="productWeightGrams" step="0.1" suffix="g" />
@@ -393,6 +608,15 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
           </table>
         </div>
       </div>
+
+      <SlicerSettingsModal
+        isOpen={isDetailsModalOpen}
+        onClose={() => setIsDetailsModalOpen(false)}
+        settings={parsed3MFInfo?.settings}
+        rawJson={parsed3MFInfo?.raw_settings_json || selectedProduct?.slicer_settings}
+        title={parsed3MFInfo ? `Fatiamento: ${parsed3MFInfo.file_name}` : `Ficha Técnica: ${selectedProduct?.title || 'Produto'}`}
+        slicerName={parsed3MFInfo?.slicer_detected || 'Bambu Studio / OrcaSlicer'}
+      />
     </div>
   );
 };

@@ -162,6 +162,7 @@ func main() {
 			admin.POST("/pricing/platform-presets", pricingHandler.SavePlatformPreset)
 			admin.PUT("/pricing/platform-presets/:preset_id", pricingHandler.UpdatePlatformPreset)
 			admin.DELETE("/pricing/platform-presets/:preset_id", pricingHandler.DeletePlatformPreset)
+			admin.POST("/pricing/parse-3mf", pricingHandler.Parse3MFFile)
 			admin.POST("/products/:id/pricing/apply", pricingHandler.ApplyToProduct)
 			admin.GET("/products/:id/pricing/snapshots", pricingHandler.GetProductSnapshots)
 			admin.GET("/products/:id/financials", pricingHandler.GetProductFinancials)

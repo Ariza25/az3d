@@ -12,7 +12,7 @@ const LoadingContext = createContext<LoadingContextType | undefined>(undefined);
 
 export const LoadingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [activeCount, setActiveCount] = useState(0);
-  const [loadingMessage, setLoadingMessage] = useState<string>('Processando...');
+  const [loadingMessage, setLoadingMessage] = useState<string>('Processando');
   const [showOverlay, setShowOverlay] = useState(false);
   const timerRef = useRef<number | null>(null);
 
@@ -71,7 +71,7 @@ export const LoadingProvider: React.FC<{ children: React.ReactNode }> = ({ child
         timerRef.current = null;
       }
       setShowOverlay(false);
-      setLoadingMessage('Processando...');
+      setLoadingMessage('Processando');
     }
 
     return () => {
