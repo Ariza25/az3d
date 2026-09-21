@@ -149,20 +149,31 @@ type ProductReviewSummary struct {
 }
 
 type FilamentSpool struct {
-	ID               uint      `gorm:"primaryKey" json:"id"`
-	TenantID         uint      `gorm:"not null;index" json:"tenant_id"`
-	Tenant           *Tenant   `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
-	Name             string    `gorm:"size:120;not null" json:"name"`
-	MaterialType     string    `gorm:"size:30;not null" json:"material_type"`
-	ColorName        string    `gorm:"size:60;not null" json:"color_name"`
-	ColorHex         string    `gorm:"size:20;default:'#3b82f6'" json:"color_hex"`
-	SpoolWeightG     float64   `gorm:"default:1000" json:"spool_weight_g"`
-	RemainingWeightG float64   `gorm:"default:1000" json:"remaining_weight_g"`
-	PricePerKG       float64   `gorm:"default:120" json:"price_per_kg"`
-	Vendor           string    `gorm:"size:100" json:"vendor"`
-	IsActive         bool      `gorm:"default:true" json:"is_active"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	ID               uint               `gorm:"primaryKey" json:"id"`
+	TenantID         uint               `gorm:"not null;index" json:"tenant_id"`
+	Tenant           *Tenant            `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+	Name             string             `gorm:"size:120;not null" json:"name"`
+	MaterialType     string             `gorm:"size:30;not null" json:"material_type"`
+	ColorName        string             `gorm:"size:60;not null" json:"color_name"`
+	ColorHex         string             `gorm:"size:20;default:'#3b82f6'" json:"color_hex"`
+	SpoolWeightG     float64            `gorm:"default:1000" json:"spool_weight_g"`
+	RemainingWeightG float64            `gorm:"default:1000" json:"remaining_weight_g"`
+	PricePerKG       float64            `gorm:"default:120" json:"price_per_kg"`
+	Vendor           string             `gorm:"size:100" json:"vendor"`
+	IsActive         bool               `gorm:"default:true" json:"is_active"`
+	Logs             []FilamentUsageLog `gorm:"foreignKey:SpoolID" json:"logs,omitempty"`
+	CreatedAt        time.Time          `json:"created_at"`
+	UpdatedAt        time.Time          `json:"updated_at"`
+}
+
+type FilamentUsageLog struct {
+	ID          uint      `gorm:"primaryKey" json:"id"`
+	TenantID    uint      `gorm:"not null;index" json:"tenant_id"`
+	SpoolID     uint      `gorm:"not null;index" json:"spool_id"`
+	OrderID     *uint     `gorm:"index" json:"order_id,omitempty"`
+	GramsUsed   float64   `gorm:"not null" json:"grams_used"`
+	Description string    `gorm:"size:255" json:"description"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 type FilamentSpoolInput struct {
@@ -175,6 +186,13 @@ type FilamentSpoolInput struct {
 	PricePerKG       float64 `json:"price_per_kg"`
 	Vendor           string  `json:"vendor"`
 	IsActive         *bool   `json:"is_active"`
+}
+
+type DeductFilamentInput struct {
+	SpoolID     uint    `json:"spool_id" binding:"required"`
+	OrderID     *uint   `json:"order_id"`
+	Grams       float64 `json:"grams" binding:"required"`
+	Description string  `json:"description"`
 }
 
 type Custom3DQuote struct {

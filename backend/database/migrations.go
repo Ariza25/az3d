@@ -60,6 +60,7 @@ func runAutoMigrate(db *gorm.DB) error {
 		&models.MercadoLivrePlatformConfig{},
 		&models.MarketplaceOAuthSession{},
 		&models.FilamentSpool{},
+		&models.FilamentUsageLog{},
 		&models.Custom3DQuote{},
 		&models.PasswordResetToken{},
 		&models.ChatConversation{},

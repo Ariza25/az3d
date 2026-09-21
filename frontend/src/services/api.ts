@@ -52,6 +52,9 @@ import {
   MasterOAuthStartResponse,
   TenantPaymentAccountStatus,
   FilamentSpool,
+  FilamentUsageLog,
+  OrderFilamentCheckResult,
+  DeductFilamentInput,
   MLTrendKeyword,
   MLSearchInsight,
   MLListingAudit,
@@ -1102,6 +1105,34 @@ export const api = {
       headers: getAdminHeaders(tenantId),
     });
     if (!res.ok) throw new Error('Erro ao excluir filamento');
+  },
+
+  getFilamentLogs: async (spoolId: number, tenantId?: number): Promise<FilamentUsageLog[]> => {
+    const res = await fetch(`${API_BASE_URL}/admin/filaments/${spoolId}/logs`, {
+      headers: getAdminHeaders(tenantId),
+    });
+    if (!res.ok) throw new Error('Erro ao buscar histórico de consumo do filamento');
+    return res.json();
+  },
+
+  deductFilament: async (payload: DeductFilamentInput, tenantId?: number): Promise<{ message: string; spool: FilamentSpool; log: FilamentUsageLog }> => {
+    const res = await fetch(`${API_BASE_URL}/admin/filaments/deduct`, {
+      method: 'POST',
+      headers: getAdminHeaders(tenantId),
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro ao abater peso de filamento');
+    return data;
+  },
+
+  checkOrderFilament: async (orderId: number, tenantId?: number): Promise<OrderFilamentCheckResult> => {
+    const res = await fetch(`${API_BASE_URL}/admin/filaments/check-order/${orderId}`, {
+      headers: getAdminHeaders(tenantId),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro ao verificar disponibilidade de filamento');
+    return data;
   },
 
   // Orçamentos 3D Customizados
