@@ -96,6 +96,16 @@ export interface Product {
   store_variants?: Product[];
   /** Store-only label inferred from the marketplace title/SKU. */
   store_variant_color?: string;
+  sales_count?: number;
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+  has_more: boolean;
 }
 
 export interface StockAlert {

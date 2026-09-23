@@ -1,6 +1,7 @@
 import {
   Category,
   Product,
+  PaginatedResponse,
   AuthResponse,
   User,
   CreateOrderPayload,
@@ -254,15 +255,50 @@ export const api = {
   },
 
   // Produtos
-  getProducts: async (category?: string, query?: string, tenantId?: number): Promise<Product[]> => {
+  getProducts: async (
+    category?: string,
+    query?: string,
+    tenantId?: number,
+    page?: number,
+    limit?: number,
+    sortBy?: string
+  ): Promise<Product[] | PaginatedResponse<Product>> => {
     const params = new URLSearchParams();
     if (category && category !== 'todas') params.append('category', category);
     if (query) params.append('q', query);
+    if (sortBy) params.append('sort', sortBy);
+    if (page !== undefined && page > 0) {
+      params.append('page', String(page));
+      params.append('paginated', 'true');
+    }
+    if (limit !== undefined && limit > 0) params.append('limit', String(limit));
 
     const res = await fetch(`${API_BASE_URL}/products?${params.toString()}`, {
       headers: getHeaders(tenantId),
     });
-    return readJsonResponse<Product[]>(res, 'Falha ao carregar produtos');
+    return readJsonResponse<Product[] | PaginatedResponse<Product>>(res, 'Falha ao carregar produtos');
+  },
+
+  getPaginatedProducts: async (
+    category?: string,
+    query?: string,
+    tenantId?: number,
+    page: number = 1,
+    limit: number = 12,
+    sortBy?: string
+  ): Promise<PaginatedResponse<Product>> => {
+    const params = new URLSearchParams();
+    if (category && category !== 'todas') params.append('category', category);
+    if (query) params.append('q', query);
+    if (sortBy) params.append('sort', sortBy);
+    params.append('page', String(page));
+    params.append('limit', String(limit));
+    params.append('paginated', 'true');
+
+    const res = await fetch(`${API_BASE_URL}/products?${params.toString()}`, {
+      headers: getHeaders(tenantId),
+    });
+    return readJsonResponse<PaginatedResponse<Product>>(res, 'Falha ao carregar produtos paginados');
   },
 
   getProductById: async (id: number, tenantId?: number): Promise<Product> => {

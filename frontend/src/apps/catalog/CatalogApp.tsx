@@ -1,22 +1,17 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Heart,
   Share2,
-  ExternalLink,
   MessageCircle,
   Search,
   Grid,
   List,
   Check,
-  Copy,
   Sparkles,
   Layers,
-  ArrowRight,
   X,
   Star,
   ShoppingBag,
   Maximize2,
-  Trash2,
   Flame,
   ArrowUpRight,
   ChevronLeft,
@@ -39,15 +34,63 @@ import {
 import { getCurrentStoreRouteStyle, getProductPath, getStorePath } from '../../shared/tenantRoutes';
 import { AZ3DLogo } from '../../components/AZ3DLogo';
 
-interface SavedItem {
-  id: number;
-  title: string;
-  price: number;
-  image: string;
-  material?: string;
-  slug?: string;
-  selectedColor?: string;
-}
+
+// Preço da peça no catálogo com cupom de 10% aplicado diretamente (sem exibir desconto)
+export const getCatalogPrice = (price: number): number => {
+  if (!price || price <= 0) return 0;
+  return Math.round(price * 0.9 * 100) / 100;
+};
+
+// Extração de dimensões a partir da descrição ou campo dimensions do produto
+export const extractProductDimensions = (product: { description?: string; dimensions?: string }): string => {
+  const desc = product.description || '';
+
+  if (desc) {
+    // 1. Linhas com "Dimensões", "Medidas", "Tamanho"
+    const lineMatch = desc.match(
+      /(?:dimens[õo]es|medidas?|tamanho|dimensao)(?:\s*(?:aproximadas?|totais?|do produto|\([^)]*\)))?\s*[:\-–]\s*([^\n\r]+)/i
+    );
+    if (lineMatch && lineMatch[1]) {
+      let raw = lineMatch[1].trim();
+      const dotIdx = raw.indexOf('.');
+      if (dotIdx > 0 && (raw.slice(dotIdx).includes(' ') || dotIdx > 8)) {
+        raw = raw.slice(0, dotIdx).trim();
+      }
+      raw = raw.replace(/[;,.\-]+$/, '').trim();
+      if (raw.length >= 2 && raw.length <= 50) {
+        return raw;
+      }
+    }
+
+    // 2. Altura, Largura e Comprimento/Profundidade estruturados
+    const altMatch = desc.match(/(?:alt(?:ura)?)\s*[:\-–]?\s*(\d+(?:[.,]\d+)?\s*(?:cm|mm|m)?)/i);
+    const largMatch = desc.match(/(?:larg(?:ura)?)\s*[:\-–]?\s*(\d+(?:[.,]\d+)?\s*(?:cm|mm|m)?)/i);
+    const profMatch = desc.match(/(?:prof(?:undidade)?|comp(?:rimento)?)\s*[:\-–]?\s*(\d+(?:[.,]\d+)?\s*(?:cm|mm|m)?)/i);
+    if (altMatch && largMatch) {
+      const parts = [
+        altMatch[1] ? `Alt: ${altMatch[1]}` : null,
+        largMatch[1] ? `Larg: ${largMatch[1]}` : null,
+        profMatch ? `Prof: ${profMatch[1]}` : null,
+      ].filter(Boolean);
+      return parts.join(' • ');
+    }
+
+    // 3. Padrão numérico clássico: ex: "12 x 10 x 8 cm" ou "120 × 120 × 150 mm" ou "15 x 10 cm"
+    const numMatch = desc.match(
+      /\b\d+(?:[.,]\d+)?\s*(?:cm|mm|m)?\s*[xX×*]\s*\d+(?:[.,]\d+)?\s*(?:cm|mm|m)?(?:\s*[xX×*]\s*\d+(?:[.,]\d+)?\s*(?:cm|mm|m)?)?\b/
+    );
+    if (numMatch && numMatch[0]) {
+      return numMatch[0].trim();
+    }
+  }
+
+  // 4. Fallback para campo dimensions do produto se preenchido e não genérico
+  if (product.dimensions && product.dimensions.trim() && product.dimensions !== 'A confirmar' && product.dimensions !== '--') {
+    return product.dimensions.trim();
+  }
+
+  return '';
+};
 
 export const CatalogApp: React.FC = () => {
   const {
@@ -60,9 +103,17 @@ export const CatalogApp: React.FC = () => {
   const [tenantSettings, setTenantSettings] = useState<TenantSettings | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('todas');
-  const [selectedMaterial, setSelectedMaterial] = useState<string>('todos');
   const [sortBy, setSortBy] = useState<'featured' | 'price_asc' | 'price_desc' | 'name'>('featured');
   const [viewMode, setViewMode] = useState<'grid' | 'compact'>('grid');
+
+  // Paginação vinda do Backend com Infinite Scroll
+  const [paginatedProducts, setPaginatedProducts] = useState<Product[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isCatalogLoading, setIsCatalogLoading] = useState(true);
+  const [totalCatalogCount, setTotalCatalogCount] = useState(0);
+  const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
 
   // Tema Escuro / Claro
   const { theme, toggleTheme } = useTheme();
@@ -109,20 +160,7 @@ export const CatalogApp: React.FC = () => {
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
 
-  // Caderno de Desejos / Salvos para Depois
-  const [savedItems, setSavedItems] = useState<SavedItem[]>(() => {
-    if (!activeTenant) return [];
-    try {
-      const stored = localStorage.getItem(`az3d_catalog_saved_${activeTenant.id}`);
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  const [isSavedDrawerOpen, setIsSavedDrawerOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
-  const [copiedWishlist, setCopiedWishlist] = useState(false);
 
   // Atualiza configurações do tenant
   useEffect(() => {
@@ -132,99 +170,107 @@ export const CatalogApp: React.FC = () => {
       .catch(() => setTenantSettings(null));
   }, [activeTenant]);
 
-  // Recarrega itens salvos ao trocar tenant
-  useEffect(() => {
-    if (!activeTenant) return;
-    try {
-      const stored = localStorage.getItem(`az3d_catalog_saved_${activeTenant.id}`);
-      setSavedItems(stored ? JSON.parse(stored) : []);
-    } catch {
-      setSavedItems([]);
-    }
-  }, [activeTenant?.id]);
-
-  // Salva itens salvos no localStorage
-  useEffect(() => {
-    if (!activeTenant) return;
-    try {
-      localStorage.setItem(`az3d_catalog_saved_${activeTenant.id}`, JSON.stringify(savedItems));
-    } catch (e) {
-      console.warn('Falha ao salvar itens do catálogo:', e);
-    }
-  }, [savedItems, activeTenant?.id]);
-
   // Ajusta título da página
   useEffect(() => {
     const storeName = tenantSettings?.store_name || activeTenant?.name || 'Catálogo Digital';
     document.title = `Catálogo Visual • ${storeName}`;
   }, [activeTenant, tenantSettings]);
 
-  const storeProducts = useMemo(() => groupMarketplaceProducts(products), [products]);
+  // Busca de produtos paginada no backend
+  const fetchProductsPage = useCallback(async (page: number, append: boolean = false) => {
+    if (!activeTenant) return;
+    if (page === 1) {
+      setIsCatalogLoading(true);
+    } else {
+      setIsLoadingMore(true);
+    }
 
-  // Materiais disponíveis
-  const materialList = useMemo(() => {
-    const set = new Set<string>();
-    storeProducts.forEach((p) => {
-      if (p.material) set.add(p.material.trim());
-    });
-    return Array.from(set).sort();
-  }, [storeProducts]);
+    try {
+      const res = await api.getPaginatedProducts(
+        selectedCategory,
+        searchQuery,
+        activeTenant.id,
+        page,
+        12,
+        sortBy
+      );
 
-  // Filtragem e busca
-  const filteredProducts = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
+      const items = res.items || [];
+      setTotalCatalogCount(res.total || 0);
+      setHasMore(Boolean(res.has_more));
+      setCurrentPage(res.page || page);
 
-    return storeProducts
-      .filter((product) => {
-        // Categoria
-        if (selectedCategory !== 'todas') {
-          const matchCat =
-            product.category?.slug === selectedCategory ||
-            String(product.category_id) === selectedCategory;
-          if (!matchCat) return false;
+      if (append) {
+        setPaginatedProducts((prev) => {
+          const existingIds = new Set(prev.map((p) => p.id));
+          const uniqueNew = items.filter((p) => !existingIds.has(p.id));
+          return [...prev, ...uniqueNew];
+        });
+      } else {
+        setPaginatedProducts(items);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar produtos paginados do backend:', err);
+      if (!append) {
+        setPaginatedProducts(products);
+        setHasMore(false);
+      }
+    } finally {
+      setIsCatalogLoading(false);
+      setIsLoadingMore(false);
+    }
+  }, [activeTenant, selectedCategory, searchQuery, sortBy, products]);
+
+  // Recarrega página 1 quando tenant, categoria, busca ou ordenação mudam
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchProductsPage(1, false);
+    }, 180);
+    return () => clearTimeout(timer);
+  }, [fetchProductsPage]);
+
+  // Listener de Infinite Scroll com IntersectionObserver
+  useEffect(() => {
+    const sentinel = loadMoreSentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const first = entries[0];
+        if (first.isIntersecting && hasMore && !isLoadingMore && !isCatalogLoading) {
+          fetchProductsPage(currentPage + 1, true);
         }
+      },
+      { rootMargin: '300px' }
+    );
 
-        // Material
-        if (selectedMaterial !== 'todos') {
-          if (!product.material || !product.material.toLowerCase().includes(selectedMaterial.toLowerCase())) {
-            return false;
-          }
-        }
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, isLoadingMore, isCatalogLoading, currentPage, fetchProductsPage]);
 
-        // Busca textual
-        if (q) {
-          const family = product.store_variants?.length ? product.store_variants : [product];
-          const text = family
-            .flatMap((item) => [
-              item.title,
-              item.description,
-              item.material,
-              item.category?.name || '',
-            ])
-            .join(' ')
-            .toLowerCase();
-          if (!text.includes(q)) return false;
-        }
-
-        return true;
-      })
-      .sort((a, b) => {
-        if (sortBy === 'price_asc') return a.price - b.price;
-        if (sortBy === 'price_desc') return b.price - a.price;
-        if (sortBy === 'name') return a.title.localeCompare(b.title);
-        // Featured (Destaques)
-        const aScore = (a.review_summary?.review_count || a.review_count || 0) + (getStockStatus(a).canBuy ? 10 : 0);
-        const bScore = (b.review_summary?.review_count || b.review_count || 0) + (getStockStatus(b).canBuy ? 10 : 0);
-        return bScore - aScore;
-      });
-  }, [storeProducts, selectedCategory, selectedMaterial, searchQuery, sortBy]);
+  const rawProducts = paginatedProducts.length > 0 ? paginatedProducts : products;
+  const storeProducts = useMemo(() => groupMarketplaceProducts(rawProducts), [rawProducts]);
+  const filteredProducts = storeProducts;
 
   // Destaques / Vitrine Top Picks (para o carrossel interativo)
+  // Devem pegar os itens mais vendidos da loja; caso não tenham um ranking ainda, a escolha é aleatória.
   const spotlightProducts = useMemo(() => {
-    return storeProducts
-      .filter((p) => getStockStatus(p).canBuy)
-      .slice(0, 10);
-  }, [storeProducts]);
+    const all = groupMarketplaceProducts(products).filter((p) => getStockStatus(p).canBuy);
+    if (all.length === 0) return [];
+
+    const hasSalesRanking = all.some((p) => (p.sales_count || 0) > 0);
+    if (hasSalesRanking) {
+      return [...all].sort((a, b) => (b.sales_count || 0) - (a.sales_count || 0)).slice(0, 10);
+    }
+
+    // Caso ainda não haja ranking de vendas, seleção aleatória
+    const shuffled = [...all];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled.slice(0, 10);
+  }, [products]);
 
   useEffect(() => {
     checkCarouselScroll();
@@ -236,7 +282,7 @@ export const CatalogApp: React.FC = () => {
   // Categorias com contador de produtos
   const categoriesWithCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    storeProducts.forEach((p) => {
+    products.forEach((p) => {
       const slug = p.category?.slug || 'sem-categoria';
       counts[slug] = (counts[slug] || 0) + 1;
     });
@@ -245,32 +291,9 @@ export const CatalogApp: React.FC = () => {
       ...cat,
       count: counts[cat.slug] || 0,
     }));
-  }, [categories, storeProducts]);
+  }, [categories, products]);
 
-  // Ações de Salvar / Desejos
-  const toggleSaveItem = (product: Product) => {
-    setSavedItems((prev) => {
-      const exists = prev.some((item) => item.id === product.id);
-      if (exists) {
-        return prev.filter((item) => item.id !== product.id);
-      } else {
-        const cover = optimizeImageUrl(product.color_images?.[0]?.image_url || product.image_url);
-        return [
-          ...prev,
-          {
-            id: product.id,
-            title: product.title,
-            price: product.price,
-            image: cover,
-            material: product.material,
-            slug: product.slug,
-          },
-        ];
-      }
-    });
-  };
 
-  const isItemSaved = (productId: number) => savedItems.some((item) => item.id === productId);
 
   // Copiar link do catálogo
   const handleCopyCatalogLink = () => {
@@ -278,43 +301,6 @@ export const CatalogApp: React.FC = () => {
     navigator.clipboard.writeText(url).then(() => {
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2500);
-    });
-  };
-
-  // Gerar mensagem formatada para o WhatsApp com os itens salvos
-  const handleShareWishlistWhatsApp = () => {
-    if (savedItems.length === 0) return;
-    const storeName = tenantSettings?.store_name || activeTenant?.name || 'sua loja';
-    const total = savedItems.reduce((acc, item) => acc + item.price, 0);
-
-    const itemsText = savedItems
-      .map((item, idx) => `${idx + 1}. *${item.title}* - ${money(item.price)}${item.material ? ` (${item.material})` : ''}`)
-      .join('\n');
-
-    const message = `Olá! Estive olhando o catálogo da *${storeName}* e separei esses itens de interesse:\n\n${itemsText}\n\n*Total Estimado:* ${money(total)}\n\nGostaria de tirar algumas dúvidas e saber mais sobre prazo e cores disponíveis!`;
-
-    const phone = tenantSettings?.origin_cep || '';
-    const cleanPhone = phone.replace(/\D/g, '');
-    const url = cleanPhone
-      ? `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(message)}`
-      : `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
-
-    window.open(url, '_blank');
-  };
-
-  // Copiar texto da lista salva
-  const handleCopyWishlistText = () => {
-    const storeName = tenantSettings?.store_name || activeTenant?.name || 'Catálogo';
-    const total = savedItems.reduce((acc, item) => acc + item.price, 0);
-    const itemsText = savedItems
-      .map((item, idx) => `${idx + 1}. ${item.title} - ${money(item.price)}`)
-      .join('\n');
-
-    const fullText = `Minha seleção no catálogo ${storeName}:\n\n${itemsText}\n\nTotal estimado: ${money(total)}`;
-
-    navigator.clipboard.writeText(fullText).then(() => {
-      setCopiedWishlist(true);
-      setTimeout(() => setCopiedWishlist(false), 2500);
     });
   };
 
@@ -346,10 +332,10 @@ export const CatalogApp: React.FC = () => {
               <img
                 src={resolveApiAssetUrl(logoUrl)}
                 alt={storeName}
-                className="h-8 w-8 sm:h-12 sm:w-12 rounded-xl object-cover border border-slate-200 dark:border-chumbo-700/60 shadow-md bg-white dark:bg-chumbo-900 shrink-0"
+                className="h-8 w-8 sm:h-12 sm:w-12 rounded-xl object-contain shrink-0"
               />
             ) : (
-              <AZ3DLogo className="h-8 w-8 sm:h-12 sm:w-12 rounded-xl object-contain p-1 border border-slate-200 dark:border-chumbo-700/60 shadow-md bg-white dark:bg-chumbo-900 shrink-0" />
+              <AZ3DLogo className="h-8 w-8 sm:h-12 sm:w-12 rounded-xl object-contain shrink-0" />
             )}
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 sm:gap-2">
@@ -363,7 +349,7 @@ export const CatalogApp: React.FC = () => {
               <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 truncate flex items-center gap-1">
                 <span className="truncate">Impressão 3D</span>
                 <span className="text-slate-400 dark:text-chumbo-600">•</span>
-                <span className="text-slate-500 dark:text-slate-400 shrink-0">{storeProducts.length} itens</span>
+                <span className="text-slate-500 dark:text-slate-400 shrink-0">{totalCatalogCount || storeProducts.length} itens</span>
               </p>
             </div>
           </div>
@@ -412,23 +398,6 @@ export const CatalogApp: React.FC = () => {
               )}
             </button>
 
-            {/* Caderno de Escolhas / Salvos (Wishlist) */}
-            <button
-              type="button"
-              onClick={() => setIsSavedDrawerOpen(true)}
-              className="relative inline-flex items-center gap-1.5 sm:gap-2 p-2 sm:px-3.5 sm:py-2 rounded-xl text-xs font-semibold bg-white dark:bg-chumbo-900 hover:bg-slate-100 dark:hover:bg-chumbo-800 text-slate-700 dark:text-slate-100 border border-slate-300 dark:border-chumbo-700/80 transition-all shadow-sm active:scale-95 shrink-0"
-              title="Ver itens que você separou para depois"
-              aria-label="Ver itens salvos"
-            >
-              <Heart className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${savedItems.length > 0 ? 'fill-rose-500 text-rose-500' : 'text-slate-500 dark:text-slate-400'}`} />
-              <span className="hidden lg:inline">Salvos</span>
-              {savedItems.length > 0 && (
-                <span className="flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-rose-500 text-[9px] sm:text-[10px] font-extrabold text-white shadow">
-                  {savedItems.length}
-                </span>
-              )}
-            </button>
-
             {/* Ir para a Loja Oficial */}
             <button
               type="button"
@@ -453,15 +422,15 @@ export const CatalogApp: React.FC = () => {
           <div className="absolute -left-16 -bottom-16 w-60 sm:w-72 h-60 sm:h-72 bg-blue-500/15 rounded-full blur-3xl pointer-events-none" />
 
           <div className="relative z-10 max-w-2xl space-y-2 sm:space-y-3">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-cyan-400/15 border border-cyan-400/30 text-cyan-300 text-[11px] sm:text-xs font-semibold">
-              <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-cyan-400" />
-              <span>Vitrine Visual • Impressão 3D</span>
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-cyan-400/20 border border-cyan-400/40 !text-white text-[11px] sm:text-xs font-bold">
+              <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 !text-white" />
+              <span className="!text-white font-bold">Vitrine Visual • Impressão 3D</span>
             </div>
             <h2 className="text-xl min-[400px]:text-2xl sm:text-3xl lg:text-4xl font-extrabold text-white tracking-tight leading-tight drop-shadow-sm">
               Veja com calma tudo o que podemos produzir para você.
             </h2>
             <p className="text-xs sm:text-sm lg:text-base text-slate-200 leading-relaxed font-normal">
-              Explore o catálogo completo de impressão 3D, descubra cores e materiais, e marque suas peças favoritas.
+              Explore o catálogo completo de impressão 3D, descubra cores e modelos, e veja as especificações de cada peça.
               Quando decidir, finalize na loja ou fale direto conosco no WhatsApp!
             </p>
           </div>
@@ -526,7 +495,6 @@ export const CatalogApp: React.FC = () => {
             >
               {spotlightProducts.map((product) => {
                 const cover = optimizeImageUrl(product.color_images?.[0]?.image_url || product.image_url);
-                const isSaved = isItemSaved(product.id);
                 return (
                   <div
                     key={`spotlight-${product.id}`}
@@ -543,31 +511,26 @@ export const CatalogApp: React.FC = () => {
                         loading="lazy"
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                       />
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleSaveItem(product);
-                        }}
-                        className={`absolute top-2 right-2 p-1.5 sm:p-2 rounded-lg backdrop-blur-md transition-all shadow-md ${
-                          isSaved
-                            ? 'bg-rose-500 text-white'
-                            : 'bg-white/90 dark:bg-chumbo-950/70 text-slate-700 dark:text-slate-300 hover:text-rose-500 hover:bg-white dark:hover:bg-chumbo-900 border border-slate-200/60 dark:border-chumbo-700/60'
-                        }`}
-                        title={isSaved ? 'Remover dos salvos' : 'Salvar para decidir depois'}
-                        aria-label="Salvar item"
-                      >
-                        <Heart className={`w-3.5 h-3.5 ${isSaved ? 'fill-current' : ''}`} />
-                      </button>
                     </div>
 
-                    <div className="mt-2 space-y-0.5 sm:space-y-1">
+                    <div className="mt-2 space-y-1">
                       <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate group-hover:text-cyan-600 dark:group-hover:text-cyan-300 transition-colors">
                         {product.title}
                       </h4>
-                      <p className="text-xs sm:text-sm font-extrabold text-cyan-700 dark:text-cyan-400">
-                        {money(product.price)}
-                      </p>
+                      {(() => {
+                        const dim = extractProductDimensions(product);
+                        return dim ? (
+                          <p className="text-xs sm:text-[13px] font-medium text-slate-700 dark:text-slate-300 truncate">
+                            Dimensões do produto: <span className="font-bold text-slate-900 dark:text-slate-100">{dim}</span>
+                          </p>
+                        ) : null;
+                      })()}
+                      <div className="flex items-baseline gap-1.5 pt-0.5">
+                        <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Preço:</span>
+                        <span className="text-base sm:text-lg lg:text-xl font-black text-cyan-700 dark:text-cyan-400">
+                          {money(getCatalogPrice(product.price))}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 );
@@ -605,7 +568,7 @@ export const CatalogApp: React.FC = () => {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Buscar por nome, material, cor..."
+                placeholder="Buscar produto por nome, modelo, cor..."
                 className="w-full pl-9 pr-8 py-2 rounded-xl bg-white dark:bg-chumbo-900 border border-slate-300 dark:border-chumbo-700/80 text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all shadow-xs"
               />
               {searchQuery && (
@@ -621,20 +584,6 @@ export const CatalogApp: React.FC = () => {
 
             {/* Controles de Ordenação e Visualização */}
             <div className="flex items-center gap-1.5 sm:gap-2 justify-between sm:justify-end shrink-0">
-              {/* Filtro de Material */}
-              {materialList.length > 0 && (
-                <select
-                  value={selectedMaterial}
-                  onChange={(e) => setSelectedMaterial(e.target.value)}
-                  className="px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-white dark:bg-chumbo-900 border border-slate-300 dark:border-chumbo-700/80 text-[11px] sm:text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-cyan-500 max-w-[120px] sm:max-w-none truncate shadow-xs"
-                >
-                  <option value="todos">Materiais</option>
-                  {materialList.map((m) => (
-                    <option key={m} value={m}>{m}</option>
-                  ))}
-                </select>
-              )}
-
               {/* Ordenação */}
               <select
                 value={sortBy}
@@ -683,11 +632,13 @@ export const CatalogApp: React.FC = () => {
               onClick={() => setSelectedCategory('todas')}
               className={`shrink-0 px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full text-xs font-medium transition-all ${
                 selectedCategory === 'todas'
-                  ? 'bg-cyan-600 text-white font-bold shadow-md shadow-cyan-600/30'
-                  : 'bg-white dark:bg-chumbo-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-chumbo-800 border border-slate-300 dark:border-chumbo-700/70 shadow-xs'
+                  ? 'bg-cyan-600 !text-white font-bold shadow-md shadow-cyan-600/30'
+                  : 'bg-white dark:bg-chumbo-900 text-slate-800 dark:text-white hover:bg-slate-50 dark:hover:bg-chumbo-800 border border-slate-300 dark:border-chumbo-700/70 shadow-xs'
               }`}
             >
-              Todas ({storeProducts.length})
+              <span className={selectedCategory === 'todas' ? '!text-white' : 'text-slate-800 dark:text-white'}>
+                Todas ({totalCatalogCount || storeProducts.length})
+              </span>
             </button>
             {categoriesWithCounts.map((cat) => (
               <button
@@ -695,17 +646,19 @@ export const CatalogApp: React.FC = () => {
                 onClick={() => setSelectedCategory(cat.slug)}
                 className={`shrink-0 px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1.5 ${
                   selectedCategory === cat.slug
-                    ? 'bg-cyan-600 text-white font-bold shadow-md shadow-cyan-600/30'
-                    : 'bg-white dark:bg-chumbo-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-chumbo-800 border border-slate-300 dark:border-chumbo-700/70 shadow-xs'
+                    ? 'bg-cyan-600 !text-white font-bold shadow-md shadow-cyan-600/30'
+                    : 'bg-white dark:bg-chumbo-900 text-slate-800 dark:text-white hover:bg-slate-50 dark:hover:bg-chumbo-800 border border-slate-300 dark:border-chumbo-700/70 shadow-xs'
                 }`}
               >
-                <span>{cat.name}</span>
+                <span className={selectedCategory === cat.slug ? '!text-white' : 'text-slate-800 dark:text-white'}>
+                  {cat.name}
+                </span>
                 {cat.count > 0 && (
                   <span
                     className={`text-[9px] sm:text-[10px] px-1.5 py-0.2 rounded-full ${
                       selectedCategory === cat.slug
-                        ? 'bg-cyan-700 text-white font-bold'
-                        : 'bg-slate-100 dark:bg-chumbo-800 text-slate-600 dark:text-slate-400'
+                        ? 'bg-cyan-700 !text-white font-bold'
+                        : 'bg-slate-100 dark:bg-chumbo-800 text-slate-600 dark:text-slate-300'
                     }`}
                   >
                     {cat.count}
@@ -741,7 +694,6 @@ export const CatalogApp: React.FC = () => {
               onClick={() => {
                 setSearchQuery('');
                 setSelectedCategory('todas');
-                setSelectedMaterial('todos');
               }}
               className="mt-2 px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-white dark:bg-chumbo-800 dark:hover:bg-chumbo-700 shadow-sm"
             >
@@ -753,7 +705,6 @@ export const CatalogApp: React.FC = () => {
           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-6">
             {filteredProducts.map((product) => {
               const cover = optimizeImageUrl(product.color_images?.[0]?.image_url || product.image_url);
-              const isSaved = isItemSaved(product.id);
               const status = getStockStatus(product);
               const colors = getAvailableColors(product).slice(0, 4);
               const rating = product.review_summary?.average_rating || product.rating;
@@ -785,23 +736,6 @@ export const CatalogApp: React.FC = () => {
                         {status.label}
                       </span>
                     </div>
-
-                    {/* Botão de Salvar para Depois */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleSaveItem(product);
-                      }}
-                      className={`absolute top-2.5 right-2.5 p-2 rounded-xl backdrop-blur-md transition-all shadow-md ${
-                        isSaved
-                          ? 'bg-rose-500 text-white scale-105'
-                          : 'bg-white/90 dark:bg-chumbo-950/70 text-slate-700 dark:text-slate-300 hover:text-rose-500 hover:bg-white dark:hover:bg-chumbo-900 border border-slate-200/60 dark:border-chumbo-700/60'
-                      }`}
-                      title={isSaved ? 'Item salvo! Clique para remover' : 'Salvar para decidir depois'}
-                    >
-                      <Heart className={`w-4 h-4 ${isSaved ? 'fill-current' : ''}`} />
-                    </button>
 
                     {/* Botão de Zoom/Detalhes Rápido */}
                     <button
@@ -839,12 +773,15 @@ export const CatalogApp: React.FC = () => {
                         )}
                       </div>
 
-                      {product.material && (
-                        <p className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
-                          {product.material}
-                          {product.dimensions ? ` • ${product.dimensions}` : ''}
-                        </p>
-                      )}
+                      {(() => {
+                        const dim = extractProductDimensions(product);
+                        if (!dim) return null;
+                        return (
+                          <p className="text-xs sm:text-[13px] font-medium text-slate-700 dark:text-slate-300">
+                            Dimensões do produto: <span className="font-bold text-slate-900 dark:text-slate-100">{dim}</span>
+                          </p>
+                        );
+                      })()}
 
                       {/* Swatches de Cores */}
                       {colors.length > 0 && (
@@ -869,25 +806,16 @@ export const CatalogApp: React.FC = () => {
                       )}
                     </div>
 
-                    {/* Preço e Botão de Ação */}
-                    <div className="pt-2 border-t border-slate-200 dark:border-chumbo-800/80 flex items-center justify-between gap-2">
+                    {/* Preço */}
+                    <div className="pt-2.5 border-t border-slate-200 dark:border-chumbo-800/80 flex items-center justify-between gap-2">
                       <div>
-                        <span className="text-[9px] uppercase font-mono tracking-wider text-slate-500 dark:text-slate-400 block">
-                          Preço
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                          Preço:
                         </span>
-                        <span className="text-sm sm:text-base font-extrabold text-cyan-700 dark:text-cyan-400">
-                          {money(product.price)}
+                        <span className="text-base sm:text-lg lg:text-xl font-black text-cyan-700 dark:text-cyan-400">
+                          {money(getCatalogPrice(product.price))}
                         </span>
                       </div>
-
-                      <button
-                        onClick={() => goToStore(product.slug || product.id)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-200 text-white dark:text-chumbo-950 text-xs font-bold transition-all shadow-sm active:scale-95"
-                        title="Ir para a loja comprar"
-                      >
-                        <span>Comprar</span>
-                        <ArrowRight className="w-3 h-3" />
-                      </button>
                     </div>
                   </div>
                 </article>
@@ -899,7 +827,6 @@ export const CatalogApp: React.FC = () => {
           <div className="space-y-2">
             {filteredProducts.map((product) => {
               const cover = optimizeImageUrl(product.color_images?.[0]?.image_url || product.image_url);
-              const isSaved = isItemSaved(product.id);
               const status = getStockStatus(product);
 
               return (
@@ -922,54 +849,46 @@ export const CatalogApp: React.FC = () => {
                       <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate group-hover:text-cyan-600 dark:group-hover:text-cyan-300">
                         {product.title}
                       </h4>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                        {product.material || 'Impressão 3D'}
-                        {product.category?.name ? ` • ${product.category.name}` : ''}
-                      </p>
+                      {(() => {
+                        const dim = extractProductDimensions(product);
+                        return dim ? (
+                          <p className="text-xs sm:text-[13px] font-medium text-slate-700 dark:text-slate-300 truncate">
+                            Dimensões do produto: <span className="font-bold text-slate-900 dark:text-slate-100">{dim}</span>
+                          </p>
+                        ) : null;
+                      })()}
                       <span className={`inline-block mt-1 px-2 py-0.2 rounded-md text-[9px] font-bold border ${status.tone}`}>
                         {status.label}
                       </span>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span className="text-sm sm:text-base font-extrabold text-cyan-700 dark:text-cyan-400">
-                      {money(product.price)}
+                  <div className="shrink-0 text-right">
+                    <span className="text-[10px] sm:text-xs font-bold uppercase text-slate-500 dark:text-slate-400 block">Preço:</span>
+                    <span className="text-base sm:text-lg font-black text-cyan-700 dark:text-cyan-400">
+                      {money(getCatalogPrice(product.price))}
                     </span>
-
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleSaveItem(product);
-                      }}
-                      className={`p-2 rounded-xl transition-all ${
-                        isSaved
-                          ? 'bg-rose-500 text-white'
-                          : 'bg-slate-100 dark:bg-chumbo-800 text-slate-600 dark:text-slate-300 hover:text-rose-500'
-                      }`}
-                      title={isSaved ? 'Salvo' : 'Salvar para depois'}
-                    >
-                      <Heart className={`w-4 h-4 ${isSaved ? 'fill-current' : ''}`} />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        goToStore(product.slug || product.id);
-                      }}
-                      className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-200 text-white dark:text-chumbo-950 transition-all font-bold text-xs shadow-xs"
-                      title="Comprar na Loja"
-                    >
-                      <ShoppingBag className="w-4 h-4" />
-                    </button>
                   </div>
                 </div>
               );
             })}
           </div>
         )}
+
+        {/* Loading de Paginação no Scroll / Fim da Lista */}
+        <div ref={loadMoreSentinelRef} className="py-4 flex flex-col items-center justify-center">
+          {isLoadingMore && (
+            <div className="flex items-center gap-2.5 py-3.5 px-5 rounded-2xl bg-white dark:bg-chumbo-900 border border-slate-200 dark:border-chumbo-700 text-cyan-600 dark:text-cyan-400 shadow-sm animate-in fade-in">
+              <div className="w-4 h-4 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+              <span className="text-xs sm:text-sm font-bold">Carregando mais peças...</span>
+            </div>
+          )}
+          {!hasMore && filteredProducts.length > 0 && (
+            <p className="text-[11px] sm:text-xs text-slate-400 dark:text-slate-500 py-3 font-medium text-center">
+              Você viu todas as {totalCatalogCount || filteredProducts.length} peças disponíveis.
+            </p>
+          )}
+        </div>
       </main>
 
       {/* Modal de Detalhe Rápido do Produto - Totalmente responsivo com suporte a Tema Claro e Escuro */}
@@ -982,18 +901,18 @@ export const CatalogApp: React.FC = () => {
             className="relative w-full max-w-lg md:max-w-4xl lg:max-w-5xl overflow-hidden rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-chumbo-700 bg-white dark:bg-chumbo-950 text-slate-900 dark:text-slate-100 p-4 sm:p-6 md:p-8 shadow-2xl max-h-[92vh] md:max-h-[88vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Fechar */}
+            {/* Fechar sem sobreposição */}
             <button
               onClick={() => setDetailProduct(null)}
-              className="absolute top-3 right-3 sm:top-4 sm:right-4 z-20 p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-chumbo-900/90 dark:hover:bg-chumbo-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-chumbo-700/60 transition-all"
+              className="absolute top-3.5 right-3.5 sm:top-5 sm:right-5 z-30 p-2 sm:p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-chumbo-900 dark:hover:bg-chumbo-800 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-chumbo-700 transition-all shadow-sm active:scale-95"
               aria-label="Fechar detalhes"
             >
-              <X className="w-4 h-4 sm:w-5 sm:h-5" />
+              <X className="w-5 h-5" />
             </button>
 
-            <div className="md:grid md:grid-cols-2 md:gap-8 md:items-start space-y-4 md:space-y-0">
+            <div className="md:grid md:grid-cols-2 md:gap-8 md:items-stretch space-y-4 md:space-y-0">
               {/* Coluna Esquerda: Galeria de Fotos */}
-              <div className="space-y-3">
+              <div className="space-y-3 flex flex-col">
                 <div className="relative aspect-square sm:aspect-[4/3] md:aspect-square w-full overflow-hidden rounded-2xl bg-slate-50 dark:bg-chumbo-900 border border-slate-200 dark:border-chumbo-800">
                   {(() => {
                     const allImages = [
@@ -1042,20 +961,18 @@ export const CatalogApp: React.FC = () => {
               </div>
 
               {/* Coluna Direita: Informações & Ações */}
-              <div className="space-y-4 flex flex-col justify-between">
-                <div className="space-y-3.5">
-                  <div className="flex items-start justify-between gap-3 pr-8 md:pr-0">
-                    <div>
-                      <h3 className="text-lg sm:text-2xl font-extrabold text-slate-900 dark:text-white leading-tight">
-                        {detailProduct.title}
-                      </h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                        {detailProduct.category?.name || 'Impressão 3D'} • Ref: {detailProduct.sku || `#${detailProduct.id}`}
-                      </p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-mono uppercase">Valor</span>
-                      <span className="text-xl sm:text-2xl font-black text-cyan-700 dark:text-cyan-400">{money(detailProduct.price)}</span>
+              <div className="flex flex-col justify-between h-full space-y-4">
+                <div className="space-y-3.5 flex-1">
+                  {/* Cabeçalho do Produto: Título em linha inteira e Preço diretamente abaixo */}
+                  <div className="space-y-1.5 pr-12 sm:pr-14 md:pr-16">
+                    <h3 className="text-lg sm:text-2xl font-extrabold text-slate-900 dark:text-white leading-tight break-words">
+                      {detailProduct.title}
+                    </h3>
+                    <div className="flex items-baseline gap-2 pt-0.5">
+                      <span className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Preço:</span>
+                      <span className="text-2xl sm:text-3xl font-black text-cyan-700 dark:text-cyan-400">
+                        {money(getCatalogPrice(detailProduct.price))}
+                      </span>
                     </div>
                   </div>
 
@@ -1067,7 +984,7 @@ export const CatalogApp: React.FC = () => {
                     </div>
                     <div>
                       <span className="text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 block uppercase font-mono">Dimensões</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block">{detailProduct.dimensions || 'Sob medida'}</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block">{extractProductDimensions(detailProduct) || 'Sob medida'}</span>
                     </div>
                     <div>
                       <span className="text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 block uppercase font-mono">Status</span>
@@ -1076,195 +993,42 @@ export const CatalogApp: React.FC = () => {
                   </div>
 
                   {detailProduct.description && (
-                    <div className="space-y-1">
-                      <h5 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Detalhes da Peça</h5>
-                      <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line max-h-48 overflow-y-auto pr-1">
+                    <div className="space-y-1.5">
+                      <h5 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Detalhes da Peça</h5>
+                      <p className="text-sm sm:text-base text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line max-h-56 overflow-y-auto pr-1">
                         {detailProduct.description}
                       </p>
                     </div>
                   )}
                 </div>
 
-                {/* Ações no Modal (Adaptável para mobile e desktop) */}
-                <div className="pt-3 border-t border-slate-200 dark:border-chumbo-800 grid grid-cols-1 min-[420px]:grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => toggleSaveItem(detailProduct)}
-                    className={`flex items-center justify-center gap-1.5 py-2.5 sm:py-3 px-3 rounded-xl text-xs font-bold transition-all border active:scale-95 ${
-                      isItemSaved(detailProduct.id)
-                        ? 'bg-rose-500/10 border-rose-500/40 text-rose-600 dark:text-rose-400'
-                        : 'bg-slate-100 hover:bg-slate-200 dark:bg-chumbo-900 dark:hover:bg-chumbo-800 border-slate-300 dark:border-chumbo-700 text-slate-700 dark:text-slate-300'
-                    }`}
-                  >
-                    <Heart className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isItemSaved(detailProduct.id) ? 'fill-rose-500 text-rose-500' : ''}`} />
-                    <span className="truncate">{isItemSaved(detailProduct.id) ? 'Salvo' : 'Salvar'}</span>
-                  </button>
-
+                {/* Ações no Modal fixadas na base */}
+                <div className="pt-4 border-t border-slate-200 dark:border-chumbo-800 grid grid-cols-1 sm:grid-cols-2 gap-2 mt-auto">
                   <button
                     type="button"
                     onClick={() => {
                       const storeName = tenantSettings?.store_name || activeTenant?.name || 'sua loja';
-                      const msg = `Olá! Vi o produto *${detailProduct.title}* (${money(detailProduct.price)}) no catálogo da *${storeName}* e gostaria de mais informações!`;
-                      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`, '_blank');
+                      const msg = `Olá! Vi o produto *${detailProduct.title}* (${money(getCatalogPrice(detailProduct.price))}) no catálogo da *${storeName}* e gostaria de mais informações!`;
+                      window.open(`https://wa.me/5543998068708?text=${encodeURIComponent(msg)}`, '_blank');
                     }}
-                    className="flex items-center justify-center gap-1.5 py-2.5 sm:py-3 px-3 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-md active:scale-95"
+                    className="flex items-center justify-center gap-1.5 py-2.5 sm:py-3 px-3 rounded-xl text-xs sm:text-sm font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-md active:scale-95"
                   >
-                    <MessageCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                    <span className="truncate">WhatsApp</span>
+                    <MessageCircle className="w-4 h-4" />
+                    <span className="truncate">Tirar dúvidas no WhatsApp</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => goToStore(detailProduct.slug || detailProduct.id)}
-                    className="flex items-center justify-center gap-1.5 py-2.5 sm:py-3 px-3 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-200 text-white dark:text-chumbo-950 transition-all shadow-md active:scale-95"
+                    className="flex items-center justify-center gap-1.5 py-2.5 sm:py-3 px-3 rounded-xl text-xs sm:text-sm font-bold bg-slate-950 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-200 !text-white dark:!text-slate-950 transition-all shadow-md active:scale-95"
                   >
-                    <ShoppingBag className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                    <span className="truncate">Comprar</span>
+                    <ShoppingBag className="w-4 h-4 !text-white dark:!text-slate-950" />
+                    <span className="truncate !text-white dark:!text-slate-950 font-bold">Ver na Loja Oficial</span>
                   </button>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Drawer: Salvos para Depois (Wishlist / Caderno de Escolhas) - Responsivo para qualquer altura de tela */}
-      {isSavedDrawerOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/60 dark:bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div
-            className="w-full sm:max-w-md h-full bg-white dark:bg-chumbo-950 border-l border-slate-200 dark:border-chumbo-800 p-4 sm:p-6 flex flex-col justify-between shadow-2xl animate-in slide-in-from-right duration-300"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header do Drawer */}
-            <div className="space-y-3 sm:space-y-4 flex flex-col flex-1 min-h-0">
-              <div className="flex items-center justify-between border-b border-slate-200 dark:border-chumbo-800 pb-3 sm:pb-4 shrink-0">
-                <div className="flex items-center gap-2">
-                  <Heart className="w-5 h-5 text-rose-500 fill-rose-500" />
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white">Minhas Escolhas</h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {savedItems.length} {savedItems.length === 1 ? 'item salvo' : 'itens salvos'} para decidir depois
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setIsSavedDrawerOpen(false)}
-                  className="p-2 rounded-xl text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-chumbo-900 transition-colors"
-                  aria-label="Fechar gaveta"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Lista dos Itens Salvos (Ocupa o espaço livre dinamicamente) */}
-              <div className="space-y-2 overflow-y-auto flex-1 pr-1">
-                {savedItems.length === 0 ? (
-                  <div className="py-12 text-center space-y-2 text-slate-400 dark:text-slate-500">
-                    <Heart className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto" />
-                    <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Nenhum item salvo ainda.</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs mx-auto">
-                      Clique no coração de qualquer peça do catálogo para salvar e decidir com calma depois!
-                    </p>
-                  </div>
-                ) : (
-                  savedItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center justify-between gap-2.5 p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-chumbo-800 bg-slate-50 dark:bg-chumbo-900/60 shadow-xs"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <img
-                          src={item.image}
-                          alt={item.title}
-                          className="h-11 w-11 sm:h-12 sm:w-12 rounded-lg object-cover bg-slate-100 dark:bg-chumbo-950 shrink-0 border border-slate-200 dark:border-chumbo-800"
-                        />
-                        <div className="min-w-0">
-                          <h5 className="text-xs font-bold text-slate-900 dark:text-white truncate">{item.title}</h5>
-                          <p className="text-xs font-extrabold text-cyan-700 dark:text-cyan-400">{money(item.price)}</p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          onClick={() => goToStore(item.slug || item.id)}
-                          className="p-1.5 rounded-lg bg-slate-200 dark:bg-chumbo-800 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors"
-                          title="Ver na loja"
-                          aria-label="Ver na loja"
-                        >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => setSavedItems((prev) => prev.filter((i) => i.id !== item.id))}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 transition-colors"
-                          title="Remover"
-                          aria-label="Remover item"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* Rodapé com Resumo e Ações */}
-            {savedItems.length > 0 && (
-              <div className="pt-3 sm:pt-4 border-t border-slate-200 dark:border-chumbo-800 space-y-2.5 sm:space-y-3 shrink-0">
-                <div className="flex items-center justify-between text-xs sm:text-sm">
-                  <span className="text-slate-500 dark:text-slate-400">Total Estimado ({savedItems.length}):</span>
-                  <span className="text-base sm:text-lg font-black text-cyan-700 dark:text-cyan-400">
-                    {money(savedItems.reduce((acc, item) => acc + item.price, 0))}
-                  </span>
-                </div>
-
-                <div className="space-y-2">
-                  <button
-                    onClick={handleShareWishlistWhatsApp}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 sm:py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg shadow-emerald-950/20 transition-all active:scale-98"
-                  >
-                    <MessageCircle className="w-4 h-4" />
-                    <span>Enviar Lista para o WhatsApp</span>
-                  </button>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={handleCopyWishlistText}
-                      className="flex items-center justify-center gap-1.5 py-2 sm:py-2.5 rounded-xl border border-slate-300 dark:border-chumbo-700 bg-slate-100 hover:bg-slate-200 dark:bg-chumbo-900 dark:hover:bg-chumbo-800 text-slate-700 dark:text-slate-300 text-xs font-semibold active:scale-95 transition-colors"
-                    >
-                      {copiedWishlist ? <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                      <span className="truncate">{copiedWishlist ? 'Copiada!' : 'Copiar Lista'}</span>
-                    </button>
-
-                    <button
-                      onClick={() => goToStore()}
-                      className="flex items-center justify-center gap-1.5 py-2 sm:py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-200 text-white dark:text-chumbo-950 text-xs font-bold active:scale-95 transition-colors shadow-xs"
-                    >
-                      <ShoppingBag className="w-3.5 h-3.5" />
-                      <span>Ir para a Loja</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Floating Wishlist Pill (se houver itens salvos e a gaveta estiver fechada) */}
-      {savedItems.length > 0 && !isSavedDrawerOpen && (
-        <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40 animate-in bounce-in duration-300">
-          <button
-            onClick={() => setIsSavedDrawerOpen(true)}
-            className="flex items-center gap-2 sm:gap-3 px-3 py-2 sm:px-4 sm:py-3 rounded-2xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs shadow-2xl shadow-rose-950/40 transition-all hover:scale-105 active:scale-95"
-            aria-label="Abrir itens salvos"
-          >
-            <Heart className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-white shrink-0" />
-            <span className="text-[11px] sm:text-xs">Salvos ({savedItems.length})</span>
-            <span className="bg-white/20 px-1.5 py-0.5 rounded-md text-[10px] sm:text-[11px] font-extrabold hidden min-[400px]:inline">
-              {money(savedItems.reduce((acc, item) => acc + item.price, 0))}
-            </span>
-          </button>
         </div>
       )}
 
@@ -1274,7 +1038,7 @@ export const CatalogApp: React.FC = () => {
           {storeName} • Catálogo Digital de Impressão 3D
         </p>
         <p>
-          Tem um modelo personalizado ou arquivo STL próprio? Converse conosco para um orçamento sob medida.
+          Tem um modelo personalizado em mente? Converse conosco para um orçamento sob medida.
         </p>
         <div className="pt-2">
           <button

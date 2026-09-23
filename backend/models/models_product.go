@@ -58,6 +58,7 @@ type Product struct {
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
 	ReviewSummary *ProductReviewSummary `gorm:"-" json:"review_summary,omitempty"`
+	SalesCount    int                   `gorm:"-" json:"sales_count"`
 }
 
 type ProductColorImage struct {

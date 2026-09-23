@@ -94,6 +94,62 @@ func attachReviewSummary(tenantID uint, product *models.Product) {
 	}
 }
 
+func attachSalesCounts(tenantID uint, products []models.Product) []models.Product {
+	if len(products) == 0 {
+		return products
+	}
+
+	productIDs := make([]uint, 0, len(products))
+	for _, product := range products {
+		productIDs = append(productIDs, product.ID)
+	}
+
+	type salesAggregate struct {
+		ProductID uint  `gorm:"column:product_id"`
+		TotalQty  int64 `gorm:"column:total_qty"`
+	}
+
+	salesMap := make(map[uint]int, len(productIDs))
+
+	// 1. Vendas de pedidos diretos da loja (não cancelados)
+	var regularAggs []salesAggregate
+	database.DB.Table("order_items").
+		Select("order_items.product_id, COALESCE(SUM(order_items.quantity), 0) AS total_qty").
+		Joins("JOIN orders ON orders.id = order_items.order_id").
+		Where("orders.tenant_id = ? AND orders.status <> 'cancelled' AND order_items.product_id IN ?", tenantID, productIDs).
+		Group("order_items.product_id").
+		Scan(&regularAggs)
+
+	for _, agg := range regularAggs {
+		salesMap[agg.ProductID] += int(agg.TotalQty)
+	}
+
+	// 2. Vendas de pedidos de marketplaces externos vinculados
+	var marketAggs []salesAggregate
+	database.DB.Table("external_marketplace_order_items").
+		Select("product_id, COALESCE(SUM(quantity), 0) AS total_qty").
+		Where("tenant_id = ? AND product_id IS NOT NULL AND product_id IN ?", tenantID, productIDs).
+		Group("product_id").
+		Scan(&marketAggs)
+
+	for _, agg := range marketAggs {
+		salesMap[agg.ProductID] += int(agg.TotalQty)
+	}
+
+	for i := range products {
+		products[i].SalesCount = salesMap[products[i].ID]
+	}
+
+	return products
+}
+
+func attachSalesCount(tenantID uint, product *models.Product) {
+	products := attachSalesCounts(tenantID, []models.Product{*product})
+	if len(products) == 1 {
+		*product = products[0]
+	}
+}
+
 func syncProductColorImages(tenantID uint, productID uint, inputs []models.ProductColorImageInput) error {
 	if err := database.DB.Where("tenant_id = ? AND product_id = ?", tenantID, productID).Delete(&models.ProductColorImage{}).Error; err != nil {
 		return err
@@ -449,11 +505,14 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 	tenantID := getTenantID(c)
 	categorySlug := c.Query("category")
 	searchQuery := c.Query("q")
+	pageStr := strings.TrimSpace(c.Query("page"))
+	limitStr := strings.TrimSpace(c.Query("limit"))
+	isPaginated := c.Query("paginated") == "true" || pageStr != ""
 
 	// Produtos publicados continuam visiveis mesmo sem estoque para que a loja
 	// possa sinalizar indisponibilidade. Anuncios importados do Mercado Livre sao
 	// publicados automaticamente, independentemente do status externo do anuncio.
-	query := withProductRelations(publishedProductQuery(database.DB.Model(&models.Product{}), tenantID))
+	query := publishedProductQuery(database.DB.Model(&models.Product{}), tenantID)
 
 	if categorySlug != "" && categorySlug != "todas" {
 		var category models.Category
@@ -467,13 +526,76 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 		query = query.Where("LOWER(title) LIKE ? OR LOWER(description) LIKE ? OR LOWER(material) LIKE ?", searchTerm, searchTerm, searchTerm)
 	}
 
+	var totalCount int64
+	if err := query.Count(&totalCount).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao contar produtos"})
+		return
+	}
+
+	c.Header("X-Total-Count", strconv.FormatInt(totalCount, 10))
+
+	sortBy := c.Query("sort")
+	switch sortBy {
+	case "price_asc":
+		query = query.Order("price asc, id asc")
+	case "price_desc":
+		query = query.Order("price desc, id asc")
+	case "name":
+		query = query.Order("title asc, id asc")
+	default:
+		query = query.Order("in_stock desc, sort_order asc, id desc")
+	}
+
+	if isPaginated {
+		page := 1
+		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+			page = p
+		}
+		limit := 12
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+			limit = l
+			if limit > 100 {
+				limit = 100
+			}
+		}
+
+		offset := (page - 1) * limit
+		totalPages := int(math.Ceil(float64(totalCount) / float64(limit)))
+		if totalPages == 0 {
+			totalPages = 1
+		}
+		hasMore := page < totalPages
+
+		c.Header("X-Total-Pages", strconv.Itoa(totalPages))
+		c.Header("X-Current-Page", strconv.Itoa(page))
+		c.Header("X-Page-Size", strconv.Itoa(limit))
+		c.Header("X-Has-More", strconv.FormatBool(hasMore))
+
+		var products []models.Product
+		if err := withProductRelations(query).Offset(offset).Limit(limit).Find(&products).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar produtos"})
+			return
+		}
+
+		items := attachSalesCounts(tenantID, attachReviewSummaries(tenantID, products))
+		c.JSON(http.StatusOK, gin.H{
+			"items":       items,
+			"total":       totalCount,
+			"page":        page,
+			"limit":       limit,
+			"total_pages": totalPages,
+			"has_more":    hasMore,
+		})
+		return
+	}
+
 	var products []models.Product
-	if err := query.Find(&products).Error; err != nil {
+	if err := withProductRelations(query).Find(&products).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar produtos"})
 		return
 	}
 
-	c.JSON(http.StatusOK, attachReviewSummaries(tenantID, products))
+	c.JSON(http.StatusOK, attachSalesCounts(tenantID, attachReviewSummaries(tenantID, products)))
 }
 
 // GET /api/products/:id
@@ -493,6 +615,7 @@ func (h *ProductHandler) GetProductByID(c *gin.Context) {
 	}
 
 	attachReviewSummary(tenantID, &product)
+	attachSalesCount(tenantID, &product)
 	c.JSON(http.StatusOK, product)
 }
 
@@ -502,20 +625,75 @@ func (h *ProductHandler) GetProductByID(c *gin.Context) {
 func (h *ProductHandler) GetAdminProducts(c *gin.Context) {
 	tenantID := getTenantID(c)
 	searchQuery := c.Query("q")
+	pageStr := strings.TrimSpace(c.Query("page"))
+	limitStr := strings.TrimSpace(c.Query("limit"))
+	isPaginated := c.Query("paginated") == "true" || pageStr != ""
 
-	query := withProductRelations(database.DB.Model(&models.Product{}).Where("tenant_id = ?", tenantID))
+	query := database.DB.Model(&models.Product{}).Where("tenant_id = ?", tenantID)
 	if searchQuery != "" {
 		searchTerm := "%" + strings.ToLower(searchQuery) + "%"
 		query = query.Where("LOWER(title) LIKE ? OR LOWER(description) LIKE ? OR LOWER(material) LIKE ?", searchTerm, searchTerm, searchTerm)
 	}
 
+	var totalCount int64
+	if err := query.Count(&totalCount).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao contar produtos do admin"})
+		return
+	}
+
+	c.Header("X-Total-Count", strconv.FormatInt(totalCount, 10))
+
+	query = query.Order("created_at desc")
+
+	if isPaginated {
+		page := 1
+		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+			page = p
+		}
+		limit := 20
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+			limit = l
+			if limit > 100 {
+				limit = 100
+			}
+		}
+
+		offset := (page - 1) * limit
+		totalPages := int(math.Ceil(float64(totalCount) / float64(limit)))
+		if totalPages == 0 {
+			totalPages = 1
+		}
+		hasMore := page < totalPages
+
+		c.Header("X-Total-Pages", strconv.Itoa(totalPages))
+		c.Header("X-Current-Page", strconv.Itoa(page))
+		c.Header("X-Page-Size", strconv.Itoa(limit))
+		c.Header("X-Has-More", strconv.FormatBool(hasMore))
+
+		var products []models.Product
+		if err := withProductRelations(query).Offset(offset).Limit(limit).Find(&products).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar produtos do admin"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"items":       attachSalesCounts(tenantID, attachReviewSummaries(tenantID, products)),
+			"total":       totalCount,
+			"page":        page,
+			"limit":       limit,
+			"total_pages": totalPages,
+			"has_more":    hasMore,
+		})
+		return
+	}
+
 	var products []models.Product
-	if err := query.Order("created_at desc").Find(&products).Error; err != nil {
+	if err := withProductRelations(query).Find(&products).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar produtos do admin"})
 		return
 	}
 
-	c.JSON(http.StatusOK, attachReviewSummaries(tenantID, products))
+	c.JSON(http.StatusOK, attachSalesCounts(tenantID, attachReviewSummaries(tenantID, products)))
 }
 
 // POST /api/admin/products
