@@ -542,8 +542,10 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 		query = query.Order("price desc, id asc")
 	case "name":
 		query = query.Order("title asc, id asc")
+	case "featured":
+		query = query.Order("in_stock desc, id desc")
 	default:
-		query = query.Order("in_stock desc, sort_order asc, id desc")
+		query = query.Order("in_stock desc, id desc")
 	}
 
 	if isPaginated {

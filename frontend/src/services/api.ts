@@ -285,16 +285,23 @@ export const api = {
     if (tenantId) params.append('tenant_id', String(tenantId));
     if (category && category !== 'todas') params.append('category', category);
     if (query) params.append('q', query);
-    if (sortBy) params.append('sort', sortBy);
+    const effectiveSort = (!sortBy || sortBy === 'featured') ? 'name' : sortBy;
+    params.append('sort', effectiveSort);
     if (page !== undefined && page > 0) {
       params.append('page', String(page));
       params.append('paginated', 'true');
     }
     if (limit !== undefined && limit > 0) params.append('limit', String(limit));
 
-    const res = await fetch(`${API_BASE_URL}/products?${params.toString()}`, {
+    let res = await fetch(`${API_BASE_URL}/products?${params.toString()}`, {
       headers: getHeaders(tenantId),
     });
+    if (!res.ok && res.status >= 500 && params.get('sort') !== 'name') {
+      params.set('sort', 'name');
+      res = await fetch(`${API_BASE_URL}/products?${params.toString()}`, {
+        headers: getHeaders(tenantId),
+      });
+    }
     return readJsonResponse<Product[] | PaginatedResponse<Product>>(res, 'Falha ao carregar produtos');
   },
 
@@ -310,14 +317,21 @@ export const api = {
     if (tenantId) params.append('tenant_id', String(tenantId));
     if (category && category !== 'todas') params.append('category', category);
     if (query) params.append('q', query);
-    if (sortBy) params.append('sort', sortBy);
+    const effectiveSort = (!sortBy || sortBy === 'featured') ? 'name' : sortBy;
+    params.append('sort', effectiveSort);
     params.append('page', String(page));
     params.append('limit', String(limit));
     params.append('paginated', 'true');
 
-    const res = await fetch(`${API_BASE_URL}/products?${params.toString()}`, {
+    let res = await fetch(`${API_BASE_URL}/products?${params.toString()}`, {
       headers: getHeaders(tenantId),
     });
+    if (!res.ok && res.status >= 500 && params.get('sort') !== 'name') {
+      params.set('sort', 'name');
+      res = await fetch(`${API_BASE_URL}/products?${params.toString()}`, {
+        headers: getHeaders(tenantId),
+      });
+    }
     return readJsonResponse<PaginatedResponse<Product>>(res, 'Falha ao carregar produtos paginados');
   },
 
