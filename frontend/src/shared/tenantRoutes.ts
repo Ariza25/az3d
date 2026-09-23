@@ -4,7 +4,24 @@ export const getTenantSlugFromPath = (pathname = getAppPathname()) => {
   const [, first, second] = stripBasePath(pathname).split('/');
   if (first === 'loja' && second) return decodeURIComponent(second);
   if (first && second === 'store') return decodeURIComponent(first);
+  if ((first === 'catalog' || first === 'catalogo') && second) return decodeURIComponent(second);
+  if (first && (second === 'catalog' || second === 'catalogo')) return decodeURIComponent(first);
   return '';
+};
+
+export const isCatalogPath = (pathname = getAppPathname()): boolean => {
+  const [, first, second] = stripBasePath(pathname).split('/');
+  return (
+    first === 'catalog' ||
+    first === 'catalogo' ||
+    second === 'catalog' ||
+    second === 'catalogo'
+  );
+};
+
+export const getCatalogPath = (tenantSlugOrId: string | number): string => {
+  const slug = encodeURIComponent(String(tenantSlugOrId));
+  return withBasePath(`/${slug}/catalog`);
 };
 
 export const getStorePath = (tenantSlug: string, style: 'loja' | 'store' = 'store') => {

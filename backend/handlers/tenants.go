@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 
 	"az3d-backend/database"
@@ -35,9 +36,12 @@ func (h *TenantHandler) GetTenantByIdentifier(c *gin.Context) {
 	}
 
 	var tenant models.Tenant
-	if err := database.DB.
-		Where("LOWER(slug) = ? OR LOWER(domain) = ?", identifier, identifier).
-		First(&tenant).Error; err != nil {
+	query := database.DB.Where("LOWER(slug) = ? OR LOWER(domain) = ?", identifier, identifier)
+	if id, err := strconv.ParseUint(identifier, 10, 64); err == nil {
+		query = database.DB.Where("LOWER(slug) = ? OR LOWER(domain) = ? OR id = ?", identifier, identifier, id)
+	}
+
+	if err := query.First(&tenant).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Loja nao encontrada"})
 		return
 	}

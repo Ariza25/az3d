@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { ShoppingBag, LogOut, ChevronDown, ShieldAlert, Heart, ReceiptText, Settings } from 'lucide-react';
+import { ShoppingBag, LogOut, ChevronDown, ShieldAlert, Heart, ReceiptText, Settings, BookOpen } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { Tenant, TenantSettings } from '../types';
 import { ThemeToggle } from './ThemeToggle';
 import { AZ3DLogo } from './AZ3DLogo';
+import { getCatalogPath } from '../shared/tenantRoutes';
 
 interface NavbarProps {
   onOpenLogin: () => void;
@@ -58,6 +59,21 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Ações / Usuário & Carrinho & Painel Admin & Tema */}
           <div className="flex shrink-0 items-center space-x-1.5 sm:space-x-3">
             
+            {/* Atalho para o Catálogo Visual */}
+            <button
+              onClick={() => {
+                if (activeTenant?.slug) {
+                  window.history.pushState({}, '', getCatalogPath(activeTenant.slug));
+                  window.dispatchEvent(new PopStateEvent('popstate'));
+                }
+              }}
+              className="flex items-center space-x-1.5 px-2.5 sm:px-3 py-2 rounded-xl bg-chumbo-900 hover:bg-chumbo-800 border border-chumbo-700/60 text-slate-200 hover:text-white text-xs font-bold transition-all shadow-sm active:scale-95"
+              title="Acessar o Catálogo Visual da Loja"
+            >
+              <BookOpen className="w-4 h-4 text-cyan-400" />
+              <span className="hidden min-[480px]:inline">Catálogo</span>
+            </button>
+
             {/* Toggle de Tema Claro/Escuro */}
             <ThemeToggle />
 

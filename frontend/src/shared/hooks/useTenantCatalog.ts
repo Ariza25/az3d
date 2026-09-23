@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Category, Product, Tenant } from '../../types';
 import { api } from '../../services/api';
-import { getStorePath, getTenantSlugFromPath, isStoreTenantPath } from '../tenantRoutes';
+import { getCatalogPath, getStorePath, getTenantSlugFromPath, isCatalogPath, isStoreTenantPath } from '../tenantRoutes';
 import { getAppPathname } from '../basePath';
 
 interface UseTenantCatalogOptions {
@@ -37,7 +37,7 @@ export const useTenantCatalog = (options: UseTenantCatalogOptions = {}) => {
           const hostIdentifier = getHostTenantIdentifier();
           const storedId = localStorage.getItem('az3d_tenant_id');
           const fromPath = pathSlug
-            ? visibleTenants.find((tenant) => tenant.slug === pathSlug)
+            ? visibleTenants.find((tenant) => tenant.slug === pathSlug || String(tenant.id) === pathSlug)
             : undefined;
           const fromHost = hostIdentifier
             ? visibleTenants.find((tenant) => tenant.domain?.toLowerCase() === hostIdentifier || tenant.slug === hostIdentifier.split('.')[0])
@@ -49,7 +49,7 @@ export const useTenantCatalog = (options: UseTenantCatalogOptions = {}) => {
           setActiveTenant(initial);
           localStorage.setItem('az3d_tenant_id', String(initial.id));
           window.dispatchEvent(new CustomEvent('az3d:tenant-changed', { detail: { tenantId: initial.id } }));
-          if (!lockedTenantId && !isStoreTenantPath() && getAppPathname() === '/') {
+          if (!lockedTenantId && !isStoreTenantPath() && !isCatalogPath() && getAppPathname() === '/') {
             window.history.replaceState({}, '', getStorePath(initial.slug));
           }
         }
@@ -67,7 +67,9 @@ export const useTenantCatalog = (options: UseTenantCatalogOptions = {}) => {
     localStorage.setItem('az3d_tenant_id', String(tenant.id));
     window.dispatchEvent(new CustomEvent('az3d:tenant-changed', { detail: { tenantId: tenant.id } }));
     setActiveCategory('todas');
-    if (isStoreTenantPath() || getAppPathname() === '/') {
+    if (isCatalogPath()) {
+      window.history.pushState({}, '', getCatalogPath(tenant.slug));
+    } else if (isStoreTenantPath() || getAppPathname() === '/') {
       window.history.pushState({}, '', getStorePath(tenant.slug));
     }
   }, [lockedTenantId]);

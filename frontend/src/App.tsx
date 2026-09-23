@@ -5,12 +5,13 @@ import { LoadingProvider } from './context/LoadingContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { AdminApp } from './apps/admin/AdminApp';
 import { StoreApp } from './apps/store/StoreApp';
+import { CatalogApp } from './apps/catalog/CatalogApp';
 import { LoginPage } from './apps/auth/LoginPage';
 import { ADMIN_TOKEN_KEY, CUSTOMER_TOKEN_KEY } from './services/api';
 import { getAppPathname, withBasePath } from './shared/basePath';
-import { isStoreTenantPath } from './shared/tenantRoutes';
+import { isCatalogPath, isStoreTenantPath } from './shared/tenantRoutes';
 
-type AppMode = 'admin' | 'store' | 'auth';
+type AppMode = 'admin' | 'store' | 'auth' | 'catalog';
 
 const resolveAppRoute = (): AppMode => {
   const pathname = getAppPathname();
@@ -21,6 +22,10 @@ const resolveAppRoute = (): AppMode => {
 
   if (pathname === '/login' || pathname.startsWith('/recuperar-senha') || pathname.startsWith('/reset-password')) {
     return 'auth';
+  }
+
+  if (isCatalogPath(pathname)) {
+    return 'catalog';
   }
 
   // Raiz '/' ou caminho sem tenant específico
@@ -86,6 +91,12 @@ export function App() {
         ) : currentApp === 'auth' ? (
           <AuthProvider scope="customer">
             <LoginPage />
+          </AuthProvider>
+        ) : currentApp === 'catalog' ? (
+          <AuthProvider scope="customer">
+            <CartProvider>
+              <CatalogApp />
+            </CartProvider>
           </AuthProvider>
         ) : (
           <AuthProvider scope="customer">
