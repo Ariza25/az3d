@@ -29,6 +29,7 @@ import { TenantFilamentInventoryPanel } from '../features/admin/components/Tenan
 import { AdminProductsTab } from '../features/admin/components/AdminProductsTab';
 import { AdminOrdersTab } from '../features/admin/components/AdminOrdersTab';
 import { ImageConverterTab } from '../features/admin/components/ImageConverterTab';
+import { ThreeMfSplitterTab } from '../features/admin/components/ThreeMfSplitterTab';
 import { TenantChatPanel } from '../features/admin/components/TenantChatPanel';
 import { PromotionsManagementPanel } from '../features/admin/components/PromotionsManagementPanel';
 import {
@@ -38,6 +39,7 @@ import {
   Calculator,
   Settings,
   BarChart3,
+  Boxes,
   TrendingUp,
   Clock,
   Layers,
@@ -86,8 +88,9 @@ type AdminSection =
   | 'pipeline'
   | 'inventory'
   | 'filaments'
-  | 'finance'
   | 'pricing'
+  | 'split_3mf'
+  | 'finance'
   | 'settings'
   | 'marketplaces'
   | 'intelligence'
@@ -95,7 +98,8 @@ type AdminSection =
 
 const initialAdminSection = (): AdminSection => {
   if (window.location.pathname.includes('/marketplaces/callback')) return 'marketplaces';
-  const value = new URLSearchParams(window.location.search).get('section') as AdminSection | null;
+  const searchParams = new URLSearchParams(window.location.search);
+  const value = (searchParams.get('section') || searchParams.get('tab')) as AdminSection | null;
   return value &&
     [
       'dashboard',
@@ -105,8 +109,9 @@ const initialAdminSection = (): AdminSection => {
       'pipeline',
       'inventory',
       'filaments',
-      'finance',
       'pricing',
+      'split_3mf',
+      'finance',
       'settings',
       'marketplaces',
       'intelligence',
@@ -336,6 +341,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     { id: 'marketplaces', label: 'Marketplaces', icon: <ShoppingCart className="h-4 w-4" /> },
     { id: 'intelligence', label: 'ML Trends', icon: <TrendingUp className="h-4 w-4" /> },
     { id: 'image_converter', label: 'Formatador ML', icon: <Sparkles className="h-4 w-4 text-laser-400" /> },
+    { id: 'split_3mf', label: 'Divisor 3MF', icon: <Boxes className="h-4 w-4 text-cyan-600 dark:text-cyan-400" /> },
     { id: 'settings', label: 'Configurações', icon: <Settings className="h-4 w-4" /> },
   ];
 
@@ -590,6 +596,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             {activeTab === 'promotions' && <PromotionsManagementPanel tenantId={activeTenant?.id} />}
 
             {activeTab === 'image_converter' && <ImageConverterTab />}
+
+            {activeTab === 'split_3mf' && <ThreeMfSplitterTab />}
 
             {activeTab === 'chat' && <TenantChatPanel tenantId={activeTenant?.id} />}
 

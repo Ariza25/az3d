@@ -14,91 +14,6 @@ const getHostTenantIdentifier = () => {
   return hostname;
 };
 
-const FALLBACK_TENANT: Tenant = {
-  id: 1,
-  name: 'AZ3D Studio',
-  slug: 'az3d-studio',
-};
-
-const FALLBACK_PRODUCTS: Product[] = [
-  {
-    id: 1,
-    title: 'Vasinho Cafezinho Impressão 3d Decorativo',
-    slug: 'vasinho-cafezinho-impressao-3d-decorativo',
-    price: 35.90,
-    description: 'Vasinho decorativo em formato de cafezinho para plantas e suculentas.\nDimensões: 8 x 8 x 10 cm',
-    dimensions: '8 x 8 x 10 cm',
-    category_id: 1,
-    material: 'PLA Premium',
-    layer_height: '0.20mm',
-    print_time: '2h 15m',
-    weight: '65g',
-    in_stock: true,
-    stock_qty: 15,
-    status: 'active',
-    image_url: 'https://images.unsplash.com/photo-1485955900006-10f4d324d411?auto=format&fit=crop&w=600&q=80',
-    rating: 5.0,
-    review_count: 14,
-  },
-  {
-    id: 2,
-    title: 'Kit 3 Vasinhos Fofos Decorativos De Impressão 3D',
-    slug: 'kit-3-vasinhos-fofos-decorativos-de-impressao-3d',
-    price: 95.90,
-    description: 'Trio de vasinhos minimalistas com rostinhos felizes.\nDimensões: 12 x 10 x 8 cm cada',
-    dimensions: '12 x 10 x 8 cm',
-    category_id: 1,
-    material: 'PLA Silk',
-    layer_height: '0.16mm',
-    print_time: '6h 40m',
-    weight: '180g',
-    in_stock: true,
-    stock_qty: 8,
-    status: 'active',
-    image_url: 'https://images.unsplash.com/photo-1512428559087-560fa5ceab42?auto=format&fit=crop&w=600&q=80',
-    rating: 4.9,
-    review_count: 28,
-  },
-  {
-    id: 3,
-    title: 'Vasinho Leitor Com Caneca Vaso Decorativo',
-    slug: 'vasinho-leitor-com-caneca-vaso-decorativo',
-    price: 35.90,
-    description: 'Vasinho articulado leitor com livro e caneca na mão.\nDimensões: 9 x 7 x 11 cm',
-    dimensions: '9 x 7 x 11 cm',
-    category_id: 1,
-    material: 'PLA Premium',
-    layer_height: '0.20mm',
-    print_time: '2h 45m',
-    weight: '70g',
-    in_stock: true,
-    stock_qty: 12,
-    status: 'active',
-    image_url: 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=600&q=80',
-    rating: 5.0,
-    review_count: 19,
-  },
-  {
-    id: 4,
-    title: 'Porta-terço Nossa Senhora Ore E Confia',
-    slug: 'porta-terco-nossa-senhora-ore-e-confia',
-    price: 44.90,
-    description: 'Bandeja oval com imagem escultural de Nossa Senhora e gravação "Ore e confia".\nDimensões: 18 x 10 x 12 cm',
-    dimensions: '18 x 10 x 12 cm',
-    category_id: 1,
-    material: 'Resina / PLA Silk',
-    layer_height: '0.12mm',
-    print_time: '4h 10m',
-    weight: '110g',
-    in_stock: true,
-    stock_qty: 10,
-    status: 'active',
-    image_url: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?auto=format&fit=crop&w=600&q=80',
-    rating: 4.8,
-    review_count: 9,
-  },
-];
-
 export const useTenantCatalog = (options: UseTenantCatalogOptions = {}) => {
   const { lockedTenantId } = options;
   const [tenants, setTenants] = useState<Tenant[]>([]);
@@ -112,39 +27,78 @@ export const useTenantCatalog = (options: UseTenantCatalogOptions = {}) => {
   useEffect(() => {
     const fetchTenants = async () => {
       try {
-        const list = await api.getTenants();
+        const pathSlug = getTenantSlugFromPath();
+        const searchParams = new URLSearchParams(window.location.search);
+        const queryTenant = searchParams.get('tenant_id') || searchParams.get('tenant') || searchParams.get('tenant_slug');
+        const hostIdentifier = getHostTenantIdentifier();
+        const storedId = localStorage.getItem('az3d_tenant_id');
+
+        const targetIdentifier = lockedTenantId
+          ? String(lockedTenantId)
+          : pathSlug || queryTenant || hostIdentifier || storedId || '';
+
+        let list: Tenant[] = [];
+        try {
+          list = await api.getTenants();
+        } catch (tenantErr) {
+          console.warn('Erro ao listar tenants:', tenantErr);
+        }
+
         const visibleTenants = lockedTenantId
           ? list.filter((tenant) => tenant.id === lockedTenantId)
           : list;
         setTenants(visibleTenants);
-        if (visibleTenants.length > 0) {
-          const pathSlug = getTenantSlugFromPath();
-          const hostIdentifier = getHostTenantIdentifier();
-          const storedId = localStorage.getItem('az3d_tenant_id');
-          const fromPath = pathSlug
-            ? visibleTenants.find((tenant) => tenant.slug === pathSlug || String(tenant.id) === pathSlug)
-            : undefined;
-          const fromHost = hostIdentifier
-            ? visibleTenants.find((tenant) => tenant.domain?.toLowerCase() === hostIdentifier || tenant.slug === hostIdentifier.split('.')[0])
-            : undefined;
-          const found = visibleTenants.find((tenant) => String(tenant.id) === storedId);
-          const initial = lockedTenantId
-            ? visibleTenants[0]
-            : fromPath || fromHost || found || visibleTenants[0];
-          setActiveTenant(initial);
-          localStorage.setItem('az3d_tenant_id', String(initial.id));
-          window.dispatchEvent(new CustomEvent('az3d:tenant-changed', { detail: { tenantId: initial.id } }));
-          if (!lockedTenantId && !isStoreTenantPath() && !isCatalogPath() && getAppPathname() === '/') {
-            window.history.replaceState({}, '', getStorePath(initial.slug));
+
+        let initial: Tenant | null = null;
+
+        if (targetIdentifier && visibleTenants.length > 0) {
+          initial = visibleTenants.find(
+            (tenant) =>
+              String(tenant.id) === targetIdentifier ||
+              tenant.slug?.toLowerCase() === targetIdentifier.toLowerCase() ||
+              tenant.domain?.toLowerCase() === targetIdentifier.toLowerCase()
+          ) || null;
+        }
+
+        // Se ainda não encontrou e temos um identificador específico (ex: slug ou ID da rota/query),
+        // busca diretamente no backend por /api/tenants/:identifier
+        if (!initial && targetIdentifier) {
+          try {
+            const direct = await api.getTenantByIdentifier(targetIdentifier);
+            if (direct && direct.id) {
+              initial = direct;
+              if (!visibleTenants.some((t) => t.id === direct.id)) {
+                setTenants((prev) => [...prev, direct]);
+              }
+            }
+          } catch {
+            // Loja não encontrada ou backend inacessível
           }
-        } else {
-          setActiveTenant(FALLBACK_TENANT);
+        }
+
+        if (!initial && visibleTenants.length > 0) {
+          initial = visibleTenants[0];
+        }
+
+        if (!initial) {
+          const numericId = Number(targetIdentifier);
+          const validId = !isNaN(numericId) && numericId > 0 ? numericId : 1;
+          initial = {
+            id: validId,
+            name: targetIdentifier ? `Loja ${targetIdentifier}` : 'AZ3D Studio',
+            slug: targetIdentifier || 'az3d-studio',
+          };
+        }
+
+        setActiveTenant(initial);
+        localStorage.setItem('az3d_tenant_id', String(initial.id));
+        window.dispatchEvent(new CustomEvent('az3d:tenant-changed', { detail: { tenantId: initial.id } }));
+
+        if (!lockedTenantId && !isStoreTenantPath() && !isCatalogPath() && getAppPathname() === '/') {
+          window.history.replaceState({}, '', getStorePath(initial.slug));
         }
       } catch (err) {
-        console.error('Erro ao carregar lista de tenants:', err);
-        const pathSlug = getTenantSlugFromPath() || 'az3d-studio';
-        const fallback = { ...FALLBACK_TENANT, slug: pathSlug };
-        setActiveTenant(fallback);
+        console.error('Erro ao resolver tenant:', err);
       } finally {
         setIsLoading(false);
       }
@@ -203,14 +157,10 @@ export const useTenantCatalog = (options: UseTenantCatalogOptions = {}) => {
       // match never drops the other colors from the same product family.
       const data = await api.getProducts(activeCategory, undefined, activeTenant.id);
       const items = Array.isArray(data) ? data : (data?.items || []);
-      if (items && items.length > 0) {
-        setProducts(items);
-      } else {
-        setProducts(FALLBACK_PRODUCTS);
-      }
+      setProducts(items);
     } catch (err) {
       console.error('Erro ao carregar produtos:', err);
-      setProducts(FALLBACK_PRODUCTS);
+      setProducts([]);
     } finally {
       setIsLoading(false);
     }

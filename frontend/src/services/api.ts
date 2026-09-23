@@ -71,10 +71,25 @@ import {
   ResetPasswordResponse,
 } from '../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+const getApiBaseUrl = () => {
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
+    return envUrl.trim().replace(/\/+$/, '');
+  }
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname.toLowerCase();
+    if (hostname !== 'localhost' && hostname !== '127.0.0.1' && hostname !== '::1') {
+      return '/api';
+    }
+  }
+  return 'http://localhost:8080/api';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 export const resolveApiAssetUrl = (path: string) => {
   if (!path || /^[a-z][a-z\d+.-]*:/i.test(path) || path.startsWith('//')) return path;
-  const apiOrigin = new URL(API_BASE_URL, window.location.origin).origin;
+  const base = API_BASE_URL.startsWith('http') ? API_BASE_URL : window.location.origin;
+  const apiOrigin = new URL(base, window.location.origin).origin;
   return new URL(path.startsWith('/') ? path : `/${path}`, apiOrigin).toString();
 };
 export const CUSTOMER_TOKEN_KEY = 'az3d_customer_token';
@@ -248,7 +263,10 @@ export const api = {
 
   // Categorias
   getCategories: async (tenantId?: number): Promise<Category[]> => {
-    const res = await fetch(`${API_BASE_URL}/categories`, {
+    const params = new URLSearchParams();
+    if (tenantId) params.append('tenant_id', String(tenantId));
+    const url = params.toString() ? `${API_BASE_URL}/categories?${params.toString()}` : `${API_BASE_URL}/categories`;
+    const res = await fetch(url, {
       headers: getHeaders(tenantId),
     });
     return readJsonResponse<Category[]>(res, 'Falha ao carregar categorias');
@@ -264,6 +282,7 @@ export const api = {
     sortBy?: string
   ): Promise<Product[] | PaginatedResponse<Product>> => {
     const params = new URLSearchParams();
+    if (tenantId) params.append('tenant_id', String(tenantId));
     if (category && category !== 'todas') params.append('category', category);
     if (query) params.append('q', query);
     if (sortBy) params.append('sort', sortBy);
@@ -288,6 +307,7 @@ export const api = {
     sortBy?: string
   ): Promise<PaginatedResponse<Product>> => {
     const params = new URLSearchParams();
+    if (tenantId) params.append('tenant_id', String(tenantId));
     if (category && category !== 'todas') params.append('category', category);
     if (query) params.append('q', query);
     if (sortBy) params.append('sort', sortBy);
@@ -302,14 +322,20 @@ export const api = {
   },
 
   getProductById: async (id: number, tenantId?: number): Promise<Product> => {
-    const res = await fetch(`${API_BASE_URL}/products/${id}`, {
+    const params = new URLSearchParams();
+    if (tenantId) params.append('tenant_id', String(tenantId));
+    const url = params.toString() ? `${API_BASE_URL}/products/${id}?${params.toString()}` : `${API_BASE_URL}/products/${id}`;
+    const res = await fetch(url, {
       headers: getHeaders(tenantId),
     });
     return readJsonResponse<Product>(res, 'Produto não encontrado');
   },
 
   getTenantSettings: async (tenantId?: number): Promise<TenantSettings> => {
-    const res = await fetch(`${API_BASE_URL}/tenant/settings`, {
+    const params = new URLSearchParams();
+    if (tenantId) params.append('tenant_id', String(tenantId));
+    const url = params.toString() ? `${API_BASE_URL}/tenant/settings?${params.toString()}` : `${API_BASE_URL}/tenant/settings`;
+    const res = await fetch(url, {
       headers: getHeaders(tenantId),
     });
     return readJsonResponse<TenantSettings>(res, 'Falha ao carregar configurações da loja');

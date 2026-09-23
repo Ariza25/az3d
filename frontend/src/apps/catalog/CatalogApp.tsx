@@ -212,14 +212,14 @@ export const CatalogApp: React.FC = () => {
     } catch (err) {
       console.error('Erro ao buscar produtos paginados do backend:', err);
       if (!append) {
-        setPaginatedProducts(products);
+        setPaginatedProducts([]);
         setHasMore(false);
       }
     } finally {
       setIsCatalogLoading(false);
       setIsLoadingMore(false);
     }
-  }, [activeTenant, selectedCategory, searchQuery, sortBy, products]);
+  }, [activeTenant, selectedCategory, searchQuery, sortBy]);
 
   // Recarrega página 1 quando tenant, categoria, busca ou ordenação mudam
   useEffect(() => {
@@ -255,7 +255,8 @@ export const CatalogApp: React.FC = () => {
   // Destaques / Vitrine Top Picks (para o carrossel interativo)
   // Devem pegar os itens mais vendidos da loja; caso não tenham um ranking ainda, a escolha é aleatória.
   const spotlightProducts = useMemo(() => {
-    const all = groupMarketplaceProducts(products).filter((p) => getStockStatus(p).canBuy);
+    const candidateList = products.length > 0 ? products : paginatedProducts;
+    const all = groupMarketplaceProducts(candidateList).filter((p) => getStockStatus(p).canBuy);
     if (all.length === 0) return [];
 
     const hasSalesRanking = all.some((p) => (p.sales_count || 0) > 0);
@@ -270,7 +271,7 @@ export const CatalogApp: React.FC = () => {
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
     return shuffled.slice(0, 10);
-  }, [products]);
+  }, [products, paginatedProducts]);
 
   useEffect(() => {
     checkCarouselScroll();
@@ -670,7 +671,7 @@ export const CatalogApp: React.FC = () => {
         </section>
 
         {/* Catálogo de Produtos - Totalmente Responsivo para celular, tablet e PC */}
-        {isLoading ? (
+        {((isLoading || isCatalogLoading) && rawProducts.length === 0) ? (
           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-6">
             {Array.from({ length: 8 }).map((_, i) => (
               <div
@@ -686,19 +687,27 @@ export const CatalogApp: React.FC = () => {
         ) : filteredProducts.length === 0 ? (
           <div className="py-16 sm:py-20 text-center space-y-3 border border-dashed border-slate-300 dark:border-chumbo-800 rounded-3xl p-6 sm:p-8 bg-white/50 dark:bg-chumbo-900/20">
             <Layers className="w-10 h-10 sm:w-12 sm:h-12 text-slate-400 dark:text-slate-600 mx-auto" />
-            <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">Nenhum item encontrado</h3>
+            <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+              {searchQuery || selectedCategory !== 'todas'
+                ? 'Nenhum item encontrado'
+                : 'Nenhum produto cadastrado nesta loja'}
+            </h3>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-              Tente buscar por outro termo ou mude os filtros de categoria e material.
+              {searchQuery || selectedCategory !== 'todas'
+                ? 'Tente buscar por outro termo ou mude os filtros de categoria e material.'
+                : 'Esta loja ainda não possui produtos ativos disponíveis no catálogo.'}
             </p>
-            <button
-              onClick={() => {
-                setSearchQuery('');
-                setSelectedCategory('todas');
-              }}
-              className="mt-2 px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-white dark:bg-chumbo-800 dark:hover:bg-chumbo-700 shadow-sm"
-            >
-              Limpar filtros
-            </button>
+            {(searchQuery || selectedCategory !== 'todas') && (
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setSelectedCategory('todas');
+                }}
+                className="mt-2 px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-white dark:bg-chumbo-800 dark:hover:bg-chumbo-700 shadow-sm"
+              >
+                Limpar filtros
+              </button>
+            )}
           </div>
         ) : viewMode === 'grid' ? (
           /* Grade Visual Ampla (Mobile: 2 colunas / Tablet: 3 colunas / PC: 4 colunas) */
