@@ -33,7 +33,7 @@ export const MercadoLivrePlatformSettings: React.FC = () => {
             <Status configured={config.client_secret_configured} label="MELI_CLIENT_SECRET" />
             <Status configured={config.redirect_uri_configured} label="MELI_REDIRECT_URI" />
           </div>
-          <p className="text-[11px] text-slate-600">Os valores não são exibidos nem editados por este console.</p>
+          <p className="text-[11px] text-slate-600">Os valores não são exibidos nem editados por este painel.</p>
         </div>
       )}
     </Card>

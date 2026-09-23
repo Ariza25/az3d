@@ -309,7 +309,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
             <span>Calculadora de precificação 3D</span>
           </h3>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            O backend calcula custos, margem e taxas do tenant. O painel apenas envia os dados de peso e tempo.
+            O backend calcula custos, margem e taxas da loja. O painel apenas envia os dados de peso e tempo.
           </p>
         </div>
 
@@ -330,7 +330,7 @@ export const PricingCalculator: React.FC<PricingCalculatorProps> = ({
             className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-sm transition-colors hover:bg-slate-100 dark:border-chumbo-700 dark:bg-chumbo-950 dark:text-slate-200 dark:hover:bg-chumbo-800 disabled:opacity-60"
           >
             {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            <span>{saved ? 'Parâmetros salvos' : 'Salvar no tenant'}</span>
+            <span>{saved ? 'Parâmetros salvos' : 'Salvar na loja'}</span>
           </button>
           <button
             type="button"

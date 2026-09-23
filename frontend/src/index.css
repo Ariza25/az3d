@@ -305,120 +305,142 @@ input[type="search"]::-webkit-search-results-decoration {
    ========================================================================== */
 
 /* 1. Elementos que possuem background escuro/colorido e classe text-white */
-html.light button.text-white,
-html.light a.text-white,
 html.light .badge.text-white,
 html.light .badge .text-white,
-html.light button[class*="bg-"] .text-white,
-html.light a[class*="bg-"] .text-white,
-html.light .text-white[class*="bg-emerald-"],
-html.light .text-white[class*="bg-green-"],
-html.light .text-white[class*="bg-amber-"],
-html.light .text-white[class*="bg-yellow-"],
-html.light .text-white[class*="bg-rose-"],
-html.light .text-white[class*="bg-red-"],
-html.light .text-white[class*="bg-cyan-"],
-html.light .text-white[class*="bg-laser-"],
-html.light .text-white[class*="bg-blue-"],
-html.light .text-white[class*="bg-purple-"],
-html.light .text-white[class*="bg-indigo-"],
-[data-theme="light"] button.text-white,
-[data-theme="light"] a.text-white,
+html.light span.text-white[class*="bg-emerald-"],
+html.light span.text-white[class*="bg-green-"],
+html.light span.text-white[class*="bg-amber-"],
+html.light span.text-white[class*="bg-yellow-"],
+html.light span.text-white[class*="bg-rose-"],
+html.light span.text-white[class*="bg-red-"],
+html.light span.text-white[class*="bg-cyan-"],
+html.light span.text-white[class*="bg-laser-"],
+html.light span.text-white[class*="bg-blue-"],
+html.light span.text-white[class*="bg-purple-"],
+html.light span.text-white[class*="bg-indigo-"],
+html.light button[class*="bg-blue-"],
+html.light button[class*="bg-blue-"] *,
+html.light button[class*="bg-emerald-"] *,
+html.light button[class*="bg-green-"] *,
+html.light button[class*="bg-red-"] *,
+html.light button[class*="bg-cyan-"] *,
 [data-theme="light"] .badge.text-white,
 [data-theme="light"] .badge .text-white,
-[data-theme="light"] button[class*="bg-"] .text-white,
-[data-theme="light"] a[class*="bg-"] .text-white,
-[data-theme="light"] .text-white[class*="bg-emerald-"],
-[data-theme="light"] .text-white[class*="bg-green-"],
-[data-theme="light"] .text-white[class*="bg-amber-"],
-[data-theme="light"] .text-white[class*="bg-yellow-"],
-[data-theme="light"] .text-white[class*="bg-rose-"],
-[data-theme="light"] .text-white[class*="bg-red-"],
-[data-theme="light"] .text-white[class*="bg-cyan-"],
-[data-theme="light"] .text-white[class*="bg-laser-"],
-[data-theme="light"] .text-white[class*="bg-blue-"],
-[data-theme="light"] .text-white[class*="bg-purple-"],
-[data-theme="light"] .text-white[class*="bg-indigo-"] {
+[data-theme="light"] span.text-white[class*="bg-emerald-"],
+[data-theme="light"] span.text-white[class*="bg-green-"],
+[data-theme="light"] span.text-white[class*="bg-amber-"],
+[data-theme="light"] span.text-white[class*="bg-yellow-"],
+[data-theme="light"] span.text-white[class*="bg-rose-"],
+[data-theme="light"] span.text-white[class*="bg-red-"],
+[data-theme="light"] span.text-white[class*="bg-cyan-"],
+[data-theme="light"] span.text-white[class*="bg-laser-"],
+[data-theme="light"] span.text-white[class*="bg-blue-"],
+[data-theme="light"] span.text-white[class*="bg-purple-"],
+[data-theme="light"] span.text-white[class*="bg-indigo-"],
+[data-theme="light"] button[class*="bg-blue-"],
+[data-theme="light"] button[class*="bg-blue-"] *,
+[data-theme="light"] button[class*="bg-emerald-"] *,
+[data-theme="light"] button[class*="bg-green-"] *,
+[data-theme="light"] button[class*="bg-red-"] *,
+[data-theme="light"] button[class*="bg-cyan-"] * {
   color: #ffffff !important;
 }
 
 /* 2. Status e Badges de Alerta / Pendente (Amarelo / Âmbar Escuro + Texto Branco) */
-html.light [class*="bg-amber-500/"][class*="text-amber-"],
-html.light [class*="bg-amber-500/"][class*="text-yellow-"],
-html.light [class*="bg-yellow-500/"][class*="text-amber-"],
-html.light [class*="bg-yellow-500/"][class*="text-yellow-"],
-[data-theme="light"] [class*="bg-amber-500/"][class*="text-amber-"],
-[data-theme="light"] [class*="bg-amber-500/"][class*="text-yellow-"],
-[data-theme="light"] [class*="bg-yellow-500/"][class*="text-amber-"],
-[data-theme="light"] [class*="bg-yellow-500/"][class*="text-yellow-"] {
+html.light span[class*="bg-amber-500/"][class*="text-amber-"],
+html.light span[class*="bg-amber-500/"][class*="text-yellow-"],
+html.light span[class*="bg-yellow-500/"][class*="text-amber-"],
+html.light span[class*="bg-yellow-500/"][class*="text-yellow-"],
+html.light .badge[class*="bg-amber-500/"][class*="text-amber-"],
+html.light .badge[class*="bg-yellow-500/"][class*="text-yellow-"],
+[data-theme="light"] span[class*="bg-amber-500/"][class*="text-amber-"],
+[data-theme="light"] span[class*="bg-amber-500/"][class*="text-yellow-"],
+[data-theme="light"] span[class*="bg-yellow-500/"][class*="text-amber-"],
+[data-theme="light"] span[class*="bg-yellow-500/"][class*="text-yellow-"],
+[data-theme="light"] .badge[class*="bg-amber-500/"][class*="text-amber-"],
+[data-theme="light"] .badge[class*="bg-yellow-500/"][class*="text-yellow-"] {
   background-color: #b45309 !important; /* Amarelo / Âmbar escuro */
   border-color: #92400e !important;
   color: #ffffff !important;
 }
 
-html.light [class*="bg-amber-500/"][class*="text-amber-"] *,
-html.light [class*="bg-amber-500/"][class*="text-yellow-"] *,
-html.light [class*="bg-yellow-500/"][class*="text-amber-"] *,
-html.light [class*="bg-yellow-500/"][class*="text-yellow-"] *,
-[data-theme="light"] [class*="bg-amber-500/"][class*="text-amber-"] *,
-[data-theme="light"] [class*="bg-yellow-500/"][class*="text-yellow-"] *,
-[data-theme="light"] [class*="bg-yellow-500/"][class*="text-amber-"] *,
-[data-theme="light"] [class*="bg-yellow-500/"][class*="text-yellow-"] * {
+html.light span[class*="bg-amber-500/"][class*="text-amber-"] *,
+html.light span[class*="bg-amber-500/"][class*="text-yellow-"] *,
+html.light span[class*="bg-yellow-500/"][class*="text-amber-"] *,
+html.light span[class*="bg-yellow-500/"][class*="text-yellow-"] *,
+[data-theme="light"] span[class*="bg-amber-500/"][class*="text-amber-"] *,
+[data-theme="light"] span[class*="bg-amber-500/"][class*="text-yellow-"] *,
+[data-theme="light"] span[class*="bg-yellow-500/"][class*="text-amber-"] *,
+[data-theme="light"] span[class*="bg-yellow-500/"][class*="text-yellow-"] * {
   color: #ffffff !important;
 }
 
 /* 3. Status Verde Escuro (Conectado, Em Estoque, Ativo, Sucesso) */
-html.light [class*="bg-emerald-500/"][class*="text-emerald-"],
-html.light [class*="bg-green-500/"][class*="text-green-"],
-[data-theme="light"] [class*="bg-emerald-500/"][class*="text-emerald-"],
-[data-theme="light"] [class*="bg-green-500/"][class*="text-green-"] {
+html.light span[class*="bg-emerald-500/"][class*="text-emerald-"],
+html.light span[class*="bg-green-500/"][class*="text-green-"],
+html.light .badge[class*="bg-emerald-500/"][class*="text-emerald-"],
+html.light .badge[class*="bg-green-500/"][class*="text-green-"],
+[data-theme="light"] span[class*="bg-emerald-500/"][class*="text-emerald-"],
+[data-theme="light"] span[class*="bg-green-500/"][class*="text-green-"],
+[data-theme="light"] .badge[class*="bg-emerald-500/"][class*="text-emerald-"],
+[data-theme="light"] .badge[class*="bg-green-500/"][class*="text-green-"] {
   background-color: #047857 !important; /* Verde escuro */
   border-color: #065f46 !important;
   color: #ffffff !important;
 }
 
-html.light [class*="bg-emerald-500/"][class*="text-emerald-"] *,
-html.light [class*="bg-green-500/"][class*="text-green-"] *,
-[data-theme="light"] [class*="bg-emerald-500/"][class*="text-emerald-"] *,
-[data-theme="light"] [class*="bg-green-500/"][class*="text-green-"] * {
+html.light span[class*="bg-emerald-500/"][class*="text-emerald-"] *,
+html.light span[class*="bg-green-500/"][class*="text-green-"] *,
+[data-theme="light"] span[class*="bg-emerald-500/"][class*="text-emerald-"] *,
+[data-theme="light"] span[class*="bg-green-500/"][class*="text-green-"] * {
   color: #ffffff !important;
 }
 
 /* 4. Status Vermelho / Rose Escuro (Erro, Esgotado, Falha, Perigo) */
-html.light [class*="bg-rose-500/"][class*="text-rose-"],
-html.light [class*="bg-red-500/"][class*="text-red-"],
-[data-theme="light"] [class*="bg-rose-500/"][class*="text-rose-"],
-[data-theme="light"] [class*="bg-red-500/"][class*="text-red-"] {
+html.light span[class*="bg-rose-500/"][class*="text-rose-"],
+html.light span[class*="bg-red-500/"][class*="text-red-"],
+html.light .badge[class*="bg-rose-500/"][class*="text-rose-"],
+html.light .badge[class*="bg-red-500/"][class*="text-red-"],
+[data-theme="light"] span[class*="bg-rose-500/"][class*="text-rose-"],
+[data-theme="light"] span[class*="bg-red-500/"][class*="text-red-"],
+[data-theme="light"] .badge[class*="bg-rose-500/"][class*="text-rose-"],
+[data-theme="light"] .badge[class*="bg-red-500/"][class*="text-red-"] {
   background-color: #be123c !important; /* Vermelho / Rose escuro */
   border-color: #9f1239 !important;
   color: #ffffff !important;
 }
 
-html.light [class*="bg-rose-500/"][class*="text-rose-"] *,
-html.light [class*="bg-red-500/"][class*="text-red-"] *,
-[data-theme="light"] [class*="bg-rose-500/"][class*="text-rose-"] *,
-[data-theme="light"] [class*="bg-red-500/"][class*="text-red-"] * {
+html.light span[class*="bg-rose-500/"][class*="text-rose-"] *,
+html.light span[class*="bg-red-500/"][class*="text-red-"] *,
+[data-theme="light"] span[class*="bg-rose-500/"][class*="text-rose-"] *,
+[data-theme="light"] span[class*="bg-red-500/"][class*="text-red-"] * {
   color: #ffffff !important;
 }
 
 /* 5. Status Cyan / Laser / Azul Escuro (Info, Processamento) */
-html.light [class*="bg-laser-500/"][class*="text-laser-"],
-html.light [class*="bg-cyan-500/"][class*="text-cyan-"],
-html.light [class*="bg-blue-500/"][class*="text-blue-"],
-[data-theme="light"] [class*="bg-laser-500/"][class*="text-laser-"],
-[data-theme="light"] [class*="bg-cyan-500/"][class*="text-cyan-"],
-[data-theme="light"] [class*="bg-blue-500/"][class*="text-blue-"] {
+html.light span[class*="bg-laser-500/"][class*="text-laser-"],
+html.light span[class*="bg-cyan-500/"][class*="text-cyan-"],
+html.light span[class*="bg-blue-500/"][class*="text-blue-"],
+html.light .badge[class*="bg-laser-500/"][class*="text-laser-"],
+html.light .badge[class*="bg-cyan-500/"][class*="text-cyan-"],
+html.light .badge[class*="bg-blue-500/"][class*="text-blue-"],
+[data-theme="light"] span[class*="bg-laser-500/"][class*="text-laser-"],
+[data-theme="light"] span[class*="bg-cyan-500/"][class*="text-cyan-"],
+[data-theme="light"] span[class*="bg-blue-500/"][class*="text-blue-"],
+[data-theme="light"] .badge[class*="bg-laser-500/"][class*="text-laser-"],
+[data-theme="light"] .badge[class*="bg-cyan-500/"][class*="text-cyan-"],
+[data-theme="light"] .badge[class*="bg-blue-500/"][class*="text-blue-"] {
   background-color: #0e7490 !important; /* Cyan / Azul escuro */
   border-color: #155e75 !important;
   color: #ffffff !important;
 }
 
-html.light [class*="bg-laser-500/"][class*="text-laser-"] *,
-html.light [class*="bg-cyan-500/"][class*="text-cyan-"] *,
-html.light [class*="bg-blue-500/"][class*="text-blue-"] *,
-[data-theme="light"] [class*="bg-laser-500/"][class*="text-laser-"] *,
-[data-theme="light"] [class*="bg-cyan-500/"][class*="text-cyan-"] *,
-[data-theme="light"] [class*="bg-blue-500/"][class*="text-blue-"] * {
+html.light span[class*="bg-laser-500/"][class*="text-laser-"] *,
+html.light span[class*="bg-cyan-500/"][class*="text-cyan-"] *,
+html.light span[class*="bg-blue-500/"][class*="text-blue-"] *,
+[data-theme="light"] span[class*="bg-laser-500/"][class*="text-laser-"] *,
+[data-theme="light"] span[class*="bg-cyan-500/"][class*="text-cyan-"] *,
+[data-theme="light"] span[class*="bg-blue-500/"][class*="text-blue-"] * {
   color: #ffffff !important;
 }
 

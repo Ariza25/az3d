@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Layers,
   Lock,
   Mail,
   ArrowRight,
@@ -17,6 +16,7 @@ import { ADMIN_TOKEN_KEY, api } from '../../services/api';
 import { getAppPathname, withBasePath } from '../../shared/basePath';
 import { ForgotPasswordModal } from '../../components/ForgotPasswordModal';
 import { RegisterModal } from '../../components/RegisterModal';
+import { AZ3DLogo } from '../../components/AZ3DLogo';
 
 export const LoginPage: React.FC = () => {
   const { login, isAuthenticated, user, scope } = useAuth();
@@ -109,30 +109,20 @@ const LoginFormView: React.FC<{
   };
 
   return (
-    <div className="min-h-screen bg-chumbo-950 text-slate-100 flex flex-col justify-between selection:bg-laser-400 selection:text-chumbo-950">
+    <div className="min-h-screen bg-slate-50 dark:bg-chumbo-950 text-slate-900 dark:text-slate-100 flex flex-col justify-between selection:bg-blue-600 selection:text-white">
       {/* Header superior */}
-      <header className="border-b border-chumbo-800/80 bg-chumbo-950/80 backdrop-blur-md sticky top-0 z-30">
+      <header className="border-b border-slate-200 dark:border-chumbo-800/80 bg-white/80 dark:bg-chumbo-950/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
           <div className="flex items-center space-x-3 cursor-pointer" onClick={goToStore}>
-            <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-chumbo-950 shadow-lg">
-              <Layers className="w-6 h-6 stroke-[2.5]" />
-            </div>
-            <div>
-              <span className="text-2xl font-extrabold tracking-wider text-white flex items-center gap-1">
-                AZ<span className="text-laser-400 font-mono">3D</span>
-              </span>
-              <span className="text-[10px] text-slate-400 tracking-widest uppercase -mt-1 block font-medium">
-                Studio
-              </span>
-            </div>
+            <AZ3DLogo showText className="h-10 w-10 shrink-0" />
           </div>
 
           <button
             type="button"
             onClick={goToStore}
-            className="flex items-center gap-2 rounded-xl border border-chumbo-700/80 bg-chumbo-900/60 px-4 py-2 text-xs font-bold text-slate-300 hover:bg-chumbo-800 hover:text-white transition-colors"
+            className="flex items-center gap-2 rounded-xl border border-slate-300 dark:border-chumbo-700/80 bg-white dark:bg-chumbo-900/60 px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-chumbo-800 hover:text-slate-900 dark:hover:text-white transition-colors shadow-sm"
           >
-            <Store className="h-4 w-4 text-laser-400" />
+            <Store className="h-4 w-4 text-blue-600 dark:text-laser-400" />
             <span>Ver Loja</span>
           </button>
         </div>
@@ -140,32 +130,32 @@ const LoginFormView: React.FC<{
 
       {/* Conteúdo Central */}
       <main className="flex-1 flex items-center justify-center p-4 sm:p-6 my-8">
-        <div className="w-full max-w-md bg-chumbo-900/80 border border-chumbo-700/80 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl relative">
+        <div className="w-full max-w-md bg-white dark:bg-chumbo-900/80 border border-slate-200 dark:border-chumbo-700/80 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl relative">
           <div className="text-center mb-6">
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
               Acessar Plataforma
             </h1>
-            <p className="mt-2 text-xs sm:text-sm text-slate-400">
+            <p className="mt-2 text-xs sm:text-sm text-slate-600 dark:text-slate-400">
               Faça login para gerenciar pedidos, orçamentos e produtos 3D
             </p>
           </div>
 
           {error && (
-            <div className="mb-5 p-3.5 rounded-xl bg-red-950/60 border border-red-800/80 text-red-200 text-xs flex items-center space-x-2">
-              <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+            <div className="mb-5 p-3.5 rounded-xl bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800/80 text-red-700 dark:text-red-200 text-xs flex items-center space-x-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-red-600 dark:text-red-400" />
               <span>{error}</span>
             </div>
           )}
 
           {/* Seletor Comprador vs Lojista */}
-          <div className="grid grid-cols-2 gap-2 p-1 bg-chumbo-950/70 border border-chumbo-800 rounded-2xl mb-5">
+          <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-chumbo-950/70 border border-slate-200 dark:border-chumbo-800 rounded-2xl mb-5">
             <button
               type="button"
               onClick={() => setAccountType('customer')}
               className={`rounded-xl py-2.5 text-xs font-bold transition-all ${
                 accountType === 'customer'
-                  ? 'bg-laser-400 text-chumbo-950 shadow-md font-extrabold'
-                  : 'text-slate-400 hover:text-white'
+                  ? 'bg-blue-600 text-white shadow-md font-extrabold'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
               }`}
             >
               Sou Comprador
@@ -175,8 +165,8 @@ const LoginFormView: React.FC<{
               onClick={() => setAccountType('seller')}
               className={`rounded-xl py-2.5 text-xs font-bold transition-all ${
                 accountType === 'seller'
-                  ? 'bg-laser-400 text-chumbo-950 shadow-md font-extrabold'
-                  : 'text-slate-400 hover:text-white'
+                  ? 'bg-blue-600 text-white shadow-md font-extrabold'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
               }`}
             >
               Sou Lojista / Vendedor
@@ -188,21 +178,21 @@ const LoginFormView: React.FC<{
             type="button"
             onClick={handleGoogleLogin}
             disabled={isLoading}
-            className="w-full py-3 rounded-xl border border-chumbo-700 bg-chumbo-950/60 hover:bg-chumbo-800 text-white font-bold text-sm transition-all flex items-center justify-center space-x-2.5 disabled:opacity-50"
+            className="w-full py-3 rounded-xl border border-slate-300 dark:border-chumbo-700 bg-white dark:bg-chumbo-950/60 hover:bg-slate-50 dark:hover:bg-chumbo-800 text-slate-800 dark:text-white font-bold text-sm transition-all flex items-center justify-center space-x-2.5 disabled:opacity-50 shadow-sm"
           >
-            <Chrome className="w-4 h-4 text-white" />
-            <span>{accountType === 'seller' ? 'Entrar no Admin com Google' : 'Continuar com Google'}</span>
+            <Chrome className="w-4 h-4 text-slate-700 dark:text-white" />
+            <span>{accountType === 'seller' ? 'Acessar Painel com Google' : 'Continuar com Google'}</span>
           </button>
 
           <div className="flex items-center gap-3 my-5">
-            <div className="h-px flex-1 bg-chumbo-800" />
-            <span className="text-[10px] font-mono uppercase text-slate-500">ou com e-mail</span>
-            <div className="h-px flex-1 bg-chumbo-800" />
+            <div className="h-px flex-1 bg-slate-200 dark:bg-chumbo-800" />
+            <span className="text-[10px] font-mono font-semibold uppercase text-slate-600 dark:text-slate-400">ou com e-mail</span>
+            <div className="h-px flex-1 bg-slate-200 dark:bg-chumbo-800" />
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="text-xs font-mono uppercase text-slate-400 block mb-1">
+              <label className="text-xs font-mono font-semibold uppercase text-slate-700 dark:text-slate-400 block mb-1">
                 E-mail ou Usuário
               </label>
               <div className="relative">
@@ -212,21 +202,21 @@ const LoginFormView: React.FC<{
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="seu.email@exemplo.com"
-                  className="w-full bg-chumbo-950/70 border border-chumbo-700 rounded-xl py-3 pl-11 pr-4 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-laser-400 transition-all"
+                  className="w-full bg-slate-50 dark:bg-chumbo-950/70 border border-slate-300 dark:border-chumbo-700 rounded-xl py-3 pl-11 pr-4 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-600 dark:focus:border-laser-400 transition-all"
                 />
-                <Mail className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                <Mail className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-4 top-1/2 -translate-y-1/2" />
               </div>
             </div>
 
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-mono uppercase text-slate-400">
+                <label className="text-xs font-mono font-semibold uppercase text-slate-700 dark:text-slate-400">
                   Senha de Acesso
                 </label>
                 <button
                   type="button"
                   onClick={() => setIsForgotOpen(true)}
-                  className="text-xs text-laser-400 hover:text-laser-300 transition-colors"
+                  className="text-xs font-semibold text-blue-600 hover:text-blue-700 dark:text-laser-400 dark:hover:text-laser-300 transition-colors"
                 >
                   Esqueceu a senha?
                 </button>
@@ -238,29 +228,29 @@ const LoginFormView: React.FC<{
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="********"
-                  className="w-full bg-chumbo-950/70 border border-chumbo-700 rounded-xl py-3 pl-11 pr-4 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-laser-400 transition-all"
+                  className="w-full bg-slate-50 dark:bg-chumbo-950/70 border border-slate-300 dark:border-chumbo-700 rounded-xl py-3 pl-11 pr-4 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-600 dark:focus:border-laser-400 transition-all"
                 />
-                <Lock className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                <Lock className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-4 top-1/2 -translate-y-1/2" />
               </div>
             </div>
 
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3.5 mt-2 rounded-xl bg-laser-400 hover:bg-laser-300 text-chumbo-950 font-extrabold text-sm transition-all shadow-lg flex items-center justify-center space-x-2 disabled:opacity-50"
+              className="w-full py-3.5 mt-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-sm transition-all shadow-lg shadow-blue-600/25 flex items-center justify-center space-x-2 disabled:opacity-50"
             >
-              <span>{isLoading ? 'Autenticando...' : accountType === 'seller' ? 'Entrar no Console Admin' : 'Entrar na Loja'}</span>
+              <span>{isLoading ? 'Autenticando...' : accountType === 'seller' ? 'Acessar Painel da Loja' : 'Entrar na Loja'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>
 
-          <div className="mt-6 pt-5 border-t border-chumbo-800 text-center">
-            <p className="text-xs text-slate-400">
+          <div className="mt-6 pt-5 border-t border-slate-200 dark:border-chumbo-800 text-center">
+            <p className="text-xs text-slate-600 dark:text-slate-400">
               Ainda não tem conta?{' '}
               <button
                 type="button"
                 onClick={() => setIsRegisterOpen(true)}
-                className="text-white font-bold underline hover:text-laser-400 transition-colors"
+                className="text-blue-600 hover:text-blue-700 dark:text-laser-400 dark:hover:text-laser-300 font-bold underline transition-colors"
               >
                 Cadastre-se gratuitamente
               </button>
@@ -270,7 +260,7 @@ const LoginFormView: React.FC<{
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-chumbo-800/60 py-6 text-center text-xs text-slate-500">
+      <footer className="border-t border-slate-200 dark:border-chumbo-800/60 py-6 text-center text-xs text-slate-500">
         AZ3D Studio &copy; {new Date().getFullYear()} — Plataforma de Impressão 3D e Manufatura sob Demanda.
       </footer>
 
@@ -357,56 +347,56 @@ const ResetPasswordView: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-chumbo-950 text-slate-100 flex flex-col justify-center items-center p-4">
-      <div className="w-full max-w-md bg-chumbo-900/90 border border-chumbo-700/80 rounded-3xl p-8 shadow-2xl backdrop-blur-xl">
+    <div className="min-h-screen bg-slate-50 dark:bg-chumbo-950 text-slate-900 dark:text-slate-100 flex flex-col justify-center items-center p-4">
+      <div className="w-full max-w-md bg-white dark:bg-chumbo-900/90 border border-slate-200 dark:border-chumbo-700/80 rounded-3xl p-8 shadow-2xl backdrop-blur-xl">
         <div className="text-center mb-6">
-          <div className="w-12 h-12 rounded-2xl bg-laser-400/15 border border-laser-500/30 flex items-center justify-center text-laser-400 mx-auto mb-4">
+          <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-laser-400/15 border border-blue-200 dark:border-laser-500/30 flex items-center justify-center text-blue-600 dark:text-laser-400 mx-auto mb-4">
             <KeyRound className="w-6 h-6 stroke-[2.2]" />
           </div>
-          <h1 className="text-2xl font-extrabold text-white">Criar Nova Senha</h1>
-          <p className="mt-1 text-xs text-slate-400">
+          <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">Criar Nova Senha</h1>
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
             {maskedEmail ? `Redefinindo senha para ${maskedEmail}` : 'Defina sua nova credencial de acesso'}
           </p>
         </div>
 
         {isValidating ? (
-          <div className="py-12 text-center text-xs font-mono uppercase tracking-widest text-slate-400">
+          <div className="py-12 text-center text-xs font-mono uppercase tracking-widest text-slate-500 dark:text-slate-400">
             Validando chave de segurança...
           </div>
         ) : isSuccess ? (
           <div className="text-center space-y-4 py-3">
-            <div className="p-4 rounded-2xl bg-emerald-950/50 border border-emerald-500/40 text-left space-y-2">
-              <div className="flex items-center gap-2 text-emerald-300 font-bold text-sm">
-                <Check className="w-5 h-5 text-emerald-400" />
+            <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-500/40 text-left space-y-2">
+              <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-300 font-bold text-sm">
+                <Check className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                 <span>Senha redefinida com sucesso!</span>
               </div>
-              <p className="text-xs text-slate-300">
+              <p className="text-xs text-slate-600 dark:text-slate-300">
                 Sua credencial foi atualizada no sistema. Você já pode fazer login na sua conta.
               </p>
             </div>
             <button
               type="button"
               onClick={goToLogin}
-              className="w-full py-3.5 rounded-xl bg-white hover:bg-slate-200 text-chumbo-950 font-extrabold text-sm transition-all shadow-xl"
+              className="w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-sm transition-all shadow-xl"
             >
               Fazer login agora
             </button>
           </div>
         ) : !isValid ? (
           <div className="text-center space-y-4 py-2">
-            <div className="p-4 rounded-2xl bg-red-950/60 border border-red-800 text-left space-y-2">
-              <div className="flex items-center gap-2 text-red-300 font-bold text-sm">
-                <AlertCircle className="w-5 h-5 text-red-400" />
+            <div className="p-4 rounded-2xl bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800 text-left space-y-2">
+              <div className="flex items-center gap-2 text-red-700 dark:text-red-300 font-bold text-sm">
+                <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
                 <span>Link Inválido ou Expirado</span>
               </div>
-              <p className="text-xs text-slate-300">
+              <p className="text-xs text-slate-600 dark:text-slate-300">
                 {error || 'Este link de recuperação já foi utilizado ou ultrapassou os 30 minutos de validade.'}
               </p>
             </div>
             <button
               type="button"
               onClick={goToLogin}
-              className="w-full py-3.5 rounded-xl bg-laser-400 hover:bg-laser-300 text-chumbo-950 font-extrabold text-sm transition-all"
+              className="w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-sm transition-all shadow-lg"
             >
               Solicitar novo link
             </button>
@@ -414,14 +404,14 @@ const ResetPasswordView: React.FC = () => {
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className="p-3.5 rounded-xl bg-red-950/60 border border-red-800 text-red-200 text-xs flex items-center space-x-2">
-                <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+              <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-200 text-xs flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-red-600 dark:text-red-400" />
                 <span>{error}</span>
               </div>
             )}
 
             <div>
-              <label className="text-xs font-mono uppercase text-slate-400 block mb-1">
+              <label className="text-xs font-mono font-semibold uppercase text-slate-700 dark:text-slate-400 block mb-1">
                 Nova Senha (mínimo 6 caracteres)
               </label>
               <div className="relative">
@@ -431,14 +421,14 @@ const ResetPasswordView: React.FC = () => {
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="Nova senha"
-                  className="w-full bg-chumbo-950 border border-chumbo-700 rounded-xl py-3 pl-11 pr-4 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-laser-400 transition-all"
+                  className="w-full bg-slate-50 dark:bg-chumbo-950 border border-slate-300 dark:border-chumbo-700 rounded-xl py-3 pl-11 pr-4 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-600 dark:focus:border-laser-400 transition-all"
                 />
-                <Lock className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                <Lock className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-4 top-1/2 -translate-y-1/2" />
               </div>
             </div>
 
             <div>
-              <label className="text-xs font-mono uppercase text-slate-400 block mb-1">
+              <label className="text-xs font-mono font-semibold uppercase text-slate-700 dark:text-slate-400 block mb-1">
                 Confirme a Nova Senha
               </label>
               <div className="relative">
@@ -448,16 +438,16 @@ const ResetPasswordView: React.FC = () => {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Confirme a nova senha"
-                  className="w-full bg-chumbo-950 border border-chumbo-700 rounded-xl py-3 pl-11 pr-4 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-laser-400 transition-all"
+                  className="w-full bg-slate-50 dark:bg-chumbo-950 border border-slate-300 dark:border-chumbo-700 rounded-xl py-3 pl-11 pr-4 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-600 dark:focus:border-laser-400 transition-all"
                 />
-                <Lock className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                <Lock className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-4 top-1/2 -translate-y-1/2" />
               </div>
             </div>
 
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-3.5 mt-2 rounded-xl bg-laser-400 hover:bg-laser-300 text-chumbo-950 font-extrabold text-sm transition-all shadow-xl flex items-center justify-center space-x-2 disabled:opacity-50"
+              className="w-full py-3.5 mt-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-sm transition-all shadow-xl shadow-blue-600/25 flex items-center justify-center space-x-2 disabled:opacity-50"
             >
               <span>{isSubmitting ? 'Salvando...' : 'Atualizar Minha Senha'}</span>
               <CheckCircle2 className="w-4 h-4" />
@@ -466,7 +456,7 @@ const ResetPasswordView: React.FC = () => {
             <button
               type="button"
               onClick={goToLogin}
-              className="w-full pt-3 flex items-center justify-center gap-2 text-xs text-slate-400 hover:text-white transition-colors"
+              className="w-full pt-3 flex items-center justify-center gap-2 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Cancelar e voltar ao login</span>

@@ -92,7 +92,7 @@ export const ProductionCostsPanel: React.FC<ProductionCostsPanelProps> = ({ tena
 
       <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-chumbo-800 dark:bg-chumbo-950/60">
-          <h4 className="text-sm font-bold text-slate-900 dark:text-white">Custos fixos do tenant</h4>
+          <h4 className="text-sm font-bold text-slate-900 dark:text-white">Custos fixos da loja</h4>
           <div className="mt-3 space-y-2">
             {fixedCosts.map((cost) => (
               <div key={cost.id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs dark:border-chumbo-800 dark:bg-chumbo-900/60">

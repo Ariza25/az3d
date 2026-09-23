@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Heart,
   Share2,
@@ -19,9 +19,14 @@ import {
   Trash2,
   Flame,
   ArrowUpRight,
+  ChevronLeft,
+  ChevronRight,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { Product, TenantSettings } from '../../types';
 import { useTenantCatalog } from '../../shared/hooks/useTenantCatalog';
+import { useTheme } from '../../context/ThemeContext';
 import { api, resolveApiAssetUrl } from '../../services/api';
 import {
   getAvailableColors,
@@ -58,6 +63,47 @@ export const CatalogApp: React.FC = () => {
   const [selectedMaterial, setSelectedMaterial] = useState<string>('todos');
   const [sortBy, setSortBy] = useState<'featured' | 'price_asc' | 'price_desc' | 'name'>('featured');
   const [viewMode, setViewMode] = useState<'grid' | 'compact'>('grid');
+
+  // Tema Escuro / Claro
+  const { theme, toggleTheme } = useTheme();
+  const isDark = theme === 'dark';
+
+  // Carrossel de Destaques
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const [carouselCanScrollLeft, setCarouselCanScrollLeft] = useState(false);
+  const [carouselCanScrollRight, setCarouselCanScrollRight] = useState(true);
+  const [activeCarouselIndex, setActiveCarouselIndex] = useState(0);
+
+  const checkCarouselScroll = () => {
+    if (!carouselRef.current) return;
+    const { scrollLeft, scrollWidth, clientWidth } = carouselRef.current;
+    setCarouselCanScrollLeft(scrollLeft > 15);
+    setCarouselCanScrollRight(scrollLeft + clientWidth < scrollWidth - 15);
+
+    const cardWidth = clientWidth >= 1024 ? clientWidth / 4 : clientWidth >= 640 ? clientWidth / 2 : clientWidth * 0.78;
+    const index = Math.round(scrollLeft / cardWidth);
+    setActiveCarouselIndex(Math.max(0, index));
+  };
+
+  const scrollCarousel = (direction: 'left' | 'right') => {
+    if (!carouselRef.current) return;
+    const container = carouselRef.current;
+    const cardWidth = container.clientWidth >= 1024 ? container.clientWidth / 4 : container.clientWidth >= 640 ? container.clientWidth / 2 : container.clientWidth * 0.78;
+    const scrollAmount = cardWidth * (container.clientWidth >= 1024 ? 2 : 1);
+    container.scrollBy({
+      left: direction === 'left' ? -scrollAmount : scrollAmount,
+      behavior: 'smooth',
+    });
+  };
+
+  const scrollToCarouselIndex = (index: number) => {
+    if (!carouselRef.current) return;
+    const container = carouselRef.current;
+    const items = container.querySelectorAll('.carousel-spotlight-item');
+    if (items[index]) {
+      (items[index] as HTMLElement).scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
+    }
+  };
 
   // Modal de Detalhes Rápido
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
@@ -173,12 +219,19 @@ export const CatalogApp: React.FC = () => {
       });
   }, [storeProducts, selectedCategory, selectedMaterial, searchQuery, sortBy]);
 
-  // Destaques / Vitrine Top Picks (até 4 produtos)
+  // Destaques / Vitrine Top Picks (para o carrossel interativo)
   const spotlightProducts = useMemo(() => {
     return storeProducts
       .filter((p) => getStockStatus(p).canBuy)
-      .slice(0, 4);
+      .slice(0, 10);
   }, [storeProducts]);
+
+  useEffect(() => {
+    checkCarouselScroll();
+    const handleResize = () => checkCarouselScroll();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [spotlightProducts.length]);
 
   // Categorias com contador de produtos
   const categoriesWithCounts = useMemo(() => {
@@ -281,55 +334,75 @@ export const CatalogApp: React.FC = () => {
 
   return (
     <div
-      className="min-h-screen bg-chumbo-950 text-slate-100 font-sans flex flex-col selection:bg-cyan-500/30 selection:text-cyan-200"
+      className="min-h-screen bg-slate-100 dark:bg-chumbo-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col transition-colors duration-150"
       style={{ '--tenant-primary': primaryColor } as React.CSSProperties}
     >
-      {/* Top Header / Brand Identity - Responsivo para todas as telas */}
-      <header className="sticky top-0 z-40 border-b border-chumbo-800/80 bg-chumbo-950/90 backdrop-blur-xl transition-all">
+      {/* Top Header / Identidade da Loja - Totalmente responsivo com suporte a Tema Claro / Escuro */}
+      <header className="sticky top-0 z-40 border-b border-slate-200 dark:border-chumbo-800/80 bg-white/95 dark:bg-chumbo-950/95 backdrop-blur-xl transition-colors">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-14 sm:h-20 flex items-center justify-between gap-2 sm:gap-4">
-          {/* Logo & Store Info */}
+          {/* Logo & Informações da Loja */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             {logoUrl ? (
               <img
                 src={resolveApiAssetUrl(logoUrl)}
                 alt={storeName}
-                className="h-8 w-8 sm:h-12 sm:w-12 rounded-xl object-cover border border-chumbo-700/60 shadow-md bg-chumbo-900 shrink-0"
+                className="h-8 w-8 sm:h-12 sm:w-12 rounded-xl object-cover border border-slate-200 dark:border-chumbo-700/60 shadow-md bg-white dark:bg-chumbo-900 shrink-0"
               />
             ) : (
-              <div className="h-8 w-8 sm:h-12 sm:w-12 rounded-xl bg-gradient-to-br from-chumbo-800 to-chumbo-900 border border-chumbo-700 flex items-center justify-center shadow-inner shrink-0">
-                <AZ3DLogo className="h-5 w-5 sm:h-6 sm:w-6 text-cyan-400" />
-              </div>
+              <AZ3DLogo className="h-8 w-8 sm:h-12 sm:w-12 rounded-xl object-contain p-1 border border-slate-200 dark:border-chumbo-700/60 shadow-md bg-white dark:bg-chumbo-900 shrink-0" />
             )}
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 sm:gap-2">
-                <h1 className="text-xs sm:text-lg font-bold text-white tracking-tight truncate max-w-[120px] min-[400px]:max-w-[160px] sm:max-w-xs md:max-w-md">
+                <h1 className="text-xs sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight truncate max-w-[120px] min-[400px]:max-w-[160px] sm:max-w-xs md:max-w-md">
                   {storeName}
                 </h1>
-                <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-cyan-950/70 border border-cyan-500/30 text-cyan-300 shrink-0">
+                <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-cyan-100 dark:bg-cyan-950/70 border border-cyan-300 dark:border-cyan-500/30 text-cyan-800 dark:text-cyan-300 shrink-0">
                   Catálogo
                 </span>
               </div>
-              <p className="text-[10px] sm:text-xs text-slate-400 truncate flex items-center gap-1">
+              <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 truncate flex items-center gap-1">
                 <span className="truncate">Impressão 3D</span>
-                <span className="text-chumbo-600">•</span>
-                <span className="text-slate-400 shrink-0">{storeProducts.length} itens</span>
+                <span className="text-slate-400 dark:text-chumbo-600">•</span>
+                <span className="text-slate-500 dark:text-slate-400 shrink-0">{storeProducts.length} itens</span>
               </p>
             </div>
           </div>
 
-          {/* Quick Actions (Adapta para telas pequenas) */}
-          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+          {/* Quick Actions no Cabeçalho */}
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+            {/* Alternador de Tema Claro / Escuro */}
+            <button
+              type="button"
+              onClick={toggleTheme}
+              title={isDark ? 'Alternar para tema claro' : 'Alternar para tema escuro'}
+              aria-label="Alternar tema claro/escuro"
+              className="inline-flex items-center gap-1.5 p-2 sm:px-3 sm:py-2 rounded-xl text-xs font-semibold bg-white dark:bg-chumbo-900 hover:bg-slate-100 dark:hover:bg-chumbo-800 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-chumbo-700/80 transition-all shadow-sm active:scale-95 shrink-0"
+            >
+              {isDark ? (
+                <>
+                  <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 fill-amber-400/20" />
+                  <span className="hidden md:inline text-amber-400 font-bold">Claro</span>
+                </>
+              ) : (
+                <>
+                  <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-700 fill-slate-700/20" />
+                  <span className="hidden md:inline text-slate-700 font-bold">Escuro</span>
+                </>
+              )}
+            </button>
+
             {/* Botão de Compartilhar Link */}
             <button
+              type="button"
               onClick={handleCopyCatalogLink}
               title="Copiar link do catálogo para compartilhar"
               aria-label="Compartilhar catálogo"
-              className="inline-flex items-center gap-1.5 p-2 sm:px-3 sm:py-2 rounded-xl text-xs font-medium text-slate-300 bg-chumbo-900 hover:bg-chumbo-800 border border-chumbo-700/80 transition-all hover:text-white active:scale-95"
+              className="inline-flex items-center gap-1.5 p-2 sm:px-3 sm:py-2 rounded-xl text-xs font-semibold bg-white dark:bg-chumbo-900 hover:bg-slate-100 dark:hover:bg-chumbo-800 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-chumbo-700/80 transition-all shadow-sm active:scale-95 shrink-0"
             >
               {copiedLink ? (
                 <>
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="text-emerald-400 font-semibold hidden md:inline">Copiado!</span>
+                  <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <span className="text-emerald-600 dark:text-emerald-400 font-semibold hidden md:inline">Copiado!</span>
                 </>
               ) : (
                 <>
@@ -341,12 +414,13 @@ export const CatalogApp: React.FC = () => {
 
             {/* Caderno de Escolhas / Salvos (Wishlist) */}
             <button
+              type="button"
               onClick={() => setIsSavedDrawerOpen(true)}
-              className="relative inline-flex items-center gap-1.5 sm:gap-2 p-2 sm:px-3.5 sm:py-2 rounded-xl text-xs font-semibold bg-chumbo-900 hover:bg-chumbo-800 border border-chumbo-700/80 text-white transition-all shadow-sm active:scale-95"
+              className="relative inline-flex items-center gap-1.5 sm:gap-2 p-2 sm:px-3.5 sm:py-2 rounded-xl text-xs font-semibold bg-white dark:bg-chumbo-900 hover:bg-slate-100 dark:hover:bg-chumbo-800 text-slate-700 dark:text-slate-100 border border-slate-300 dark:border-chumbo-700/80 transition-all shadow-sm active:scale-95 shrink-0"
               title="Ver itens que você separou para depois"
               aria-label="Ver itens salvos"
             >
-              <Heart className={`w-4 h-4 ${savedItems.length > 0 ? 'fill-rose-500 text-rose-500' : 'text-slate-400'}`} />
+              <Heart className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${savedItems.length > 0 ? 'fill-rose-500 text-rose-500' : 'text-slate-500 dark:text-slate-400'}`} />
               <span className="hidden lg:inline">Salvos</span>
               {savedItems.length > 0 && (
                 <span className="flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-rose-500 text-[9px] sm:text-[10px] font-extrabold text-white shadow">
@@ -357,54 +431,99 @@ export const CatalogApp: React.FC = () => {
 
             {/* Ir para a Loja Oficial */}
             <button
+              type="button"
               onClick={() => goToStore()}
-              className="inline-flex items-center gap-1 sm:gap-1.5 px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs font-bold bg-white text-chumbo-950 hover:bg-slate-200 transition-all shadow-md active:scale-95 shrink-0"
+              className="inline-flex items-center gap-1 sm:gap-1.5 px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs font-bold bg-cyan-600 hover:bg-cyan-500 text-white border border-cyan-500 transition-all shadow-md active:scale-95 shrink-0"
               title="Acessar loja oficial com carrinho e checkout"
             >
-              <ShoppingBag className="w-3.5 h-3.5 text-chumbo-950" />
+              <ShoppingBag className="w-3.5 h-3.5" />
               <span className="hidden min-[400px]:inline">Loja</span>
               <span className="hidden sm:inline">Oficial</span>
-              <ArrowUpRight className="w-3 h-3 sm:w-3.5 sm:h-3.5 opacity-60" />
+              <ArrowUpRight className="w-3 h-3 sm:w-3.5 sm:h-3.5 opacity-80" />
             </button>
           </div>
         </div>
       </header>
 
-      {/* Main Content Area */}
+      {/* Área Principal */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-6 sm:space-y-8">
-        {/* Banner de Apresentação Leve & Calmo - Altamente Responsivo */}
-        <section className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-chumbo-800/80 bg-gradient-to-br from-chumbo-900/90 via-chumbo-950 to-chumbo-900/60 p-4 sm:p-8 lg:p-10 shadow-2xl">
-          <div className="absolute -right-16 -top-16 w-60 sm:w-80 h-60 sm:h-80 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute -left-16 -bottom-16 w-60 sm:w-72 h-60 sm:h-72 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+        {/* Banner de Apresentação Leve & Calmo - Alto Contraste em Qualquer Tema */}
+        <section className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 via-chumbo-950 to-cyan-950 p-5 sm:p-8 lg:p-10 shadow-2xl text-white">
+          <div className="absolute -right-16 -top-16 w-60 sm:w-80 h-60 sm:h-80 bg-cyan-500/15 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -left-16 -bottom-16 w-60 sm:w-72 h-60 sm:h-72 bg-blue-500/15 rounded-full blur-3xl pointer-events-none" />
 
           <div className="relative z-10 max-w-2xl space-y-2 sm:space-y-3">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 text-[11px] sm:text-xs font-medium">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-cyan-400/15 border border-cyan-400/30 text-cyan-300 text-[11px] sm:text-xs font-semibold">
               <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-cyan-400" />
               <span>Vitrine Visual • Impressão 3D</span>
             </div>
-            <h2 className="text-lg min-[400px]:text-xl sm:text-3xl lg:text-4xl font-extrabold text-white tracking-tight leading-tight">
+            <h2 className="text-xl min-[400px]:text-2xl sm:text-3xl lg:text-4xl font-extrabold text-white tracking-tight leading-tight drop-shadow-sm">
               Veja com calma tudo o que podemos produzir para você.
             </h2>
-            <p className="text-xs sm:text-sm lg:text-base text-slate-300 leading-relaxed">
+            <p className="text-xs sm:text-sm lg:text-base text-slate-200 leading-relaxed font-normal">
               Explore o catálogo completo de impressão 3D, descubra cores e materiais, e marque suas peças favoritas.
               Quando decidir, finalize na loja ou fale direto conosco no WhatsApp!
             </p>
           </div>
         </section>
 
-        {/* Destaques / Vitrine em Evidência (Spotlight) - Carousel touch no celular, Grid no tablet/desktop */}
+        {/* Destaques / Vitrine em Evidência - Carrossel Interativo com Controles e Indicadores */}
         {spotlightProducts.length > 0 && selectedCategory === 'todas' && !searchQuery && (
           <section className="space-y-3 sm:space-y-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 sm:gap-2">
-                <Flame className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
-                <h3 className="text-sm sm:text-lg font-bold text-white tracking-tight">Destaques da Coleção</h3>
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-amber-500/15 text-amber-500 border border-amber-500/20">
+                  <Flame className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight">
+                    Destaques da Coleção
+                  </h3>
+                  <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 hidden sm:block">
+                    Peças mais procuradas e recomendadas para você
+                  </p>
+                </div>
               </div>
-              <span className="text-[11px] sm:text-xs text-slate-400">Mais procurados</span>
+
+              {/* Controles de Navegação do Carrossel */}
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <button
+                  type="button"
+                  onClick={() => scrollCarousel('left')}
+                  disabled={!carouselCanScrollLeft}
+                  className={`p-2 rounded-xl border transition-all ${
+                    carouselCanScrollLeft
+                      ? 'bg-white dark:bg-chumbo-900 border-slate-300 dark:border-chumbo-700 text-slate-800 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-chumbo-800 shadow-sm active:scale-95'
+                      : 'bg-slate-100 dark:bg-chumbo-900/40 border-slate-200 dark:border-chumbo-800 text-slate-400 dark:text-slate-600 opacity-40 cursor-not-allowed'
+                  }`}
+                  title="Anterior"
+                  aria-label="Item anterior do carrossel"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => scrollCarousel('right')}
+                  disabled={!carouselCanScrollRight}
+                  className={`p-2 rounded-xl border transition-all ${
+                    carouselCanScrollRight
+                      ? 'bg-white dark:bg-chumbo-900 border-slate-300 dark:border-chumbo-700 text-slate-800 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-chumbo-800 shadow-sm active:scale-95'
+                      : 'bg-slate-100 dark:bg-chumbo-900/40 border-slate-200 dark:border-chumbo-800 text-slate-400 dark:text-slate-600 opacity-40 cursor-not-allowed'
+                  }`}
+                  title="Próximo"
+                  aria-label="Próximo item do carrossel"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
-            {/* Mobile: Swipe suave horizontal com snap; Tablet/PC: Grid clássico de 4 colunas */}
-            <div className="flex sm:grid sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 overflow-x-auto sm:overflow-visible pb-2 sm:pb-0 no-scrollbar snap-x snap-mandatory">
+            {/* Trilho do Carrossel com Snap suave */}
+            <div
+              ref={carouselRef}
+              onScroll={checkCarouselScroll}
+              className="flex gap-3 sm:gap-4 overflow-x-auto pb-3 pt-1 no-scrollbar scroll-smooth snap-x snap-mandatory touch-pan-x -mx-1 px-1"
+            >
               {spotlightProducts.map((product) => {
                 const cover = optimizeImageUrl(product.color_images?.[0]?.image_url || product.image_url);
                 const isSaved = isItemSaved(product.id);
@@ -415,9 +534,9 @@ export const CatalogApp: React.FC = () => {
                       setDetailProduct(product);
                       setActiveImageIndex(0);
                     }}
-                    className="w-[68vw] min-[420px]:w-[55vw] sm:w-auto shrink-0 snap-start group relative cursor-pointer overflow-hidden rounded-2xl border border-chumbo-800 bg-chumbo-900/60 p-2.5 sm:p-3 hover:border-cyan-500/40 transition-all duration-300 hover:shadow-xl hover:shadow-cyan-950/20"
+                    className="carousel-spotlight-item w-[78vw] min-[420px]:w-[65vw] sm:w-[calc(50%-10px)] md:w-[calc(33.333%-12px)] lg:w-[calc(25%-12px)] shrink-0 snap-start group relative cursor-pointer overflow-hidden rounded-2xl border border-slate-200/90 dark:border-chumbo-800 bg-white dark:bg-chumbo-900/70 p-2.5 sm:p-3 hover:border-cyan-500/50 dark:hover:border-cyan-500/40 transition-all duration-300 shadow-sm hover:shadow-xl hover:-translate-y-0.5"
                   >
-                    <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-chumbo-950">
+                    <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-slate-100 dark:bg-chumbo-950">
                       <img
                         src={cover}
                         alt={product.title}
@@ -430,10 +549,10 @@ export const CatalogApp: React.FC = () => {
                           e.stopPropagation();
                           toggleSaveItem(product);
                         }}
-                        className={`absolute top-2 right-2 p-1.5 sm:p-2 rounded-lg backdrop-blur-md transition-all ${
+                        className={`absolute top-2 right-2 p-1.5 sm:p-2 rounded-lg backdrop-blur-md transition-all shadow-md ${
                           isSaved
                             ? 'bg-rose-500 text-white'
-                            : 'bg-chumbo-950/70 text-slate-300 hover:text-white hover:bg-chumbo-900'
+                            : 'bg-white/90 dark:bg-chumbo-950/70 text-slate-700 dark:text-slate-300 hover:text-rose-500 hover:bg-white dark:hover:bg-chumbo-900 border border-slate-200/60 dark:border-chumbo-700/60'
                         }`}
                         title={isSaved ? 'Remover dos salvos' : 'Salvar para decidir depois'}
                         aria-label="Salvar item"
@@ -443,10 +562,10 @@ export const CatalogApp: React.FC = () => {
                     </div>
 
                     <div className="mt-2 space-y-0.5 sm:space-y-1">
-                      <h4 className="text-xs sm:text-sm font-bold text-white truncate group-hover:text-cyan-300 transition-colors">
+                      <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate group-hover:text-cyan-600 dark:group-hover:text-cyan-300 transition-colors">
                         {product.title}
                       </h4>
-                      <p className="text-xs sm:text-sm font-extrabold text-cyan-400">
+                      <p className="text-xs sm:text-sm font-extrabold text-cyan-700 dark:text-cyan-400">
                         {money(product.price)}
                       </p>
                     </div>
@@ -454,11 +573,30 @@ export const CatalogApp: React.FC = () => {
                 );
               })}
             </div>
+
+            {/* Indicador de Bolinhas do Carrossel */}
+            {spotlightProducts.length > 1 && (
+              <div className="flex items-center justify-center gap-1.5 pt-1">
+                {spotlightProducts.map((_, idx) => (
+                  <button
+                    key={`dot-${idx}`}
+                    type="button"
+                    onClick={() => scrollToCarouselIndex(idx)}
+                    className={`h-1.5 rounded-full transition-all ${
+                      activeCarouselIndex === idx
+                        ? 'w-6 bg-cyan-600 dark:bg-cyan-400'
+                        : 'w-1.5 bg-slate-300 dark:bg-chumbo-700 hover:bg-slate-400 dark:hover:bg-chumbo-600'
+                    }`}
+                    aria-label={`Ir para destaque ${idx + 1}`}
+                  />
+                ))}
+              </div>
+            )}
           </section>
         )}
 
         {/* Barra de Filtros e Busca (Sticky com altura otimizada para mobile) */}
-        <section className="sticky top-14 sm:top-20 z-30 -mx-3 sm:-mx-6 lg:-mx-8 px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3 bg-chumbo-950/95 backdrop-blur-md border-y border-chumbo-800/80 space-y-2.5 sm:space-y-3">
+        <section className="sticky top-14 sm:top-20 z-30 -mx-3 sm:-mx-6 lg:-mx-8 px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3 bg-slate-100/95 dark:bg-chumbo-950/95 backdrop-blur-md border-y border-slate-200 dark:border-chumbo-800/80 space-y-2.5 sm:space-y-3 transition-colors">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-3">
             {/* Campo de Busca Rápida */}
             <div className="relative flex-1 max-w-md">
@@ -468,12 +606,12 @@ export const CatalogApp: React.FC = () => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Buscar por nome, material, cor..."
-                className="w-full pl-9 pr-8 py-2 rounded-xl bg-chumbo-900/90 border border-chumbo-700/80 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-all"
+                className="w-full pl-9 pr-8 py-2 rounded-xl bg-white dark:bg-chumbo-900 border border-slate-300 dark:border-chumbo-700/80 text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all shadow-xs"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-white p-1"
                   aria-label="Limpar busca"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -488,7 +626,7 @@ export const CatalogApp: React.FC = () => {
                 <select
                   value={selectedMaterial}
                   onChange={(e) => setSelectedMaterial(e.target.value)}
-                  className="px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-chumbo-900 border border-chumbo-700/80 text-[11px] sm:text-xs font-semibold text-slate-300 focus:outline-none focus:border-cyan-400 max-w-[120px] sm:max-w-none truncate"
+                  className="px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-white dark:bg-chumbo-900 border border-slate-300 dark:border-chumbo-700/80 text-[11px] sm:text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-cyan-500 max-w-[120px] sm:max-w-none truncate shadow-xs"
                 >
                   <option value="todos">Materiais</option>
                   {materialList.map((m) => (
@@ -501,7 +639,7 @@ export const CatalogApp: React.FC = () => {
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as any)}
-                className="px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-chumbo-900 border border-chumbo-700/80 text-[11px] sm:text-xs font-semibold text-slate-300 focus:outline-none focus:border-cyan-400 text-ellipsis"
+                className="px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-white dark:bg-chumbo-900 border border-slate-300 dark:border-chumbo-700/80 text-[11px] sm:text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-cyan-500 text-ellipsis shadow-xs"
               >
                 <option value="featured">Destaques</option>
                 <option value="price_asc">Menor Preço</option>
@@ -510,11 +648,13 @@ export const CatalogApp: React.FC = () => {
               </select>
 
               {/* Alternador de Layout (Grade / Lista) */}
-              <div className="flex items-center p-0.5 sm:p-1 rounded-xl bg-chumbo-900 border border-chumbo-700/80">
+              <div className="flex items-center p-0.5 sm:p-1 rounded-xl bg-slate-200 dark:bg-chumbo-900 border border-slate-300 dark:border-chumbo-700/80">
                 <button
                   onClick={() => setViewMode('grid')}
                   className={`p-1.5 rounded-lg transition-all ${
-                    viewMode === 'grid' ? 'bg-chumbo-800 text-cyan-400' : 'text-slate-400 hover:text-white'
+                    viewMode === 'grid'
+                      ? 'bg-white dark:bg-chumbo-800 text-cyan-600 dark:text-cyan-400 shadow-sm'
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                   title="Grade Visual"
                   aria-label="Visualização em grade"
@@ -524,7 +664,9 @@ export const CatalogApp: React.FC = () => {
                 <button
                   onClick={() => setViewMode('compact')}
                   className={`p-1.5 rounded-lg transition-all ${
-                    viewMode === 'compact' ? 'bg-chumbo-800 text-cyan-400' : 'text-slate-400 hover:text-white'
+                    viewMode === 'compact'
+                      ? 'bg-white dark:bg-chumbo-800 text-cyan-600 dark:text-cyan-400 shadow-sm'
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                   title="Lista Compacta"
                   aria-label="Visualização em lista"
@@ -541,8 +683,8 @@ export const CatalogApp: React.FC = () => {
               onClick={() => setSelectedCategory('todas')}
               className={`shrink-0 px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full text-xs font-medium transition-all ${
                 selectedCategory === 'todas'
-                  ? 'bg-cyan-500 text-chumbo-950 font-bold shadow-md shadow-cyan-500/20'
-                  : 'bg-chumbo-900 text-slate-300 hover:bg-chumbo-800 border border-chumbo-700/70'
+                  ? 'bg-cyan-600 text-white font-bold shadow-md shadow-cyan-600/30'
+                  : 'bg-white dark:bg-chumbo-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-chumbo-800 border border-slate-300 dark:border-chumbo-700/70 shadow-xs'
               }`}
             >
               Todas ({storeProducts.length})
@@ -553,8 +695,8 @@ export const CatalogApp: React.FC = () => {
                 onClick={() => setSelectedCategory(cat.slug)}
                 className={`shrink-0 px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1.5 ${
                   selectedCategory === cat.slug
-                    ? 'bg-cyan-500 text-chumbo-950 font-bold shadow-md shadow-cyan-500/20'
-                    : 'bg-chumbo-900 text-slate-300 hover:bg-chumbo-800 border border-chumbo-700/70'
+                    ? 'bg-cyan-600 text-white font-bold shadow-md shadow-cyan-600/30'
+                    : 'bg-white dark:bg-chumbo-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-chumbo-800 border border-slate-300 dark:border-chumbo-700/70 shadow-xs'
                 }`}
               >
                 <span>{cat.name}</span>
@@ -562,8 +704,8 @@ export const CatalogApp: React.FC = () => {
                   <span
                     className={`text-[9px] sm:text-[10px] px-1.5 py-0.2 rounded-full ${
                       selectedCategory === cat.slug
-                        ? 'bg-chumbo-950/30 text-chumbo-950 font-black'
-                        : 'bg-chumbo-800 text-slate-400'
+                        ? 'bg-cyan-700 text-white font-bold'
+                        : 'bg-slate-100 dark:bg-chumbo-800 text-slate-600 dark:text-slate-400'
                     }`}
                   >
                     {cat.count}
@@ -580,19 +722,19 @@ export const CatalogApp: React.FC = () => {
             {Array.from({ length: 8 }).map((_, i) => (
               <div
                 key={i}
-                className="animate-pulse rounded-2xl border border-chumbo-800 bg-chumbo-900/40 p-2.5 sm:p-3 space-y-2.5 sm:space-y-3"
+                className="animate-pulse rounded-2xl border border-slate-200 dark:border-chumbo-800 bg-white/60 dark:bg-chumbo-900/40 p-2.5 sm:p-3 space-y-2.5 sm:space-y-3"
               >
-                <div className="aspect-square w-full rounded-xl bg-chumbo-800/60" />
-                <div className="h-4 w-3/4 rounded bg-chumbo-800/60" />
-                <div className="h-4 w-1/3 rounded bg-chumbo-800/60" />
+                <div className="aspect-square w-full rounded-xl bg-slate-200 dark:bg-chumbo-800/60" />
+                <div className="h-4 w-3/4 rounded bg-slate-200 dark:bg-chumbo-800/60" />
+                <div className="h-4 w-1/3 rounded bg-slate-200 dark:bg-chumbo-800/60" />
               </div>
             ))}
           </div>
         ) : filteredProducts.length === 0 ? (
-          <div className="py-16 sm:py-20 text-center space-y-3 border border-dashed border-chumbo-800 rounded-3xl p-6 sm:p-8">
-            <Layers className="w-10 h-10 sm:w-12 sm:h-12 text-slate-600 mx-auto" />
-            <h3 className="text-base sm:text-lg font-bold text-white">Nenhum item encontrado</h3>
-            <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto">
+          <div className="py-16 sm:py-20 text-center space-y-3 border border-dashed border-slate-300 dark:border-chumbo-800 rounded-3xl p-6 sm:p-8 bg-white/50 dark:bg-chumbo-900/20">
+            <Layers className="w-10 h-10 sm:w-12 sm:h-12 text-slate-400 dark:text-slate-600 mx-auto" />
+            <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">Nenhum item encontrado</h3>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
               Tente buscar por outro termo ou mude os filtros de categoria e material.
             </p>
             <button
@@ -601,7 +743,7 @@ export const CatalogApp: React.FC = () => {
                 setSelectedCategory('todas');
                 setSelectedMaterial('todos');
               }}
-              className="mt-2 px-4 py-2 rounded-xl text-xs font-bold bg-chumbo-800 hover:bg-chumbo-700 text-white"
+              className="mt-2 px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-white dark:bg-chumbo-800 dark:hover:bg-chumbo-700 shadow-sm"
             >
               Limpar filtros
             </button>
@@ -619,11 +761,11 @@ export const CatalogApp: React.FC = () => {
               return (
                 <article
                   key={product.id}
-                  className="group flex flex-col overflow-hidden rounded-2xl border border-chumbo-800/90 bg-chumbo-900/50 hover:border-chumbo-700 transition-all duration-300 hover:shadow-xl hover:shadow-black/40"
+                  className="group flex flex-col overflow-hidden rounded-2xl border border-slate-200/90 dark:border-chumbo-800/90 bg-white dark:bg-chumbo-900/50 hover:border-slate-300 dark:hover:border-chumbo-700 transition-all duration-300 shadow-sm hover:shadow-xl hover:shadow-slate-200/50 dark:hover:shadow-black/40"
                 >
                   {/* Imagem do Produto com Ações Rápidas */}
                   <div
-                    className="relative aspect-square w-full cursor-pointer overflow-hidden bg-chumbo-950"
+                    className="relative aspect-square w-full cursor-pointer overflow-hidden bg-slate-100 dark:bg-chumbo-950"
                     onClick={() => {
                       setDetailProduct(product);
                       setActiveImageIndex(0);
@@ -635,7 +777,7 @@ export const CatalogApp: React.FC = () => {
                       loading="lazy"
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-chumbo-950/80 via-transparent to-transparent opacity-60" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 dark:from-chumbo-950/80 via-transparent to-transparent opacity-60" />
 
                     {/* Badge de Disponibilidade */}
                     <div className="absolute left-2.5 top-2.5">
@@ -654,7 +796,7 @@ export const CatalogApp: React.FC = () => {
                       className={`absolute top-2.5 right-2.5 p-2 rounded-xl backdrop-blur-md transition-all shadow-md ${
                         isSaved
                           ? 'bg-rose-500 text-white scale-105'
-                          : 'bg-chumbo-950/70 text-slate-300 hover:text-white hover:bg-chumbo-900'
+                          : 'bg-white/90 dark:bg-chumbo-950/70 text-slate-700 dark:text-slate-300 hover:text-rose-500 hover:bg-white dark:hover:bg-chumbo-900 border border-slate-200/60 dark:border-chumbo-700/60'
                       }`}
                       title={isSaved ? 'Item salvo! Clique para remover' : 'Salvar para decidir depois'}
                     >
@@ -669,7 +811,7 @@ export const CatalogApp: React.FC = () => {
                         setDetailProduct(product);
                         setActiveImageIndex(0);
                       }}
-                      className="absolute bottom-2.5 right-2.5 p-2 rounded-xl bg-chumbo-950/80 text-slate-300 hover:text-white border border-chumbo-700/80 opacity-0 group-hover:opacity-100 transition-all duration-200"
+                      className="absolute bottom-2.5 right-2.5 p-2 rounded-xl bg-white/90 dark:bg-chumbo-950/80 text-slate-700 dark:text-slate-300 hover:text-cyan-600 dark:hover:text-white border border-slate-200/60 dark:border-chumbo-700/80 opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-sm"
                       title="Ver detalhes da peça"
                     >
                       <Maximize2 className="w-3.5 h-3.5" />
@@ -685,20 +827,20 @@ export const CatalogApp: React.FC = () => {
                             setDetailProduct(product);
                             setActiveImageIndex(0);
                           }}
-                          className="text-xs sm:text-sm font-bold text-white group-hover:text-cyan-300 transition-colors line-clamp-2 cursor-pointer leading-tight"
+                          className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-300 transition-colors line-clamp-2 cursor-pointer leading-tight"
                         >
                           {product.title}
                         </h4>
                         {rating && rating > 0 && (
-                          <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-300 shrink-0">
-                            <Star className="w-3 h-3 fill-amber-300" />
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-500 dark:text-amber-300 shrink-0">
+                            <Star className="w-3 h-3 fill-amber-400 dark:fill-amber-300" />
                             {rating.toFixed(1)}
                           </span>
                         )}
                       </div>
 
                       {product.material && (
-                        <p className="text-[11px] font-mono text-slate-400">
+                        <p className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
                           {product.material}
                           {product.dimensions ? ` • ${product.dimensions}` : ''}
                         </p>
@@ -713,13 +855,13 @@ export const CatalogApp: React.FC = () => {
                               <span
                                 key={c}
                                 title={c}
-                                className="h-3 w-3 rounded-full border border-chumbo-900 ring-1 ring-chumbo-700"
+                                className="h-3 w-3 rounded-full border border-white dark:border-chumbo-900 ring-1 ring-slate-300 dark:ring-chumbo-700 shadow-xs"
                                 style={{ backgroundColor: visual.hex }}
                               />
                             );
                           })}
                           {colors.length > 1 && (
-                            <span className="text-[10px] text-slate-400 font-mono">
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
                               +{colors.length} cores
                             </span>
                           )}
@@ -728,19 +870,19 @@ export const CatalogApp: React.FC = () => {
                     </div>
 
                     {/* Preço e Botão de Ação */}
-                    <div className="pt-2 border-t border-chumbo-800/80 flex items-center justify-between gap-2">
+                    <div className="pt-2 border-t border-slate-200 dark:border-chumbo-800/80 flex items-center justify-between gap-2">
                       <div>
-                        <span className="text-[9px] uppercase font-mono tracking-wider text-slate-400 block">
+                        <span className="text-[9px] uppercase font-mono tracking-wider text-slate-500 dark:text-slate-400 block">
                           Preço
                         </span>
-                        <span className="text-sm sm:text-base font-extrabold text-white">
+                        <span className="text-sm sm:text-base font-extrabold text-cyan-700 dark:text-cyan-400">
                           {money(product.price)}
                         </span>
                       </div>
 
                       <button
                         onClick={() => goToStore(product.slug || product.id)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-200 text-chumbo-950 text-xs font-bold transition-all shadow-sm active:scale-95"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-200 text-white dark:text-chumbo-950 text-xs font-bold transition-all shadow-sm active:scale-95"
                         title="Ir para a loja comprar"
                       >
                         <span>Comprar</span>
@@ -767,20 +909,20 @@ export const CatalogApp: React.FC = () => {
                     setDetailProduct(product);
                     setActiveImageIndex(0);
                   }}
-                  className="group flex items-center justify-between gap-3 p-3 rounded-2xl border border-chumbo-800 bg-chumbo-900/40 hover:bg-chumbo-900/80 hover:border-chumbo-700 transition-all cursor-pointer"
+                  className="group flex items-center justify-between gap-3 p-3 rounded-2xl border border-slate-200/90 dark:border-chumbo-800 bg-white dark:bg-chumbo-900/40 hover:bg-slate-50 dark:hover:bg-chumbo-900/80 hover:border-slate-300 dark:hover:border-chumbo-700 transition-all cursor-pointer shadow-xs"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <img
                       src={cover}
                       alt={product.title}
                       loading="lazy"
-                      className="h-14 w-14 sm:h-16 sm:w-16 rounded-xl object-cover bg-chumbo-950 border border-chumbo-800 shrink-0"
+                      className="h-14 w-14 sm:h-16 sm:w-16 rounded-xl object-cover bg-slate-100 dark:bg-chumbo-950 border border-slate-200 dark:border-chumbo-800 shrink-0"
                     />
                     <div className="min-w-0">
-                      <h4 className="text-xs sm:text-sm font-bold text-white truncate group-hover:text-cyan-300">
+                      <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate group-hover:text-cyan-600 dark:group-hover:text-cyan-300">
                         {product.title}
                       </h4>
-                      <p className="text-[11px] text-slate-400 truncate">
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
                         {product.material || 'Impressão 3D'}
                         {product.category?.name ? ` • ${product.category.name}` : ''}
                       </p>
@@ -791,7 +933,7 @@ export const CatalogApp: React.FC = () => {
                   </div>
 
                   <div className="flex items-center gap-3 shrink-0">
-                    <span className="text-sm sm:text-base font-extrabold text-white">
+                    <span className="text-sm sm:text-base font-extrabold text-cyan-700 dark:text-cyan-400">
                       {money(product.price)}
                     </span>
 
@@ -802,7 +944,9 @@ export const CatalogApp: React.FC = () => {
                         toggleSaveItem(product);
                       }}
                       className={`p-2 rounded-xl transition-all ${
-                        isSaved ? 'bg-rose-500 text-white' : 'bg-chumbo-800 text-slate-300 hover:text-white'
+                        isSaved
+                          ? 'bg-rose-500 text-white'
+                          : 'bg-slate-100 dark:bg-chumbo-800 text-slate-600 dark:text-slate-300 hover:text-rose-500'
                       }`}
                       title={isSaved ? 'Salvo' : 'Salvar para depois'}
                     >
@@ -815,7 +959,7 @@ export const CatalogApp: React.FC = () => {
                         e.stopPropagation();
                         goToStore(product.slug || product.id);
                       }}
-                      className="p-2 rounded-xl bg-white text-chumbo-950 hover:bg-slate-200 transition-all font-bold text-xs"
+                      className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-200 text-white dark:text-chumbo-950 transition-all font-bold text-xs shadow-xs"
                       title="Comprar na Loja"
                     >
                       <ShoppingBag className="w-4 h-4" />
@@ -828,20 +972,20 @@ export const CatalogApp: React.FC = () => {
         )}
       </main>
 
-      {/* Modal de Detalhe Rápido do Produto - Totalmente responsivo (colunas em tablet/desktop, scroll elegante em mobile) */}
+      {/* Modal de Detalhe Rápido do Produto - Totalmente responsivo com suporte a Tema Claro e Escuro */}
       {detailProduct && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 md:p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 md:p-6 bg-black/60 dark:bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
           onClick={() => setDetailProduct(null)}
         >
           <div
-            className="relative w-full max-w-lg md:max-w-4xl lg:max-w-5xl overflow-hidden rounded-2xl sm:rounded-3xl border border-chumbo-700 bg-chumbo-950 p-4 sm:p-6 md:p-8 shadow-2xl max-h-[92vh] md:max-h-[88vh] overflow-y-auto"
+            className="relative w-full max-w-lg md:max-w-4xl lg:max-w-5xl overflow-hidden rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-chumbo-700 bg-white dark:bg-chumbo-950 text-slate-900 dark:text-slate-100 p-4 sm:p-6 md:p-8 shadow-2xl max-h-[92vh] md:max-h-[88vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Fechar */}
             <button
               onClick={() => setDetailProduct(null)}
-              className="absolute top-3 right-3 sm:top-4 sm:right-4 z-20 p-2 rounded-xl bg-chumbo-900/90 text-slate-400 hover:text-white hover:bg-chumbo-800 transition-all border border-chumbo-700/60"
+              className="absolute top-3 right-3 sm:top-4 sm:right-4 z-20 p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-chumbo-900/90 dark:hover:bg-chumbo-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-chumbo-700/60 transition-all"
               aria-label="Fechar detalhes"
             >
               <X className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -850,7 +994,7 @@ export const CatalogApp: React.FC = () => {
             <div className="md:grid md:grid-cols-2 md:gap-8 md:items-start space-y-4 md:space-y-0">
               {/* Coluna Esquerda: Galeria de Fotos */}
               <div className="space-y-3">
-                <div className="relative aspect-square sm:aspect-[4/3] md:aspect-square w-full overflow-hidden rounded-2xl bg-chumbo-900 border border-chumbo-800">
+                <div className="relative aspect-square sm:aspect-[4/3] md:aspect-square w-full overflow-hidden rounded-2xl bg-slate-50 dark:bg-chumbo-900 border border-slate-200 dark:border-chumbo-800">
                   {(() => {
                     const allImages = [
                       detailProduct.image_url,
@@ -885,8 +1029,8 @@ export const CatalogApp: React.FC = () => {
                           onClick={() => setActiveImageIndex(idx)}
                           className={`relative h-12 w-12 sm:h-14 sm:w-14 rounded-xl overflow-hidden border shrink-0 transition-all ${
                             activeImageIndex === idx
-                              ? 'border-cyan-400 ring-2 ring-cyan-400/40'
-                              : 'border-chumbo-800 opacity-60 hover:opacity-100'
+                              ? 'border-cyan-500 ring-2 ring-cyan-500/40'
+                              : 'border-slate-200 dark:border-chumbo-800 opacity-60 hover:opacity-100'
                           }`}
                         >
                           <img src={optimizeImageUrl(img)} alt="" className="w-full h-full object-cover" />
@@ -902,39 +1046,39 @@ export const CatalogApp: React.FC = () => {
                 <div className="space-y-3.5">
                   <div className="flex items-start justify-between gap-3 pr-8 md:pr-0">
                     <div>
-                      <h3 className="text-lg sm:text-2xl font-extrabold text-white leading-tight">
+                      <h3 className="text-lg sm:text-2xl font-extrabold text-slate-900 dark:text-white leading-tight">
                         {detailProduct.title}
                       </h3>
-                      <p className="text-xs text-slate-400 mt-1">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                         {detailProduct.category?.name || 'Impressão 3D'} • Ref: {detailProduct.sku || `#${detailProduct.id}`}
                       </p>
                     </div>
                     <div className="text-right shrink-0">
-                      <span className="text-[10px] text-slate-400 block font-mono uppercase">Valor</span>
-                      <span className="text-xl sm:text-2xl font-black text-cyan-400">{money(detailProduct.price)}</span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-mono uppercase">Valor</span>
+                      <span className="text-xl sm:text-2xl font-black text-cyan-700 dark:text-cyan-400">{money(detailProduct.price)}</span>
                     </div>
                   </div>
 
                   {/* Especificações da Peça 3D */}
-                  <div className="grid grid-cols-3 gap-2 p-2.5 sm:p-3 rounded-xl bg-chumbo-900/70 border border-chumbo-800 text-xs">
+                  <div className="grid grid-cols-3 gap-2 p-2.5 sm:p-3 rounded-xl bg-slate-50 dark:bg-chumbo-900/70 border border-slate-200 dark:border-chumbo-800 text-xs">
                     <div>
-                      <span className="text-[9px] sm:text-[10px] text-slate-400 block uppercase font-mono">Material</span>
-                      <span className="font-semibold text-slate-200 truncate block">{detailProduct.material || 'PLA'}</span>
+                      <span className="text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 block uppercase font-mono">Material</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block">{detailProduct.material || 'PLA'}</span>
                     </div>
                     <div>
-                      <span className="text-[9px] sm:text-[10px] text-slate-400 block uppercase font-mono">Dimensões</span>
-                      <span className="font-semibold text-slate-200 truncate block">{detailProduct.dimensions || 'Sob medida'}</span>
+                      <span className="text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 block uppercase font-mono">Dimensões</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block">{detailProduct.dimensions || 'Sob medida'}</span>
                     </div>
                     <div>
-                      <span className="text-[9px] sm:text-[10px] text-slate-400 block uppercase font-mono">Status</span>
-                      <span className="font-semibold text-emerald-400 truncate block">{getStockStatus(detailProduct).label}</span>
+                      <span className="text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 block uppercase font-mono">Status</span>
+                      <span className="font-semibold text-emerald-600 dark:text-emerald-400 truncate block">{getStockStatus(detailProduct).label}</span>
                     </div>
                   </div>
 
                   {detailProduct.description && (
                     <div className="space-y-1">
-                      <h5 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Detalhes da Peça</h5>
-                      <p className="text-xs sm:text-sm text-slate-300 leading-relaxed whitespace-pre-line max-h-48 overflow-y-auto pr-1">
+                      <h5 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Detalhes da Peça</h5>
+                      <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line max-h-48 overflow-y-auto pr-1">
                         {detailProduct.description}
                       </p>
                     </div>
@@ -942,14 +1086,14 @@ export const CatalogApp: React.FC = () => {
                 </div>
 
                 {/* Ações no Modal (Adaptável para mobile e desktop) */}
-                <div className="pt-3 border-t border-chumbo-800 grid grid-cols-1 min-[420px]:grid-cols-3 gap-2">
+                <div className="pt-3 border-t border-slate-200 dark:border-chumbo-800 grid grid-cols-1 min-[420px]:grid-cols-3 gap-2">
                   <button
                     type="button"
                     onClick={() => toggleSaveItem(detailProduct)}
                     className={`flex items-center justify-center gap-1.5 py-2.5 sm:py-3 px-3 rounded-xl text-xs font-bold transition-all border active:scale-95 ${
                       isItemSaved(detailProduct.id)
-                        ? 'bg-rose-500/20 border-rose-500/50 text-rose-300'
-                        : 'bg-chumbo-900 border-chumbo-700 text-slate-300 hover:text-white'
+                        ? 'bg-rose-500/10 border-rose-500/40 text-rose-600 dark:text-rose-400'
+                        : 'bg-slate-100 hover:bg-slate-200 dark:bg-chumbo-900 dark:hover:bg-chumbo-800 border-slate-300 dark:border-chumbo-700 text-slate-700 dark:text-slate-300'
                     }`}
                   >
                     <Heart className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isItemSaved(detailProduct.id) ? 'fill-rose-500 text-rose-500' : ''}`} />
@@ -972,7 +1116,7 @@ export const CatalogApp: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => goToStore(detailProduct.slug || detailProduct.id)}
-                    className="flex items-center justify-center gap-1.5 py-2.5 sm:py-3 px-3 rounded-xl text-xs font-bold bg-white hover:bg-slate-200 text-chumbo-950 transition-all shadow-md active:scale-95"
+                    className="flex items-center justify-center gap-1.5 py-2.5 sm:py-3 px-3 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-200 text-white dark:text-chumbo-950 transition-all shadow-md active:scale-95"
                   >
                     <ShoppingBag className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     <span className="truncate">Comprar</span>
@@ -986,26 +1130,26 @@ export const CatalogApp: React.FC = () => {
 
       {/* Drawer: Salvos para Depois (Wishlist / Caderno de Escolhas) - Responsivo para qualquer altura de tela */}
       {isSavedDrawerOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/60 dark:bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
           <div
-            className="w-full sm:max-w-md h-full bg-chumbo-950 border-l border-chumbo-800 p-4 sm:p-6 flex flex-col justify-between shadow-2xl animate-in slide-in-from-right duration-300"
+            className="w-full sm:max-w-md h-full bg-white dark:bg-chumbo-950 border-l border-slate-200 dark:border-chumbo-800 p-4 sm:p-6 flex flex-col justify-between shadow-2xl animate-in slide-in-from-right duration-300"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header do Drawer */}
             <div className="space-y-3 sm:space-y-4 flex flex-col flex-1 min-h-0">
-              <div className="flex items-center justify-between border-b border-chumbo-800 pb-3 sm:pb-4 shrink-0">
+              <div className="flex items-center justify-between border-b border-slate-200 dark:border-chumbo-800 pb-3 sm:pb-4 shrink-0">
                 <div className="flex items-center gap-2">
                   <Heart className="w-5 h-5 text-rose-500 fill-rose-500" />
                   <div>
-                    <h3 className="text-base font-bold text-white">Minhas Escolhas</h3>
-                    <p className="text-xs text-slate-400">
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">Minhas Escolhas</h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
                       {savedItems.length} {savedItems.length === 1 ? 'item salvo' : 'itens salvos'} para decidir depois
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={() => setIsSavedDrawerOpen(false)}
-                  className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-chumbo-900"
+                  className="p-2 rounded-xl text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-chumbo-900 transition-colors"
                   aria-label="Fechar gaveta"
                 >
                   <X className="w-5 h-5" />
@@ -1015,10 +1159,10 @@ export const CatalogApp: React.FC = () => {
               {/* Lista dos Itens Salvos (Ocupa o espaço livre dinamicamente) */}
               <div className="space-y-2 overflow-y-auto flex-1 pr-1">
                 {savedItems.length === 0 ? (
-                  <div className="py-12 text-center space-y-2 text-slate-400">
-                    <Heart className="w-10 h-10 text-slate-600 mx-auto" />
-                    <p className="text-sm font-medium">Nenhum item salvo ainda.</p>
-                    <p className="text-xs text-slate-400 max-w-xs mx-auto">
+                  <div className="py-12 text-center space-y-2 text-slate-400 dark:text-slate-500">
+                    <Heart className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto" />
+                    <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Nenhum item salvo ainda.</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs mx-auto">
                       Clique no coração de qualquer peça do catálogo para salvar e decidir com calma depois!
                     </p>
                   </div>
@@ -1026,24 +1170,24 @@ export const CatalogApp: React.FC = () => {
                   savedItems.map((item) => (
                     <div
                       key={item.id}
-                      className="flex items-center justify-between gap-2.5 p-2.5 sm:p-3 rounded-xl border border-chumbo-800 bg-chumbo-900/60"
+                      className="flex items-center justify-between gap-2.5 p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-chumbo-800 bg-slate-50 dark:bg-chumbo-900/60 shadow-xs"
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
                         <img
                           src={item.image}
                           alt={item.title}
-                          className="h-11 w-11 sm:h-12 sm:w-12 rounded-lg object-cover bg-chumbo-950 shrink-0 border border-chumbo-800"
+                          className="h-11 w-11 sm:h-12 sm:w-12 rounded-lg object-cover bg-slate-100 dark:bg-chumbo-950 shrink-0 border border-slate-200 dark:border-chumbo-800"
                         />
                         <div className="min-w-0">
-                          <h5 className="text-xs font-bold text-white truncate">{item.title}</h5>
-                          <p className="text-xs font-extrabold text-cyan-400">{money(item.price)}</p>
+                          <h5 className="text-xs font-bold text-slate-900 dark:text-white truncate">{item.title}</h5>
+                          <p className="text-xs font-extrabold text-cyan-700 dark:text-cyan-400">{money(item.price)}</p>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-1 shrink-0">
                         <button
                           onClick={() => goToStore(item.slug || item.id)}
-                          className="p-1.5 rounded-lg bg-chumbo-800 text-slate-300 hover:text-white"
+                          className="p-1.5 rounded-lg bg-slate-200 dark:bg-chumbo-800 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors"
                           title="Ver na loja"
                           aria-label="Ver na loja"
                         >
@@ -1051,7 +1195,7 @@ export const CatalogApp: React.FC = () => {
                         </button>
                         <button
                           onClick={() => setSavedItems((prev) => prev.filter((i) => i.id !== item.id))}
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 transition-colors"
                           title="Remover"
                           aria-label="Remover item"
                         >
@@ -1066,10 +1210,10 @@ export const CatalogApp: React.FC = () => {
 
             {/* Rodapé com Resumo e Ações */}
             {savedItems.length > 0 && (
-              <div className="pt-3 sm:pt-4 border-t border-chumbo-800 space-y-2.5 sm:space-y-3 shrink-0">
+              <div className="pt-3 sm:pt-4 border-t border-slate-200 dark:border-chumbo-800 space-y-2.5 sm:space-y-3 shrink-0">
                 <div className="flex items-center justify-between text-xs sm:text-sm">
-                  <span className="text-slate-400">Total Estimado ({savedItems.length}):</span>
-                  <span className="text-base sm:text-lg font-black text-cyan-400">
+                  <span className="text-slate-500 dark:text-slate-400">Total Estimado ({savedItems.length}):</span>
+                  <span className="text-base sm:text-lg font-black text-cyan-700 dark:text-cyan-400">
                     {money(savedItems.reduce((acc, item) => acc + item.price, 0))}
                   </span>
                 </div>
@@ -1077,7 +1221,7 @@ export const CatalogApp: React.FC = () => {
                 <div className="space-y-2">
                   <button
                     onClick={handleShareWishlistWhatsApp}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 sm:py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg shadow-emerald-950/40 transition-all active:scale-98"
+                    className="w-full flex items-center justify-center gap-2 py-2.5 sm:py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg shadow-emerald-950/20 transition-all active:scale-98"
                   >
                     <MessageCircle className="w-4 h-4" />
                     <span>Enviar Lista para o WhatsApp</span>
@@ -1086,15 +1230,15 @@ export const CatalogApp: React.FC = () => {
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={handleCopyWishlistText}
-                      className="flex items-center justify-center gap-1.5 py-2 sm:py-2.5 rounded-xl border border-chumbo-700 bg-chumbo-900 text-slate-300 hover:text-white text-xs font-semibold active:scale-95"
+                      className="flex items-center justify-center gap-1.5 py-2 sm:py-2.5 rounded-xl border border-slate-300 dark:border-chumbo-700 bg-slate-100 hover:bg-slate-200 dark:bg-chumbo-900 dark:hover:bg-chumbo-800 text-slate-700 dark:text-slate-300 text-xs font-semibold active:scale-95 transition-colors"
                     >
-                      {copiedWishlist ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copiedWishlist ? <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                       <span className="truncate">{copiedWishlist ? 'Copiada!' : 'Copiar Lista'}</span>
                     </button>
 
                     <button
                       onClick={() => goToStore()}
-                      className="flex items-center justify-center gap-1.5 py-2 sm:py-2.5 rounded-xl bg-white text-chumbo-950 hover:bg-slate-200 text-xs font-bold active:scale-95"
+                      className="flex items-center justify-center gap-1.5 py-2 sm:py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-200 text-white dark:text-chumbo-950 text-xs font-bold active:scale-95 transition-colors shadow-xs"
                     >
                       <ShoppingBag className="w-3.5 h-3.5" />
                       <span>Ir para a Loja</span>
@@ -1112,7 +1256,7 @@ export const CatalogApp: React.FC = () => {
         <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40 animate-in bounce-in duration-300">
           <button
             onClick={() => setIsSavedDrawerOpen(true)}
-            className="flex items-center gap-2 sm:gap-3 px-3 py-2 sm:px-4 sm:py-3 rounded-2xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs shadow-2xl shadow-rose-950/60 transition-all hover:scale-105 active:scale-95"
+            className="flex items-center gap-2 sm:gap-3 px-3 py-2 sm:px-4 sm:py-3 rounded-2xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs shadow-2xl shadow-rose-950/40 transition-all hover:scale-105 active:scale-95"
             aria-label="Abrir itens salvos"
           >
             <Heart className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-white shrink-0" />
@@ -1125,8 +1269,8 @@ export const CatalogApp: React.FC = () => {
       )}
 
       {/* Footer simples do Catálogo */}
-      <footer className="mt-16 border-t border-chumbo-800/80 bg-chumbo-950 py-8 text-center text-xs text-slate-400 space-y-2">
-        <p className="font-medium text-slate-300">
+      <footer className="mt-16 border-t border-slate-200 dark:border-chumbo-800/80 bg-white dark:bg-chumbo-950 py-8 text-center text-xs text-slate-500 dark:text-slate-400 space-y-2 transition-colors">
+        <p className="font-medium text-slate-800 dark:text-slate-300">
           {storeName} • Catálogo Digital de Impressão 3D
         </p>
         <p>
@@ -1135,7 +1279,7 @@ export const CatalogApp: React.FC = () => {
         <div className="pt-2">
           <button
             onClick={() => goToStore()}
-            className="text-cyan-400 hover:text-cyan-300 font-semibold underline underline-offset-4"
+            className="text-cyan-600 hover:text-cyan-700 dark:text-cyan-400 dark:hover:text-cyan-300 font-semibold underline underline-offset-4"
           >
             Acessar loja oficial com carrinho e checkout
           </button>

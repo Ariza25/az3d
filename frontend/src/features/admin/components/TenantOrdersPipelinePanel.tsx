@@ -255,7 +255,7 @@ export const TenantOrdersPipelinePanel: React.FC<TenantOrdersPipelinePanelProps>
         <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-slate-500 shadow-sm dark:border-chumbo-800 dark:bg-chumbo-900/40 dark:text-slate-400">
           <Package className="mx-auto h-10 w-10 text-slate-400 mb-2" />
           <p className="font-semibold text-slate-900 dark:text-white">Nenhum pedido encontrado nesta etapa</p>
-          <p className="mt-1 text-xs">Ajuste os filtros ou aguarde novas vendas no tenant.</p>
+          <p className="mt-1 text-xs">Ajuste os filtros ou aguarde novas vendas na loja.</p>
         </div>
       ) : (
         <div className="space-y-3">

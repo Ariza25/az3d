@@ -42,7 +42,7 @@ export const MercadoPagoSettings: React.FC<MercadoPagoSettingsProps> = ({ tenant
     setBusy('refresh');
     try {
       setStatus(await api.refreshTenantMercadoPagoOAuth(tenantId));
-      setFeedback({ tone: 'success', text: 'Credenciais do tenant renovadas.' });
+      setFeedback({ tone: 'success', text: 'Credenciais da loja renovadas.' });
     } catch (error) {
       setFeedback({ tone: 'error', text: error instanceof Error ? error.message : 'Erro ao renovar Mercado Pago' });
     } finally {
@@ -67,7 +67,7 @@ export const MercadoPagoSettings: React.FC<MercadoPagoSettingsProps> = ({ tenant
     <div className="space-y-4">
       <div>
         <h3 className="flex items-center gap-2 text-sm font-bold text-white"><CreditCard className="h-4 w-4 text-laser-400" /> Pagamentos Mercado Pago</h3>
-        <p className="mt-1 text-xs text-slate-400">O tenant autoriza a propria conta. Pix e cartao do Checkout Pro sao cobrados diretamente nessa conta.</p>
+        <p className="mt-1 text-xs text-slate-400">A loja autoriza a própria conta. Pix e cartão do Checkout Pro são cobrados diretamente nessa conta.</p>
       </div>
 
       {feedback && (

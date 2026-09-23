@@ -38,6 +38,19 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       document.body.classList.remove('bg-slate-100', 'bg-slate-50', 'text-slate-900', 'theme-light');
       document.body.classList.add('bg-chumbo-950', 'text-slate-100');
     }
+
+    // Atualiza o favicon dinamicamente conforme o tema ativo
+    try {
+      const favicons = document.querySelectorAll<HTMLLinkElement>("link[rel~='icon']");
+      const iconPath = activeTheme === 'light' ? '/03-simbolo-az-fundo-escuro.png' : '/04-simbolo-az-fundo-branco.png';
+      favicons.forEach((favicon) => {
+        if (!favicon.hasAttribute('media')) {
+          favicon.href = iconPath;
+        }
+      });
+    } catch {
+      // ignore
+    }
   };
 
   useEffect(() => {

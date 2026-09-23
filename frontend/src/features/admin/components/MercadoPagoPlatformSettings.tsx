@@ -34,7 +34,7 @@ export const MercadoPagoPlatformSettings: React.FC = () => {
             <Status configured={config.redirect_uri_configured} label="MERCADO_PAGO_REDIRECT_URI" />
             <Status configured={config.webhook_secret_configured} label="MERCADO_PAGO_WEBHOOK_SECRET" />
           </div>
-          <p className="text-[11px] text-slate-600">Os valores não são exibidos nem editados por este console.</p>
+          <p className="text-[11px] text-slate-600">Os valores não são exibidos nem editados por este painel.</p>
         </div>
       )}
     </Card>

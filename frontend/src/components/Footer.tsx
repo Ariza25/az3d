@@ -28,7 +28,7 @@ export const Footer: React.FC<FooterProps> = ({ categories = [], onSelectCategor
           {/* Coluna 1 - Brand */}
           <div className="space-y-4 md:col-span-2">
             <div className="flex items-center space-x-3">
-              <AZ3DLogo className="w-9 h-9 shrink-0" />
+              <AZ3DLogo className="w-9 h-9 shrink-0" themeOverride="dark" />
               <span className="text-xl font-extrabold text-white tracking-wider">
                 AZ<span className="text-laser-400 font-mono">3D</span>
               </span>

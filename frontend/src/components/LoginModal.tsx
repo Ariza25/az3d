@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { X, Lock, Mail, ArrowRight, AlertCircle, Layers, Chrome } from 'lucide-react';
+import { X, Lock, Mail, ArrowRight, AlertCircle, Chrome } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { ADMIN_TOKEN_KEY, api } from '../services/api';
 import { getAppReturnTo, withBasePath } from '../shared/basePath';
 import { ForgotPasswordModal } from './ForgotPasswordModal';
+import { AZ3DLogo } from './AZ3DLogo';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -27,7 +28,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   onClose,
   onSwitchToRegister,
   title = 'Acessar Conta AZ3D',
-  subtitle = 'Autenticacao de cliente comprador',
+  subtitle = 'Autenticação de cliente comprador',
   submitLabel = 'Entrar na Loja',
   loadingLabel = 'Autenticando...',
   defaultEmail = '',
@@ -61,7 +62,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     window.dispatchEvent(new PopStateEvent('popstate'));
   };
 
-  const displayTitle = accountType === 'seller' ? 'Acessar conta de vendedor' : title;
+  const displayTitle = accountType === 'seller' ? 'Acessar Painel da Loja' : title;
   const displaySubtitle = accountType === 'seller'
     ? 'Entre para gerenciar sua loja, produtos e pedidos'
     : subtitle;
@@ -112,27 +113,25 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-      <div className="glass-panel w-full max-w-md p-8 rounded-3xl border border-chumbo-700 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
+      <div className="glass-panel w-full max-w-md p-8 rounded-3xl border border-slate-200 dark:border-chumbo-700 bg-white dark:bg-chumbo-900 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 p-2 rounded-full text-slate-400 hover:text-white hover:bg-chumbo-800 transition-colors"
+          className="absolute top-5 right-5 p-2 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-chumbo-800 transition-colors"
         >
           <X className="w-5 h-5" />
         </button>
 
         <div className="flex items-center space-x-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-chumbo-950 font-bold">
-            <Layers className="w-6 h-6 stroke-[2.5]" />
-          </div>
+          <AZ3DLogo className="w-10 h-10 shrink-0" />
           <div>
-            <h2 className="text-xl font-extrabold text-white">{displayTitle}</h2>
-            <p className="text-xs text-slate-400">{displaySubtitle}</p>
+            <h2 className="text-xl font-extrabold text-slate-900 dark:text-white">{displayTitle}</h2>
+            <p className="text-xs text-slate-600 dark:text-slate-400">{displaySubtitle}</p>
           </div>
         </div>
 
         {error && (
-          <div className="mb-4 p-3.5 rounded-xl bg-red-950/60 border border-red-800/80 text-red-200 text-xs flex items-center space-x-2">
-            <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+          <div className="mb-4 p-3.5 rounded-xl bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800/80 text-red-700 dark:text-red-200 text-xs flex items-center space-x-2">
+            <AlertCircle className="w-4 h-4 shrink-0 text-red-600 dark:text-red-400" />
             <span>{error}</span>
           </div>
         )}
@@ -143,10 +142,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               <button
                 type="button"
                 onClick={() => setAccountType('customer')}
-                className={`rounded-xl border px-3 py-2 text-xs font-bold transition-colors ${
+                className={`rounded-xl border px-3 py-2 text-xs font-bold transition-all ${
                   accountType === 'customer'
-                    ? 'border-laser-500/40 bg-laser-500/15 text-laser-300'
-                    : 'border-chumbo-700 bg-chumbo-900 text-slate-400 hover:text-white'
+                    ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
+                    : 'border-slate-300 dark:border-chumbo-700 bg-slate-100 dark:bg-chumbo-900 text-slate-700 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 Sou comprador
@@ -154,10 +153,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               <button
                 type="button"
                 onClick={() => setAccountType('seller')}
-                className={`rounded-xl border px-3 py-2 text-xs font-bold transition-colors ${
+                className={`rounded-xl border px-3 py-2 text-xs font-bold transition-all ${
                   accountType === 'seller'
-                    ? 'border-laser-500/40 bg-laser-500/15 text-laser-300'
-                    : 'border-chumbo-700 bg-chumbo-900 text-slate-400 hover:text-white'
+                    ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
+                    : 'border-slate-300 dark:border-chumbo-700 bg-slate-100 dark:bg-chumbo-900 text-slate-700 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 Sou vendedor
@@ -169,21 +168,21 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             type="button"
             onClick={handleGoogleLogin}
             disabled={isLoading}
-            className="w-full py-3 rounded-xl border border-chumbo-700 bg-chumbo-900 hover:bg-chumbo-800 text-white font-bold text-sm transition-all flex items-center justify-center space-x-2 disabled:opacity-50"
+            className="w-full py-3 rounded-xl border border-slate-300 dark:border-chumbo-700 bg-white dark:bg-chumbo-900 hover:bg-slate-50 dark:hover:bg-chumbo-800 text-slate-800 dark:text-white font-bold text-sm transition-all flex items-center justify-center space-x-2 disabled:opacity-50 shadow-sm"
           >
-            <Chrome className="w-4 h-4" />
-            <span>{accountType === 'seller' ? 'Entrar no admin com Google' : 'Continuar com Google'}</span>
+            <Chrome className="w-4 h-4 text-slate-700 dark:text-white" />
+            <span>{accountType === 'seller' ? 'Acessar Painel com Google' : 'Continuar com Google'}</span>
           </button>
 
           <div className="flex items-center gap-3">
-            <div className="h-px flex-1 bg-chumbo-800" />
-            <span className="text-[10px] font-mono uppercase text-slate-500">ou</span>
-            <div className="h-px flex-1 bg-chumbo-800" />
+            <div className="h-px flex-1 bg-slate-200 dark:bg-chumbo-800" />
+            <span className="text-[10px] font-mono font-semibold uppercase text-slate-600 dark:text-slate-400">ou</span>
+            <div className="h-px flex-1 bg-slate-200 dark:bg-chumbo-800" />
           </div>
 
           <div>
-            <label className="text-xs font-mono uppercase text-slate-400 block mb-1">
-              E-mail ou usuario
+            <label className="text-xs font-mono font-semibold uppercase text-slate-700 dark:text-slate-400 block mb-1">
+              E-mail ou usuário
             </label>
             <div className="relative">
               <input
@@ -191,22 +190,22 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="seu.email@exemplo.com ou admin"
-                className="w-full bg-chumbo-900 border border-chumbo-700/80 rounded-xl py-3 pl-11 pr-4 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-white transition-all"
+                placeholder="seu.email@exemplo.com"
+                className="w-full bg-slate-50 dark:bg-chumbo-900 border border-slate-300 dark:border-chumbo-700/80 rounded-xl py-3 pl-11 pr-4 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-600 dark:focus:border-white transition-all"
               />
-              <Mail className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+              <Mail className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-4 top-1/2 -translate-y-1/2" />
             </div>
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-mono uppercase text-slate-400">
+              <label className="text-xs font-mono font-semibold uppercase text-slate-700 dark:text-slate-400">
                 Senha de acesso
               </label>
               <button
                 type="button"
                 onClick={() => setIsForgotPasswordOpen(true)}
-                className="text-[11px] text-laser-400 hover:text-laser-300 transition-colors"
+                className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 dark:text-laser-400 dark:hover:text-laser-300 transition-colors"
               >
                 Esqueceu a senha?
               </button>
@@ -218,32 +217,32 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="********"
-                className="w-full bg-chumbo-900 border border-chumbo-700/80 rounded-xl py-3 pl-11 pr-4 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-white transition-all"
+                className="w-full bg-slate-50 dark:bg-chumbo-900 border border-slate-300 dark:border-chumbo-700/80 rounded-xl py-3 pl-11 pr-4 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-600 dark:focus:border-white transition-all"
               />
-              <Lock className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+              <Lock className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-4 top-1/2 -translate-y-1/2" />
             </div>
           </div>
 
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-3.5 mt-2 rounded-xl bg-white hover:bg-slate-200 text-chumbo-950 font-extrabold text-sm transition-all shadow-xl flex items-center justify-center space-x-2 disabled:opacity-50"
+            className="w-full py-3.5 mt-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-sm transition-all shadow-xl shadow-blue-600/25 flex items-center justify-center space-x-2 disabled:opacity-50"
           >
-            <span>{isLoading ? loadingLabel : accountType === 'seller' ? 'Entrar no Admin' : submitLabel}</span>
+            <span>{isLoading ? loadingLabel : accountType === 'seller' ? 'Acessar Painel' : submitLabel}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
 
         {showRegisterLink && (
-          <div className="mt-6 pt-4 border-t border-chumbo-800 text-center">
-            <p className="text-xs text-slate-400">
-              Ainda nao tem uma conta?{' '}
+          <div className="mt-6 pt-4 border-t border-slate-200 dark:border-chumbo-800 text-center">
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              Ainda não tem uma conta?{' '}
               <button
                 onClick={() => {
                   onClose();
                   onSwitchToRegister();
                 }}
-                className="text-white font-bold underline hover:text-slate-200"
+                className="text-blue-600 hover:text-blue-700 dark:text-laser-400 dark:hover:text-laser-300 font-bold underline transition-colors"
               >
                 Cadastre-se gratuitamente
               </button>
