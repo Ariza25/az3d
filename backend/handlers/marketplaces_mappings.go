@@ -126,16 +126,24 @@ func importMarketplaceCatalogItem(tenantID uint, provider string, defaultCategor
 		}
 	} else {
 		marketplaceOwnsProduct := product.SourceProvider == provider
-		if normalizeProvider(provider) == "mercadolivre" {
+		contentSyncAllowed := false
+		switch settings.ContentSyncPolicy {
+		case "always":
+			contentSyncAllowed = true
+		case "never":
+			contentSyncAllowed = false
+		case "imported_only":
+			contentSyncAllowed = marketplaceOwnsProduct && overwriteLocal
+		default:
+			contentSyncAllowed = false
+		}
+
+		if contentSyncAllowed && normalizeProvider(provider) == "mercadolivre" {
 			product.Status = status
 		}
-		contentSyncAllowed := settings.ContentSyncPolicy == "always" ||
-			(settings.ContentSyncPolicy == "imported_only" && marketplaceOwnsProduct) ||
-			(overwriteLocal && (marketplaceOwnsProduct || normalizeProvider(provider) == "mercadolivre")) ||
-			normalizeProvider(provider) == "mercadolivre"
-		shouldSyncImages = contentSyncAllowed || len(item.ColorImages) > 0
-		shouldSyncVariants = contentSyncAllowed || settings.MarketplaceControlsPrice || len(item.Variants) > 0
-		shouldSyncStocks = settings.MarketplaceControlsStock || len(item.ColorStocks) > 0
+		shouldSyncImages = contentSyncAllowed
+		shouldSyncVariants = contentSyncAllowed && settings.MarketplaceControlsPrice
+		shouldSyncStocks = settings.MarketplaceControlsStock
 		if settings.MarketplaceControlsPrice {
 			product.Price = item.Price
 		}

@@ -97,7 +97,7 @@ export const MarketplaceConnectionsPanel: React.FC<Props> = ({ tenantId, product
     }
   };
   const updateAccount = (field: keyof MarketplaceAccount, value: boolean | string) => setAccount((prev) => ({ ...prev, [field]: value }));
-  const updateSetting = (field: keyof TenantMarketplaceSettings, value: boolean) => setSettings((prev) => ({ ...prev, [field]: value }));
+  const updateSetting = <K extends keyof TenantMarketplaceSettings>(field: K, value: TenantMarketplaceSettings[K]) => setSettings((prev) => ({ ...prev, [field]: value }));
 
   const isTokenExpiredOrMissing = !account.is_connected || account.sync_status === 'token_expired' || account.sync_status === 'pending_credentials';
 
@@ -167,7 +167,38 @@ export const MarketplaceConnectionsPanel: React.FC<Props> = ({ tenantId, product
       <div className="flex items-center justify-between gap-3"><div><h4 className="font-bold text-slate-900 dark:text-white">Automação</h4><p className="text-xs text-slate-500 dark:text-slate-400">Cada fluxo pode ser ligado de forma independente.</p></div><ShieldCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /></div>
       <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
         {[['sync_catalog', 'Importar catálogo', 'Cria e atualiza produtos automaticamente.'], ['sync_stock', 'Sincronizar estoque', 'Mantém quantidades alinhadas ao anúncio.'], ['sync_orders', 'Importar pedidos', 'Cria pedidos internos automaticamente.']].map(([field, label, hint]) => <label key={field} className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs dark:border-chumbo-800 dark:bg-chumbo-900/70"><input className="mt-0.5" type="checkbox" checked={Boolean(account[field as keyof MarketplaceAccount])} onChange={(event) => updateAccount(field as keyof MarketplaceAccount, event.target.checked)} /><span><strong className="block text-slate-900 dark:text-white">{label}</strong><span className="text-slate-500 dark:text-slate-400">{hint}</span></span></label>)}
-        <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs dark:border-chumbo-800 dark:bg-chumbo-900/70"><input className="mt-0.5" type="checkbox" checked={settings.marketplace_controls_price} onChange={(event) => updateSetting('marketplace_controls_price', event.target.checked)} /><span><strong className="block text-slate-900 dark:text-white">Preço pelo marketplace</strong><span className="text-slate-500 dark:text-slate-400">Atualiza preços dos produtos importados.</span></span></label>
+        <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs dark:border-chumbo-800 dark:bg-chumbo-900/70">
+          <input
+            className="mt-0.5"
+            type="checkbox"
+            checked={settings.marketplace_controls_price}
+            onChange={(event) => updateSetting('marketplace_controls_price', event.target.checked)}
+          />
+          <span>
+            <strong className="block text-slate-900 dark:text-white">Preço pelo marketplace</strong>
+            <span className="text-slate-500 dark:text-slate-400">
+              {settings.marketplace_controls_price
+                ? 'Preços são sincronizados com o Mercado Livre.'
+                : 'Desativado: mantém seus preços editados no catálogo.'}
+            </span>
+          </span>
+        </label>
+        <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs dark:border-chumbo-800 dark:bg-chumbo-900/70">
+          <input
+            className="mt-0.5"
+            type="checkbox"
+            checked={settings.content_sync_policy === 'never'}
+            onChange={(event) => updateSetting('content_sync_policy', event.target.checked ? 'never' : 'imported_only')}
+          />
+          <span>
+            <strong className="block text-slate-900 dark:text-white">Preservar edições locais</strong>
+            <span className="text-slate-500 dark:text-slate-400">
+              {settings.content_sync_policy === 'never'
+                ? 'Reconciliação traz apenas novos anúncios sem alterar itens existentes.'
+                : 'Sobrescreve textos e imagens com dados do marketplace.'}
+            </span>
+          </span>
+        </label>
         <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs dark:border-chumbo-800 dark:bg-chumbo-900/70"><input className="mt-0.5" type="checkbox" checked={settings.auto_create_internal_orders} onChange={(event) => updateSetting('auto_create_internal_orders', event.target.checked)} /><span><strong className="block text-slate-900 dark:text-white">Criar pedido interno</strong><span className="text-slate-500 dark:text-slate-400">Disponibiliza a venda na operação da loja.</span></span></label>
         <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs dark:border-chumbo-800 dark:bg-chumbo-900/70"><input className="mt-0.5" type="checkbox" checked={settings.auto_create_financial_entries} onChange={(event) => updateSetting('auto_create_financial_entries', event.target.checked)} /><span><strong className="block text-slate-900 dark:text-white">Registrar custos</strong><span className="text-slate-500 dark:text-slate-400">Importa taxas e descontos para o financeiro.</span></span></label>
       </div>
