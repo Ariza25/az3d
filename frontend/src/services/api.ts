@@ -176,7 +176,7 @@ const readJsonResponse = async <T>(response: Response, fallbackMessage: string):
 };
 
 const getUploadHeaders = (tenantId?: number) => {
-  const token = localStorage.getItem(ADMIN_TOKEN_KEY);
+  const token = localStorage.getItem(ADMIN_TOKEN_KEY) || localStorage.getItem(CUSTOMER_TOKEN_KEY);
   const storedTenant = tenantId || localStorage.getItem('az3d_tenant_id') || '1';
   const headers: Record<string, string> = {
     'X-Tenant-ID': String(storedTenant),
@@ -862,20 +862,13 @@ export const api = {
     const formData = new FormData();
     formData.append('file', file);
 
-    const headers: Record<string, string> = {};
-    if (tenantId) headers['X-Tenant-ID'] = String(tenantId);
-    const token = localStorage.getItem('az3d_token');
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-
     const res = await fetch(`${API_BASE_URL}/admin/pricing/parse-3mf`, {
       method: 'POST',
-      headers,
+      headers: getUploadHeaders(tenantId),
       body: formData,
     });
 
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Falha ao processar arquivo .3mf');
-    return data;
+    return readJsonResponse<Parsed3MFResult>(res, 'Falha ao processar arquivo .3mf');
   },
 
   getProductPricingSnapshots: async (productId: number, tenantId?: number): Promise<ProductPricingSnapshot[]> => {
@@ -1001,9 +994,7 @@ export const api = {
       body: formData,
     });
 
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Erro ao enviar imagem');
-    return data;
+    return readJsonResponse<{ url: string }>(res, 'Erro ao enviar imagem');
   },
 
   // --- MARKETPLACES (Mercado Livre, Shopee, Amazon) ---
