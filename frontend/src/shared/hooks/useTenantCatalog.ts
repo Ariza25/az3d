@@ -6,6 +6,7 @@ import { getAppPathname } from '../basePath';
 
 interface UseTenantCatalogOptions {
   lockedTenantId?: number;
+  skipProducts?: boolean;
 }
 
 const getHostTenantIdentifier = () => {
@@ -15,7 +16,7 @@ const getHostTenantIdentifier = () => {
 };
 
 export const useTenantCatalog = (options: UseTenantCatalogOptions = {}) => {
-  const { lockedTenantId } = options;
+  const { lockedTenantId, skipProducts = false } = options;
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [activeTenant, setActiveTenant] = useState<Tenant | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -149,7 +150,7 @@ export const useTenantCatalog = (options: UseTenantCatalogOptions = {}) => {
   }, [fetchCategories, activeTenant?.id]);
 
   const fetchProducts = useCallback(async () => {
-    if (!activeTenant) return;
+    if (!activeTenant || skipProducts) return;
 
     setIsLoading(true);
     try {
@@ -164,15 +165,16 @@ export const useTenantCatalog = (options: UseTenantCatalogOptions = {}) => {
     } finally {
       setIsLoading(false);
     }
-  }, [activeTenant, activeCategory]);
+  }, [activeTenant, activeCategory, skipProducts]);
 
   useEffect(() => {
+    if (skipProducts) return;
     const timer = window.setTimeout(() => {
       fetchProducts();
     }, 250);
 
     return () => window.clearTimeout(timer);
-  }, [fetchProducts]);
+  }, [fetchProducts, skipProducts]);
 
   const refreshCatalog = useCallback(async () => {
     await Promise.all([fetchCategories(), fetchProducts()]);

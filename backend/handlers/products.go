@@ -579,7 +579,7 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 			return
 		}
 
-		items := attachSalesCounts(tenantID, attachReviewSummaries(tenantID, products))
+		items := attachSalesCounts(tenantID, attachReviewSummaries(tenantID, ensureWebPProducts(products)))
 		c.JSON(http.StatusOK, gin.H{
 			"items":       items,
 			"total":       totalCount,
@@ -597,7 +597,55 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, attachSalesCounts(tenantID, attachReviewSummaries(tenantID, products)))
+	c.JSON(http.StatusOK, attachSalesCounts(tenantID, attachReviewSummaries(tenantID, ensureWebPProducts(products))))
+}
+
+func optimizeProductWebPURL(u string) string {
+	u = strings.TrimSpace(u)
+	if u == "" {
+		return ""
+	}
+	if strings.HasPrefix(u, "http://") {
+		u = "https://" + strings.TrimPrefix(u, "http://")
+	}
+	if strings.Contains(u, "mlstatic.com") || strings.Contains(u, "mercadolibre.com") {
+		parts := strings.SplitN(u, "?", 2)
+		base := parts[0]
+		baseLower := strings.ToLower(base)
+		if strings.HasSuffix(baseLower, ".jpg") {
+			base = base[:len(base)-4] + ".webp"
+		} else if strings.HasSuffix(baseLower, ".jpeg") {
+			base = base[:len(base)-5] + ".webp"
+		} else if strings.HasSuffix(baseLower, ".png") {
+			base = base[:len(base)-4] + ".webp"
+		}
+		if len(parts) > 1 {
+			return base + "?" + parts[1]
+		}
+		return base
+	}
+	return u
+}
+
+func ensureWebPProducts(products []models.Product) []models.Product {
+	for i := range products {
+		products[i].ImageURL = optimizeProductWebPURL(products[i].ImageURL)
+		for j := range products[i].ColorImages {
+			products[i].ColorImages[j].ImageURL = optimizeProductWebPURL(products[i].ColorImages[j].ImageURL)
+		}
+	}
+	return products
+}
+
+func ensureWebPProduct(product *models.Product) *models.Product {
+	if product == nil {
+		return nil
+	}
+	product.ImageURL = optimizeProductWebPURL(product.ImageURL)
+	for j := range product.ColorImages {
+		product.ColorImages[j].ImageURL = optimizeProductWebPURL(product.ColorImages[j].ImageURL)
+	}
+	return product
 }
 
 // GET /api/products/:id
@@ -616,6 +664,7 @@ func (h *ProductHandler) GetProductByID(c *gin.Context) {
 		return
 	}
 
+	ensureWebPProduct(&product)
 	attachReviewSummary(tenantID, &product)
 	attachSalesCount(tenantID, &product)
 	c.JSON(http.StatusOK, product)

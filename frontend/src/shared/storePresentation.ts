@@ -185,14 +185,19 @@ export const getColorVisual = (name: string) => {
 
 export const optimizeImageUrl = (url?: string): string => {
   if (!url) return '';
-  const trimmed = url.trim();
-  if (trimmed.includes('mlstatic.com')) {
-    const lower = trimmed.toLowerCase();
-    if (lower.endsWith('.webp')) return trimmed;
-    if (lower.endsWith('.jpg')) return trimmed.slice(0, -4) + '.webp';
-    if (lower.endsWith('.jpeg')) return trimmed.slice(0, -5) + '.webp';
-    if (lower.endsWith('.png')) return trimmed.slice(0, -4) + '.webp';
+  let trimmed = url.trim();
+  if (!trimmed) return '';
+
+  // Use HTTPS for faster CDN responses without redirects
+  if (trimmed.startsWith('http://')) {
+    trimmed = 'https://' + trimmed.slice(7);
   }
+
+  // Mercado Livre CDN (mlstatic.com / mercadolibre.com) serves WebP when extension is changed
+  if (/mlstatic\.com|mercadolibre\.com/i.test(trimmed)) {
+    return trimmed.replace(/\.(jpg|jpeg|png)(\?.*)?$/i, '.webp$2');
+  }
+
   return trimmed;
 };
 

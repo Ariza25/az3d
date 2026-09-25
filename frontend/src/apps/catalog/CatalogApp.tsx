@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Sun,
   Moon,
+  Loader2,
 } from 'lucide-react';
 import { Product, TenantSettings } from '../../types';
 import { useTenantCatalog } from '../../shared/hooks/useTenantCatalog';
@@ -96,9 +97,7 @@ export const CatalogApp: React.FC = () => {
   const {
     activeTenant,
     categories,
-    products,
-    isLoading,
-  } = useTenantCatalog();
+  } = useTenantCatalog({ skipProducts: true });
 
   const [tenantSettings, setTenantSettings] = useState<TenantSettings | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -107,13 +106,20 @@ export const CatalogApp: React.FC = () => {
   const [viewMode, setViewMode] = useState<'grid' | 'compact'>('grid');
 
   // Paginação vinda do Backend com Infinite Scroll
+  const PAGE_SIZE = 24;
   const [paginatedProducts, setPaginatedProducts] = useState<Product[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isCatalogLoading, setIsCatalogLoading] = useState(true);
   const [totalCatalogCount, setTotalCatalogCount] = useState(0);
+
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
+  const isFetchingRef = useRef(false);
+  const hasMoreRef = useRef(false);
+  hasMoreRef.current = hasMore;
+  const currentPageRef = useRef(1);
+  currentPageRef.current = currentPage;
 
   // Tema Escuro / Claro
   const { theme, toggleTheme } = useTheme();
@@ -191,14 +197,19 @@ export const CatalogApp: React.FC = () => {
         searchQuery,
         activeTenant.id,
         page,
-        12,
+        PAGE_SIZE,
         sortBy
       );
 
       const items = res.items || [];
+      const more = Boolean(res.has_more);
+      const nextPage = res.page || page;
+
       setTotalCatalogCount(res.total || 0);
-      setHasMore(Boolean(res.has_more));
-      setCurrentPage(res.page || page);
+      setHasMore(more);
+      hasMoreRef.current = more;
+      setCurrentPage(nextPage);
+      currentPageRef.current = nextPage;
 
       if (append) {
         setPaginatedProducts((prev) => {
@@ -214,6 +225,7 @@ export const CatalogApp: React.FC = () => {
       if (!append) {
         setPaginatedProducts([]);
         setHasMore(false);
+        hasMoreRef.current = false;
       }
     } finally {
       setIsCatalogLoading(false);
@@ -229,16 +241,25 @@ export const CatalogApp: React.FC = () => {
     return () => clearTimeout(timer);
   }, [fetchProductsPage]);
 
-  // Listener de Infinite Scroll com IntersectionObserver
+  // Listener de Infinite Scroll estável com IntersectionObserver (sem loops ou flickers)
   useEffect(() => {
     const sentinel = loadMoreSentinelRef.current;
     if (!sentinel) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
-        const first = entries[0];
-        if (first.isIntersecting && hasMore && !isLoadingMore && !isCatalogLoading) {
-          fetchProductsPage(currentPage + 1, true);
+        const [entry] = entries;
+        if (
+          entry.isIntersecting &&
+          hasMoreRef.current &&
+          !isFetchingRef.current
+        ) {
+          isFetchingRef.current = true;
+          fetchProductsPage(currentPageRef.current + 1, true).finally(() => {
+            setTimeout(() => {
+              isFetchingRef.current = false;
+            }, 300);
+          });
         }
       },
       { rootMargin: '300px' }
@@ -246,16 +267,16 @@ export const CatalogApp: React.FC = () => {
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMore, isLoadingMore, isCatalogLoading, currentPage, fetchProductsPage]);
+  }, [fetchProductsPage]);
 
-  const rawProducts = paginatedProducts.length > 0 ? paginatedProducts : products;
+  const rawProducts = paginatedProducts;
   const storeProducts = useMemo(() => groupMarketplaceProducts(rawProducts), [rawProducts]);
   const filteredProducts = storeProducts;
 
   // Destaques / Vitrine Top Picks (para o carrossel interativo)
-  // Devem pegar os itens mais vendidos da loja; caso não tenham um ranking ainda, a escolha é aleatória.
+  // Determinístico e estável para nunca piscar ou reembaralhar durante o scroll
   const spotlightProducts = useMemo(() => {
-    const candidateList = products.length > 0 ? products : paginatedProducts;
+    const candidateList = paginatedProducts;
     const all = groupMarketplaceProducts(candidateList).filter((p) => getStockStatus(p).canBuy);
     if (all.length === 0) return [];
 
@@ -264,14 +285,9 @@ export const CatalogApp: React.FC = () => {
       return [...all].sort((a, b) => (b.sales_count || 0) - (a.sales_count || 0)).slice(0, 10);
     }
 
-    // Caso ainda não haja ranking de vendas, seleção aleatória
-    const shuffled = [...all];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    return shuffled.slice(0, 10);
-  }, [products, paginatedProducts]);
+    // Seleção estável sem Math.random(): preserva ordem consistente
+    return [...all].sort((a, b) => b.id - a.id).slice(0, 10);
+  }, [paginatedProducts.slice(0, 24).map((p) => p.id).join(',')]);
 
   useEffect(() => {
     checkCarouselScroll();
@@ -283,7 +299,7 @@ export const CatalogApp: React.FC = () => {
   // Categorias com contador de produtos
   const categoriesWithCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    products.forEach((p) => {
+    paginatedProducts.forEach((p) => {
       const slug = p.category?.slug || 'sem-categoria';
       counts[slug] = (counts[slug] || 0) + 1;
     });
@@ -292,7 +308,7 @@ export const CatalogApp: React.FC = () => {
       ...cat,
       count: counts[cat.slug] || 0,
     }));
-  }, [categories, products]);
+  }, [categories, paginatedProducts]);
 
 
 
@@ -510,6 +526,7 @@ export const CatalogApp: React.FC = () => {
                         src={cover}
                         alt={product.title}
                         loading="lazy"
+                        decoding="async"
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                       />
                     </div>
@@ -671,7 +688,7 @@ export const CatalogApp: React.FC = () => {
         </section>
 
         {/* Catálogo de Produtos - Totalmente Responsivo para celular, tablet e PC */}
-        {((isLoading || isCatalogLoading) && rawProducts.length === 0) ? (
+        {(isCatalogLoading && filteredProducts.length === 0) ? (
           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-6">
             {Array.from({ length: 8 }).map((_, i) => (
               <div
@@ -735,6 +752,7 @@ export const CatalogApp: React.FC = () => {
                       src={cover}
                       alt={product.title}
                       loading="lazy"
+                      decoding="async"
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 dark:from-chumbo-950/80 via-transparent to-transparent opacity-60" />
@@ -830,6 +848,26 @@ export const CatalogApp: React.FC = () => {
                 </article>
               );
             })}
+
+            {/* Esqueletos de loading das novas peças para o scroll infinito (Grade) */}
+            {isLoadingMore && (
+              <>
+                {Array.from({ length: 4 }).map((_, idx) => (
+                  <div
+                    key={`loading-more-card-${idx}`}
+                    className="flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 dark:border-chumbo-800/80 bg-white/70 dark:bg-chumbo-900/40 p-2.5 sm:p-3 space-y-2.5 sm:space-y-3 animate-pulse"
+                  >
+                    <div className="relative aspect-square w-full rounded-xl bg-slate-200/80 dark:bg-chumbo-800/60 flex items-center justify-center">
+                      {idx === 0 && (
+                        <Loader2 className="w-7 h-7 text-cyan-500 animate-spin" />
+                      )}
+                    </div>
+                    <div className="h-4 w-3/4 rounded bg-slate-200/80 dark:bg-chumbo-800/60" />
+                    <div className="h-4 w-1/3 rounded bg-slate-200/80 dark:bg-chumbo-800/60" />
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         ) : (
           /* Lista Compacta */
@@ -852,6 +890,7 @@ export const CatalogApp: React.FC = () => {
                       src={cover}
                       alt={product.title}
                       loading="lazy"
+                      decoding="async"
                       className="h-14 w-14 sm:h-16 sm:w-16 rounded-xl object-cover bg-slate-100 dark:bg-chumbo-950 border border-slate-200 dark:border-chumbo-800 shrink-0"
                     />
                     <div className="min-w-0">
@@ -881,18 +920,33 @@ export const CatalogApp: React.FC = () => {
                 </div>
               );
             })}
+
+            {/* Esqueleto de loading na lista compacta */}
+            {isLoadingMore && (
+              <div className="flex items-center gap-3 p-4 rounded-2xl border border-slate-200/80 dark:border-chumbo-800/80 bg-white/70 dark:bg-chumbo-900/40 animate-pulse">
+                <div className="h-14 w-14 sm:h-16 sm:w-16 rounded-xl bg-slate-200/80 dark:bg-chumbo-800/60 flex items-center justify-center shrink-0">
+                  <Loader2 className="w-5 h-5 text-cyan-500 animate-spin" />
+                </div>
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 w-1/2 rounded bg-slate-200/80 dark:bg-chumbo-800/60" />
+                  <div className="h-3 w-1/4 rounded bg-slate-200/80 dark:bg-chumbo-800/60" />
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Loading de Paginação no Scroll / Fim da Lista */}
-        <div ref={loadMoreSentinelRef} className="py-4 flex flex-col items-center justify-center">
+        {/* Loading de Paginação no Scroll / Fim da Lista com Altura Mínima Estável */}
+        <div ref={loadMoreSentinelRef} className="py-6 min-h-[90px] flex flex-col items-center justify-center">
           {isLoadingMore && (
-            <div className="flex items-center gap-2.5 py-3.5 px-5 rounded-2xl bg-white dark:bg-chumbo-900 border border-slate-200 dark:border-chumbo-700 text-cyan-600 dark:text-cyan-400 shadow-sm animate-in fade-in">
-              <div className="w-4 h-4 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
-              <span className="text-xs sm:text-sm font-bold">Carregando mais peças...</span>
+            <div className="flex items-center gap-3 py-3 px-5 rounded-2xl bg-white dark:bg-chumbo-900 border border-slate-200 dark:border-chumbo-700/80 text-cyan-600 dark:text-cyan-400 shadow-md animate-in fade-in duration-200">
+              <Loader2 className="w-5 h-5 animate-spin text-cyan-500" />
+              <span className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200">
+                Carregando mais peças...
+              </span>
             </div>
           )}
-          {!hasMore && filteredProducts.length > 0 && (
+          {!hasMore && filteredProducts.length > 0 && !isLoadingMore && (
             <p className="text-[11px] sm:text-xs text-slate-400 dark:text-slate-500 py-3 font-medium text-center">
               Você viu todas as {totalCatalogCount || filteredProducts.length} peças disponíveis.
             </p>

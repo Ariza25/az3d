@@ -75,6 +75,14 @@ func runAutoMigrate(db *gorm.DB) error {
 	db.Exec("UPDATE marketplace_webhook_events SET dedup_key = 'legacy-' || id::text WHERE dedup_key IS NULL OR dedup_key = ''")
 	db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_marketplace_webhook_dedup_key ON marketplace_webhook_events (dedup_key)")
 
+	// Converte imagens do catálogo do Mercado Livre para formato WebP para acelerar carregamento
+	db.Exec(`UPDATE products 
+		SET image_url = regexp_replace(image_url, '\.(jpg|jpeg|png)(\?.*)?$', '.webp\2', 'i')
+		WHERE (image_url ILIKE '%mlstatic.com%' OR image_url ILIKE '%mercadolibre.com%') AND image_url ~* '\.(jpg|jpeg|png)(\?.*)?$'`)
+	db.Exec(`UPDATE product_color_images 
+		SET image_url = regexp_replace(image_url, '\.(jpg|jpeg|png)(\?.*)?$', '.webp\2', 'i')
+		WHERE (image_url ILIKE '%mlstatic.com%' OR image_url ILIKE '%mercadolibre.com%') AND image_url ~* '\.(jpg|jpeg|png)(\?.*)?$'`)
+
 	if err := ensureTenantCascadeConstraints(db); err != nil {
 		return fmt.Errorf("configurar exclusao em cascata por tenant: %w", err)
 	}

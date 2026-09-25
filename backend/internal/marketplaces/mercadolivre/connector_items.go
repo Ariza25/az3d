@@ -476,27 +476,37 @@ func sanitizeMediaURL(raw string) string {
 	if strings.HasPrefix(u, "http://") {
 		u = "https://" + strings.TrimPrefix(u, "http://")
 	}
-	if strings.Contains(u, "mlstatic.com") {
+	if strings.Contains(u, "mlstatic.com") || strings.Contains(u, "mercadolibre.com") {
 		u = convertMLImageToWebP(u)
 	}
 	return u
 }
 
 func convertMLImageToWebP(u string) string {
-	lower := strings.ToLower(u)
-	if strings.HasSuffix(lower, ".webp") {
+	if u == "" {
+		return ""
+	}
+	parts := strings.SplitN(u, "?", 2)
+	base := parts[0]
+	baseLower := strings.ToLower(base)
+
+	if strings.HasSuffix(baseLower, ".webp") {
 		return u
 	}
-	if strings.HasSuffix(lower, ".jpg") {
-		return u[:len(u)-4] + ".webp"
+	if strings.HasSuffix(baseLower, ".jpg") {
+		base = base[:len(base)-4] + ".webp"
+	} else if strings.HasSuffix(baseLower, ".jpeg") {
+		base = base[:len(base)-5] + ".webp"
+	} else if strings.HasSuffix(baseLower, ".png") {
+		base = base[:len(base)-4] + ".webp"
+	} else {
+		return u
 	}
-	if strings.HasSuffix(lower, ".jpeg") {
-		return u[:len(u)-5] + ".webp"
+
+	if len(parts) > 1 {
+		return base + "?" + parts[1]
 	}
-	if strings.HasSuffix(lower, ".png") {
-		return u[:len(u)-4] + ".webp"
-	}
-	return u
+	return base
 }
 
 type mercadoItem struct {
