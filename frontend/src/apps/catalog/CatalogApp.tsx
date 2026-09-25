@@ -25,6 +25,8 @@ import { useTenantCatalog } from '../../shared/hooks/useTenantCatalog';
 import { useTheme } from '../../context/ThemeContext';
 import { api, resolveApiAssetUrl } from '../../services/api';
 import {
+  extractProductDimensions,
+  formatDimensionsToCm,
   getAvailableColors,
   getColorVisual,
   getStockStatus,
@@ -42,56 +44,8 @@ export const getCatalogPrice = (price: number): number => {
   return price;
 };
 
-// Extração de dimensões a partir da descrição ou campo dimensions do produto
-export const extractProductDimensions = (product: { description?: string; dimensions?: string }): string => {
-  const desc = product.description || '';
-
-  if (desc) {
-    // 1. Linhas com "Dimensões", "Medidas", "Tamanho"
-    const lineMatch = desc.match(
-      /(?:dimens[õo]es|medidas?|tamanho|dimensao)(?:\s*(?:aproximadas?|totais?|do produto|\([^)]*\)))?\s*[:\-–]\s*([^\n\r]+)/i
-    );
-    if (lineMatch && lineMatch[1]) {
-      let raw = lineMatch[1].trim();
-      const dotIdx = raw.indexOf('.');
-      if (dotIdx > 0 && (raw.slice(dotIdx).includes(' ') || dotIdx > 8)) {
-        raw = raw.slice(0, dotIdx).trim();
-      }
-      raw = raw.replace(/[;,.\-]+$/, '').trim();
-      if (raw.length >= 2 && raw.length <= 50) {
-        return raw;
-      }
-    }
-
-    // 2. Altura, Largura e Comprimento/Profundidade estruturados
-    const altMatch = desc.match(/(?:alt(?:ura)?)\s*[:\-–]?\s*(\d+(?:[.,]\d+)?\s*(?:cm|mm|m)?)/i);
-    const largMatch = desc.match(/(?:larg(?:ura)?)\s*[:\-–]?\s*(\d+(?:[.,]\d+)?\s*(?:cm|mm|m)?)/i);
-    const profMatch = desc.match(/(?:prof(?:undidade)?|comp(?:rimento)?)\s*[:\-–]?\s*(\d+(?:[.,]\d+)?\s*(?:cm|mm|m)?)/i);
-    if (altMatch && largMatch) {
-      const parts = [
-        altMatch[1] ? `Alt: ${altMatch[1]}` : null,
-        largMatch[1] ? `Larg: ${largMatch[1]}` : null,
-        profMatch ? `Prof: ${profMatch[1]}` : null,
-      ].filter(Boolean);
-      return parts.join(' • ');
-    }
-
-    // 3. Padrão numérico clássico: ex: "12 x 10 x 8 cm" ou "120 × 120 × 150 mm" ou "15 x 10 cm"
-    const numMatch = desc.match(
-      /\b\d+(?:[.,]\d+)?\s*(?:cm|mm|m)?\s*[xX×*]\s*\d+(?:[.,]\d+)?\s*(?:cm|mm|m)?(?:\s*[xX×*]\s*\d+(?:[.,]\d+)?\s*(?:cm|mm|m)?)?\b/
-    );
-    if (numMatch && numMatch[0]) {
-      return numMatch[0].trim();
-    }
-  }
-
-  // 4. Fallback para campo dimensions do produto se preenchido e não genérico
-  if (product.dimensions && product.dimensions.trim() && product.dimensions !== 'A confirmar' && product.dimensions !== '--') {
-    return product.dimensions.trim();
-  }
-
-  return '';
-};
+// Re-exporta extração e conversão de dimensões para compatibilidade
+export { extractProductDimensions, formatDimensionsToCm };
 
 // Coleta todas as imagens associadas ao produto (foto principal, fotos de cores e variações irmãs)
 export const getProductImages = (product?: Product | null): string[] => {
@@ -1242,7 +1196,7 @@ export const CatalogApp: React.FC = () => {
                     <div className="space-y-2">
                       <h5 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Detalhes da Peça</h5>
                       <p className="text-sm sm:text-base text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line max-h-60 overflow-y-auto pr-2">
-                        {detailProduct.description}
+                        {formatDimensionsToCm(detailProduct.description)}
                       </p>
                     </div>
                   )}

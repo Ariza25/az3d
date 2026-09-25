@@ -3,6 +3,7 @@ package threemfparser
 import (
 	"archive/zip"
 	"bufio"
+	"compress/gzip"
 	"encoding/base64"
 	"encoding/json"
 	"encoding/xml"
@@ -66,7 +67,7 @@ type SlicerConfigDetails struct {
 	Others   SlicerOtherSettings    `json:"others"`
 }
 
-// Parsed3MF holds technical 3D print data extracted from a sliced .3mf package
+// Parsed3MF holds technical 3D print data extracted from a sliced or raw .3mf package
 type Parsed3MF struct {
 	ProductWeightGrams float64             `json:"product_weight_grams"`
 	SupportWeightGrams float64             `json:"support_weight_grams"`
@@ -121,16 +122,24 @@ func Parse3MF(reader io.ReaderAt, size int64, fileName string) (*Parsed3MF, erro
 			}
 		}
 
-		// Embedded plate gcodes
-		if strings.HasSuffix(nameLower, ".gcode") {
+		// Embedded plate gcodes (.gcode or .gcode.gz)
+		if strings.HasSuffix(nameLower, ".gcode") || strings.HasSuffix(nameLower, ".gcode.gz") {
 			rc, err := f.Open()
 			if err == nil {
-				parseGcodeComments(rc, result)
+				var r io.Reader = rc
+				if strings.HasSuffix(nameLower, ".gz") {
+					gzr, gzErr := gzip.NewReader(rc)
+					if gzErr == nil {
+						defer gzr.Close()
+						r = gzr
+					}
+				}
+				parseGcodeComments(r, result)
 				rc.Close()
 			}
 		}
 
-		// 3D Model XML geometry for bounding box dimensions (any .model file in package)
+		// 3D Model XML geometry for bounding box dimensions and mesh volume (any .model file in package)
 		if strings.HasSuffix(nameLower, ".model") {
 			rc, err := f.Open()
 			if err == nil {
@@ -176,6 +185,58 @@ func Parse3MF(reader io.ReaderAt, size int64, fileName string) (*Parsed3MF, erro
 		if val, err := strconv.Atoi(cleaned); err == nil {
 			result.InfillPercent = val
 		}
+	}
+
+	// Fallback calculation for Weight & Print Time if missing from slicer metadata (e.g. raw 3MF model)
+	if result.ProductWeightGrams <= 0 || result.PrintMinutes <= 0 {
+		var estWeightG float64
+		var estMinutes float64
+
+		density := 1.24 // PLA standard density (g/cm³)
+		if strings.Contains(strings.ToUpper(result.Material), "PETG") {
+			density = 1.27
+		} else if strings.Contains(strings.ToUpper(result.Material), "ABS") {
+			density = 1.04
+		} else if strings.Contains(strings.ToUpper(result.Material), "TPU") {
+			density = 1.21
+		}
+
+		infillPercent := 20
+		if result.InfillPercent > 0 {
+			infillPercent = result.InfillPercent
+		}
+		infillRatio := float64(infillPercent) / 100.0
+		shellRatio := 0.20
+		effectiveVolRatio := shellRatio + (1.0-shellRatio)*infillRatio
+
+		if bounds.volumeCm3 > 0.05 {
+			effectiveVolCm3 := bounds.volumeCm3 * effectiveVolRatio
+			estWeightG = math.Max(5.0, math.Round(effectiveVolCm3*density*10)/10)
+			hours := math.Max(0.5, math.Round((estWeightG/18.0)*10)/10) // ~18g/hour standard printing rate
+			estMinutes = math.Round(hours * 60)
+		} else if bounds.hasVertices && result.DimXMm > 0 && result.DimYMm > 0 && result.DimZMm > 0 {
+			bboxVolCm3 := (result.DimXMm * result.DimYMm * result.DimZMm) / 1000.0
+			// Average occupancy of bounding box for decorative/functional 3D prints is ~20%
+			effectiveVolCm3 := bboxVolCm3 * 0.20 * effectiveVolRatio
+			estWeightG = math.Max(10.0, math.Round(effectiveVolCm3*density*10)/10)
+			hours := math.Max(0.5, math.Round((estWeightG/18.0)*10)/10)
+			estMinutes = math.Round(hours * 60)
+		}
+
+		if result.ProductWeightGrams <= 0 && estWeightG > 0 {
+			result.ProductWeightGrams = estWeightG
+		}
+		if result.PrintMinutes <= 0 && estMinutes > 0 {
+			result.PrintMinutes = estMinutes
+		}
+	}
+
+	// Default fallback material if none detected
+	if result.Material == "" {
+		result.Material = "PLA"
+	}
+	if result.LayerHeight == "" {
+		result.LayerHeight = "0.20mm"
 	}
 
 	// Serialize settings to JSON string for database storage
@@ -239,19 +300,40 @@ func parseBambuConfigFile(r io.Reader, out *Parsed3MF) {
 		out.SlicerDetected = "Bambu Studio / OrcaSlicer"
 	}
 
-	// 1. Prediction / estimated time (in seconds)
+	// 1. Prediction / estimated time
 	if out.PrintMinutes == 0 {
-		rePreds := []*regexp.Regexp{
-			regexp.MustCompile(`(?i)<prediction>(\d+)</prediction>`),
-			regexp.MustCompile(`(?i)<metadata\s+[^>]*key=["'](?:prediction|estimated_time|print_time)["']\s+value=["'](\d+)["']`),
-			regexp.MustCompile(`(?i)["'](?:prediction|estimated_time|print_time)["']\s*[:=]\s*["']?(\d+)["']?`),
+		// Look for XML tags: <prediction>, <estimated_time>, <print_time>, <total_time>
+		reTag := regexp.MustCompile(`(?i)<(?:prediction|estimated_time|print_time|total_time)>\s*([^<]+)\s*</(?:prediction|estimated_time|print_time|total_time)>`)
+		if matches := reTag.FindAllStringSubmatch(content, -1); len(matches) > 0 {
+			var totalMin float64
+			for _, m := range matches {
+				totalMin += parseTimeToMinutes(m[1])
+			}
+			if totalMin > 0 {
+				out.PrintMinutes = totalMin
+			}
 		}
-		for _, re := range rePreds {
-			if match := re.FindStringSubmatch(content); len(match) > 1 {
-				sec, _ := strconv.ParseFloat(match[1], 64)
-				if sec > 0 {
-					out.PrintMinutes = math.Round(sec / 60.0)
-					break
+
+		// Look for metadata attributes: key="prediction" value="..."
+		if out.PrintMinutes == 0 {
+			reMeta := regexp.MustCompile(`(?i)<metadata\s+[^>]*key=["'](?:prediction|estimated_time|print_time|total_time)["']\s+value=["']([^"']+)["']`)
+			if matches := reMeta.FindAllStringSubmatch(content, -1); len(matches) > 0 {
+				var totalMin float64
+				for _, m := range matches {
+					totalMin += parseTimeToMinutes(m[1])
+				}
+				if totalMin > 0 {
+					out.PrintMinutes = totalMin
+				}
+			}
+		}
+
+		// Look for key-value or JSON: "prediction": 12345 or "prediction": "2h 30m"
+		if out.PrintMinutes == 0 {
+			reKV := regexp.MustCompile(`(?i)["'](?:prediction|estimated_time|print_time|total_time)["']\s*[:=]\s*["']?([^"',\r\n\]\}]+)["']?`)
+			if match := reKV.FindStringSubmatch(content); len(match) > 1 {
+				if min := parseTimeToMinutes(match[1]); min > 0 {
+					out.PrintMinutes = min
 				}
 			}
 		}
@@ -259,18 +341,75 @@ func parseBambuConfigFile(r io.Reader, out *Parsed3MF) {
 
 	// 2. Weight (in grams)
 	if out.ProductWeightGrams == 0 {
-		reWeights := []*regexp.Regexp{
-			regexp.MustCompile(`(?i)<weight>([0-9.]+)</weight>`),
-			regexp.MustCompile(`(?i)<metadata\s+[^>]*key=["'](?:weight|filament_used_g|used_g)["']\s+value=["']([0-9.]+)["']`),
-			regexp.MustCompile(`(?i)["'](?:weight|filament_used_g|used_g)["']\s*[:=]\s*["']?([0-9.]+)["']?`),
-			regexp.MustCompile(`(?i)used_g=["']?([0-9.]+)["']?`),
+		// Look for explicit XML tags: <weight>84.84</weight>
+		reWeightTag := regexp.MustCompile(`(?i)<(?:weight|total_weight|filament_weight)>\s*([0-9.]+)\s*</(?:weight|total_weight|filament_weight)>`)
+		if matches := reWeightTag.FindAllStringSubmatch(content, -1); len(matches) > 0 {
+			var sumW float64
+			for _, m := range matches {
+				if w, err := strconv.ParseFloat(m[1], 64); err == nil && w > 0 {
+					sumW += w
+				}
+			}
+			if sumW > 0 {
+				out.ProductWeightGrams = math.Round(sumW*100) / 100
+			}
 		}
-		for _, re := range reWeights {
-			if match := re.FindStringSubmatch(content); len(match) > 1 {
-				w, _ := strconv.ParseFloat(match[1], 64)
-				if w > 0 {
+
+		// Look for metadata tags: key="weight" value="..."
+		if out.ProductWeightGrams == 0 {
+			reMetaWeight := regexp.MustCompile(`(?i)<metadata\s+[^>]*key=["'](?:weight|filament_used_g|used_g|total_weight)["']\s+value=["']([0-9.]+)["']`)
+			if matches := reMetaWeight.FindAllStringSubmatch(content, -1); len(matches) > 0 {
+				var sumW float64
+				for _, m := range matches {
+					if w, err := strconv.ParseFloat(m[1], 64); err == nil && w > 0 {
+						sumW += w
+					}
+				}
+				if sumW > 0 {
+					out.ProductWeightGrams = math.Round(sumW*100) / 100
+				}
+			}
+		}
+
+		// Sum all used_g attributes in <filament ... used_g="..." />
+		if out.ProductWeightGrams == 0 {
+			reUsedG := regexp.MustCompile(`(?i)used_g=["']([0-9.]+)["']`)
+			if matches := reUsedG.FindAllStringSubmatch(content, -1); len(matches) > 0 {
+				var sumW float64
+				for _, m := range matches {
+					if w, err := strconv.ParseFloat(m[1], 64); err == nil && w > 0 {
+						sumW += w
+					}
+				}
+				if sumW > 0 {
+					out.ProductWeightGrams = math.Round(sumW*100) / 100
+				}
+			}
+		}
+
+		// Sum all used_m (filament meters) in <filament ... used_m="..." />
+		if out.ProductWeightGrams == 0 {
+			reUsedM := regexp.MustCompile(`(?i)used_m=["']([0-9.]+)["']`)
+			if matches := reUsedM.FindAllStringSubmatch(content, -1); len(matches) > 0 {
+				var sumM float64
+				for _, m := range matches {
+					if l, err := strconv.ParseFloat(m[1], 64); err == nil && l > 0 {
+						sumM += l
+					}
+				}
+				if sumM > 0 {
+					// 1.75mm PLA filament is ~2.98g per meter
+					out.ProductWeightGrams = math.Round(sumM*2.98*100) / 100
+				}
+			}
+		}
+
+		// JSON or key-value fields: "filament_used_g": 84.84 or "weight": 84.84
+		if out.ProductWeightGrams == 0 {
+			reKVWeight := regexp.MustCompile(`(?i)["'](?:weight|filament_used_g|used_g|total_weight|filament_weight)["']\s*[:=]\s*["']?([0-9.]+)["']?`)
+			if match := reKVWeight.FindStringSubmatch(content); len(match) > 1 {
+				if w, err := strconv.ParseFloat(match[1], 64); err == nil && w > 0 {
 					out.ProductWeightGrams = math.Round(w*100) / 100
-					break
 				}
 			}
 		}
@@ -462,21 +601,24 @@ func parsePrusaConfig(r io.Reader, out *Parsed3MF) {
 		}
 		contentBuilder.WriteString(line + "\n")
 
-		// filament used [g] = 84.84
-		if strings.HasPrefix(line, "filament_used_g") || strings.HasPrefix(line, "; filament used [g]") {
+		// filament used [g] = 84.84 or filament_used_g = 84.84
+		lineLower := strings.ToLower(line)
+		if strings.Contains(lineLower, "filament used") || strings.Contains(lineLower, "filament_used") {
 			parts := strings.Split(line, "=")
-			if len(parts) == 2 {
-				val, _ := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
-				if val > 0 && out.ProductWeightGrams == 0 {
-					out.ProductWeightGrams = val
+			if len(parts) >= 2 {
+				valStr := strings.TrimSpace(parts[1])
+				valStr = strings.TrimSuffix(valStr, "g")
+				valStr = strings.TrimSpace(valStr)
+				if val, err := strconv.ParseFloat(valStr, 64); err == nil && val > 0 && out.ProductWeightGrams == 0 {
+					out.ProductWeightGrams = math.Round(val*100) / 100
 				}
 			}
 		}
 
-		// estimated printing time (normal mode) = 5h 38m 12s
-		if strings.Contains(line, "estimated_printing_time") || strings.Contains(line, "estimated printing time") {
+		// estimated printing time = 5h 38m 12s
+		if strings.Contains(lineLower, "estimated") && strings.Contains(lineLower, "time") {
 			parts := strings.Split(line, "=")
-			if len(parts) == 2 {
+			if len(parts) >= 2 {
 				min := parseTimeToMinutes(strings.TrimSpace(parts[1]))
 				if min > 0 && out.PrintMinutes == 0 {
 					out.PrintMinutes = min
@@ -488,14 +630,20 @@ func parsePrusaConfig(r io.Reader, out *Parsed3MF) {
 	extractKeyValueSettings(contentBuilder.String(), out)
 }
 
-// parseGcodeComments inspects embedded gcode headers/footers for slicing stats
+// parseGcodeComments inspects embedded gcode comments for slicing stats
 func parseGcodeComments(r io.Reader, out *Parsed3MF) {
 	scanner := bufio.NewScanner(r)
+	buf := make([]byte, 1024*1024)
+	scanner.Buffer(buf, 1024*1024)
 	lineCount := 0
 
 	for scanner.Scan() {
 		lineCount++
-		if lineCount > 250 && out.ProductWeightGrams > 0 && out.PrintMinutes > 0 {
+		// If both stats found, can safely exit early
+		if out.ProductWeightGrams > 0 && out.PrintMinutes > 0 {
+			break
+		}
+		if lineCount > 2000 && (out.ProductWeightGrams > 0 || out.PrintMinutes > 0) {
 			break
 		}
 
@@ -504,83 +652,134 @@ func parseGcodeComments(r io.Reader, out *Parsed3MF) {
 			continue
 		}
 
-		if strings.Contains(line, "printing time") || strings.Contains(line, "estimated time") {
-			min := parseTimeToMinutes(line)
-			if min > 0 && out.PrintMinutes == 0 {
-				out.PrintMinutes = min
+		lineLower := strings.ToLower(line)
+
+		// Print time comments
+		if out.PrintMinutes == 0 && (strings.Contains(lineLower, "time") || strings.Contains(lineLower, "duration")) {
+			if strings.Contains(lineLower, "printing time") ||
+				strings.Contains(lineLower, "estimated time") ||
+				strings.Contains(lineLower, "model time") ||
+				strings.Contains(lineLower, "total estimated time") {
+				parts := strings.Split(line, ":")
+				if len(parts) >= 2 {
+					timePart := strings.TrimSpace(strings.Join(parts[1:], ":"))
+					if min := parseTimeToMinutes(timePart); min > 0 {
+						out.PrintMinutes = min
+					}
+				}
+				if out.PrintMinutes == 0 {
+					partsEq := strings.Split(line, "=")
+					if len(partsEq) >= 2 {
+						timePart := strings.TrimSpace(partsEq[1])
+						if min := parseTimeToMinutes(timePart); min > 0 {
+							out.PrintMinutes = min
+						}
+					}
+				}
 			}
 		}
 
-		if strings.Contains(line, "filament used") && (strings.Contains(line, "[g]") || strings.Contains(line, "g")) {
-			re := regexp.MustCompile(`([0-9]+(?:\.[0-9]+)?)\s*g`)
-			if m := re.FindStringSubmatch(line); len(m) > 1 {
-				w, _ := strconv.ParseFloat(m[1], 64)
-				if w > 0 && out.ProductWeightGrams == 0 {
-					out.ProductWeightGrams = w
+		// Filament weight comments
+		if out.ProductWeightGrams == 0 && strings.Contains(lineLower, "filament") {
+			reW := regexp.MustCompile(`(?i)(?:filament\s+used|used\s+filament|total\s+filament)[^=:]*[=:]\s*([0-9.]+)`)
+			if m := reW.FindStringSubmatch(line); len(m) > 1 {
+				if w, err := strconv.ParseFloat(m[1], 64); err == nil && w > 0 {
+					out.ProductWeightGrams = math.Round(w*100) / 100
+				}
+			}
+			if out.ProductWeightGrams == 0 {
+				reGram := regexp.MustCompile(`([0-9]+(?:\.[0-9]+)?)\s*g\b`)
+				if m := reGram.FindStringSubmatch(line); len(m) > 1 {
+					if w, err := strconv.ParseFloat(m[1], 64); err == nil && w > 0 {
+						out.ProductWeightGrams = math.Round(w*100) / 100
+					}
 				}
 			}
 		}
 	}
 }
 
-// parseTimeToMinutes parses strings like "5h 38m", "5h38m", "338m", "20280s" or "20280"
+// parseTimeToMinutes parses strings like "5h 38m 12s", "5h 38m", "338m", "05:38:12", "20280s" or "20280"
 func parseTimeToMinutes(raw string) float64 {
-	raw = strings.ToLower(raw)
-
-	// Check seconds: e.g. "20280s"
-	reSec := regexp.MustCompile(`(\d+)\s*s(?:ec)?\b`)
-	if m := reSec.FindStringSubmatch(raw); len(m) > 1 {
-		sec, _ := strconv.ParseFloat(m[1], 64)
-		if sec > 0 {
-			return math.Round(sec / 60.0)
-		}
+	raw = strings.TrimSpace(strings.ToLower(raw))
+	if raw == "" {
+		return 0
 	}
 
-	// Check "5h 38m" or "5h38m"
-	reH := regexp.MustCompile(`(\d+)\s*h(?:our|ours|r)?\b`)
-	reM := regexp.MustCompile(`(\d+)\s*m(?:in|ins|inute|inutes)?\b`)
+	// 1. Clock format: "05:38:12" or "02:15"
+	reClock := regexp.MustCompile(`^(\d{1,2}):(\d{2})(?::(\d{2}))?$`)
+	if m := reClock.FindStringSubmatch(raw); len(m) > 1 {
+		h, _ := strconv.ParseFloat(m[1], 64)
+		min, _ := strconv.ParseFloat(m[2], 64)
+		sec := 0.0
+		if len(m) > 3 && m[3] != "" {
+			sec, _ = strconv.ParseFloat(m[3], 64)
+		}
+		return h*60.0 + min + math.Round(sec/60.0)
+	}
 
-	var hours float64
-	var mins float64
+	// 2. Units format: combines hours, minutes, and seconds (e.g. "5h 38m 12s", "3h 15m", "45min")
+	reH := regexp.MustCompile(`([0-9.]+)\s*h(?:our|ours|r)?\b`)
+	reM := regexp.MustCompile(`([0-9.]+)\s*m(?:in|ins|inute|inutes)?\b`)
+	reS := regexp.MustCompile(`([0-9.]+)\s*s(?:ec|ecs|econd|econds)?\b`)
+
+	var hours, mins, secs float64
+	hasUnit := false
 
 	if m := reH.FindStringSubmatch(raw); len(m) > 1 {
 		hours, _ = strconv.ParseFloat(m[1], 64)
+		hasUnit = true
 	}
 	if m := reM.FindStringSubmatch(raw); len(m) > 1 {
 		mins, _ = strconv.ParseFloat(m[1], 64)
+		hasUnit = true
+	}
+	if m := reS.FindStringSubmatch(raw); len(m) > 1 {
+		secs, _ = strconv.ParseFloat(m[1], 64)
+		hasUnit = true
 	}
 
-	totalMin := hours*60.0 + mins
-	if totalMin > 0 {
-		return totalMin
+	if hasUnit {
+		total := hours*60.0 + mins + math.Round(secs/60.0)
+		if total > 0 {
+			return total
+		}
 	}
 
-	// If raw is just a number like "20280" (seconds)
-	reNum := regexp.MustCompile(`\b(\d+)\b`)
+	// 3. Raw number (e.g. "20280" seconds from Bambu Studio <prediction>20280</prediction>)
+	reNum := regexp.MustCompile(`^([0-9]+(?:\.[0-9]+)?)$`)
 	if m := reNum.FindStringSubmatch(raw); len(m) > 1 {
 		num, _ := strconv.ParseFloat(m[1], 64)
-		if num > 300 {
+		if num > 300 { // Large number represents seconds
 			return math.Round(num / 60.0)
 		}
-		if num > 0 {
-			return num
+		if num > 0 { // Small number represents minutes
+			return math.Round(num)
 		}
 	}
 
 	return 0
 }
 
-type modelBounds struct {
-	minX, maxX  float64
-	minY, maxY  float64
-	minZ, maxZ  float64
-	hasVertices bool
+type modelPoint3D struct {
+	X, Y, Z float64
 }
 
-// parseModelDimensions reads standard 3MF XML (3D/3dmodel.model or 3D/Objects/*.model) vertices
+type modelBounds struct {
+	minX, maxX    float64
+	minY, maxY    float64
+	minZ, maxZ    float64
+	hasVertices   bool
+	vertices      []modelPoint3D
+	volumeCm3     float64
+	triangleCount int
+}
+
+// parseModelDimensions reads standard 3MF XML (3D/3dmodel.model or 3D/Objects/*.model) vertices & triangles
 func parseModelDimensions(r io.Reader, bounds *modelBounds) {
 	decoder := xml.NewDecoder(r)
 	scale := 1.0
+	var totalSignedVolume float64
 
 	for {
 		tok, err := decoder.Token()
@@ -649,9 +848,38 @@ func parseModelDimensions(r io.Reader, bounds *modelBounds) {
 					if vz > bounds.maxZ {
 						bounds.maxZ = vz
 					}
+
+					bounds.vertices = append(bounds.vertices, modelPoint3D{X: vx, Y: vy, Z: vz})
+				}
+			}
+
+			if strings.EqualFold(se.Name.Local, "triangle") {
+				var v1, v2, v3 int = -1, -1, -1
+				for _, attr := range se.Attr {
+					switch strings.ToLower(attr.Name.Local) {
+					case "v1":
+						v1, _ = strconv.Atoi(attr.Value)
+					case "v2":
+						v2, _ = strconv.Atoi(attr.Value)
+					case "v3":
+						v3, _ = strconv.Atoi(attr.Value)
+					}
+				}
+				numV := len(bounds.vertices)
+				if v1 >= 0 && v1 < numV && v2 >= 0 && v2 < numV && v3 >= 0 && v3 < numV {
+					p1 := bounds.vertices[v1]
+					p2 := bounds.vertices[v2]
+					p3 := bounds.vertices[v3]
+
+					// Signed tetrahedron volume calculation
+					vSigned := (-p3.X*p2.Y*p1.Z + p2.X*p3.Y*p1.Z + p3.X*p1.Y*p2.Z - p1.X*p3.Y*p2.Z - p2.X*p1.Y*p3.Z + p1.X*p2.Y*p3.Z) / 6.0
+					totalSignedVolume += vSigned
+					bounds.triangleCount++
 				}
 			}
 		}
 	}
-}
 
+	volMm3 := math.Abs(totalSignedVolume)
+	bounds.volumeCm3 += volMm3 / 1000.0
+}

@@ -72,6 +72,40 @@ func importMarketplaceCatalogItem(tenantID uint, provider string, defaultCategor
 		}
 	}
 
+	if !productFound {
+		// Verificar se este produto ou anúncio foi excluído intencionalmente pelo usuário
+		var deletedProduct models.Product
+		isDeleted := false
+		if mapping.ProductID > 0 {
+			if err := database.DB.Unscoped().Where("tenant_id = ? AND id = ? AND deleted_at IS NOT NULL", tenantID, mapping.ProductID).First(&deletedProduct).Error; err == nil {
+				isDeleted = true
+			}
+		}
+		if !isDeleted {
+			if err := database.DB.Unscoped().Where("tenant_id = ? AND source_provider = ? AND source_external_id = ? AND deleted_at IS NOT NULL", tenantID, provider, externalID).First(&deletedProduct).Error; err == nil {
+				isDeleted = true
+			}
+		}
+		if !isDeleted {
+			if err := database.DB.Unscoped().Where("tenant_id = ? AND sku = ? AND deleted_at IS NOT NULL", tenantID, sku).First(&deletedProduct).Error; err == nil {
+				isDeleted = true
+			}
+		}
+
+		if isDeleted {
+			// Produto foi excluído intencionalmente pelo lojista. Não ressuscitar via sincronização!
+			_ = database.DB.Where("tenant_id = ? AND provider = ? AND external_item_id = ?", tenantID, provider, externalID).Delete(&models.MarketplaceProductMapping{}).Error
+			return models.MarketplaceProductImportResult{Action: "ignored_deleted"}, nil
+		}
+
+		// Se o anúncio no marketplace estiver finalizado / fechado / inativo, não criar como novo produto
+		itemStatusLower := strings.ToLower(strings.TrimSpace(item.Status))
+		if itemStatusLower == "closed" || itemStatusLower == "inactive" {
+			_ = database.DB.Where("tenant_id = ? AND provider = ? AND external_item_id = ?", tenantID, provider, externalID).Delete(&models.MarketplaceProductMapping{}).Error
+			return models.MarketplaceProductImportResult{Action: "ignored_closed"}, nil
+		}
+	}
+
 	categoryID := item.CategoryID
 	if categoryID == 0 {
 		categoryID = defaultCategoryID

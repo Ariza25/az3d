@@ -292,7 +292,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
       setFormData((prev) => {
         const next = { ...prev };
         if (data.product_weight_grams > 0) {
-          next.weight = `${Math.round(data.product_weight_grams)}g`;
+          next.weight = `${Math.max(1, Math.round(data.product_weight_grams))}g`;
         }
         if (data.print_minutes > 0) {
           next.print_time = formatPrintDuration(data.print_minutes);
@@ -316,6 +316,17 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               idx === 0 ? { ...img, image_url: data.thumbnail_base64! } : img
             );
           }
+        }
+        if (next.variants && next.variants.length > 0) {
+          next.variants = next.variants.map((v) => ({
+            ...v,
+            weight: (!v.weight || v.weight === '0g' || v.weight === 'A confirmar') && data.product_weight_grams > 0
+              ? `${Math.max(1, Math.round(data.product_weight_grams))}g`
+              : v.weight,
+            print_time: (!v.print_time || v.print_time === 'A confirmar') && data.print_minutes > 0
+              ? formatPrintDuration(data.print_minutes)
+              : v.print_time,
+          }));
         }
         return next;
       });

@@ -2,7 +2,7 @@ import React from 'react';
 import { Product } from '../types';
 import { ShoppingBag, Maximize2, Star } from 'lucide-react';
 import { useCart } from '../context/CartContext';
-import { getAvailableColors, getColorVisual, getDefaultColor, getStockStatus, getStoreVariantProduct, money, optimizeImageUrl } from '../shared/storePresentation';
+import { extractProductDimensions, getAvailableColors, getColorVisual, getDefaultColor, getStockStatus, getStoreVariantProduct, money, optimizeImageUrl } from '../shared/storePresentation';
 
 const truncateDescription = (text?: string, maxLength = 120): string => {
   if (!text) return '';
@@ -90,6 +90,16 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal }
               {truncateDescription(product.description, 120)}
             </p>
           )}
+
+          {(() => {
+            const dim = extractProductDimensions(product);
+            if (!dim) return null;
+            return (
+              <p className="mt-1 text-[11px] sm:text-xs font-medium text-slate-400 truncate">
+                Dimensões: <span className="font-semibold text-slate-200">{dim}</span>
+              </p>
+            );
+          })()}
         </div>
 
         {/* Available Color Swatches */}

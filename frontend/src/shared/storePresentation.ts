@@ -241,4 +241,135 @@ export const getWholesaleDiscount = (qty: number) => {
   };
 };
 
+/**
+ * Converte strings de dimensões em milímetros (mm) para centímetros (cm)
+ * Ex: "68.5 x 65.0 x 72.2 mm" -> "6,9 x 6,5 x 7,2 cm"
+ * Ex: "120 x 120 x 150 mm" -> "12 x 12 x 15 cm"
+ * Ex: "12 x 12 x 15 cm" -> "12 x 12 x 15 cm" (inalterado)
+ */
+export const formatDimensionsToCm = (raw?: string | null): string => {
+  if (!raw || typeof raw !== 'string') return '';
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed === '--' || trimmed.toLowerCase() === 'a confirmar') return '';
+
+  // Se já estiver explicitamente em cm e não contiver mm, preserva
+  if (/\bcm\b/i.test(trimmed) && !/\bmm\b/i.test(trimmed)) {
+    return trimmed;
+  }
+
+  const formatMmNum = (numStr: string): string => {
+    const clean = numStr.replace(',', '.');
+    const val = parseFloat(clean);
+    if (isNaN(val)) return numStr;
+    const cm = val / 10;
+    // Inteiro exato
+    if (Math.round(cm) === cm || Math.abs(cm - Math.round(cm)) < 0.001) {
+      return Math.round(cm).toString();
+    }
+    // 1 casa decimal arredondada (ex: 6.85 -> 6.9; 6.5 -> 6.5)
+    const rounded = cm >= 1 
+      ? Math.round(cm * 10) / 10 
+      : Math.round(cm * 100) / 100;
+    return rounded.toString().replace('.', ',');
+  };
+
+  // Padrão 1: Dimensões compostas: "68.5 x 65.0 x 72.2 mm", "120 × 120 × 150 mm", "120 x 80 mm"
+  const multiMatch = trimmed.match(
+    /\b(\d+(?:[.,]\d+)?)\s*(?:mm)?\s*[xX×*]\s*(\d+(?:[.,]\d+)?)\s*(?:mm)?(?:\s*[xX×*]\s*(\d+(?:[.,]\d+)?))?\s*(?:mm)?\b/i
+  );
+
+  if (multiMatch) {
+    const [, n1, n2, n3] = multiMatch;
+    const fullMatch = multiMatch[0];
+    const hasMm = /\bmm\b/i.test(trimmed) || /mm/i.test(fullMatch);
+    const val1 = parseFloat(n1.replace(',', '.'));
+    const val2 = parseFloat(n2.replace(',', '.'));
+    const val3 = n3 ? parseFloat(n3.replace(',', '.')) : 0;
+
+    // Se tiver 'mm' explícito ou valores típicos de mm de impressão 3D (>= 20)
+    if (hasMm || val1 >= 20 || val2 >= 20 || val3 >= 20) {
+      const c1 = formatMmNum(n1);
+      const c2 = formatMmNum(n2);
+      const c3 = n3 ? formatMmNum(n3) : null;
+      const convertedPart = c3 ? `${c1} x ${c2} x ${c3} cm` : `${c1} x ${c2} cm`;
+
+      if (trimmed === fullMatch || trimmed.toLowerCase() === fullMatch.toLowerCase()) {
+        return convertedPart;
+      }
+      return trimmed.replace(fullMatch, convertedPart);
+    }
+  }
+
+  // Padrão 2: Formatos com Alt / Larg / Prof ou mm isolado (ex: "Alt: 150mm • Larg: 120mm • Prof: 120mm")
+  if (/\bmm\b/i.test(trimmed)) {
+    return trimmed.replace(/(\d+(?:[.,]\d+)?)\s*mm\b/gi, (_, n) => `${formatMmNum(n)} cm`);
+  }
+
+  return trimmed;
+};
+
+/**
+ * Extração de dimensões a partir da descrição ou campo dimensions do produto,
+ * convertendo automaticamente para centímetros (cm) para exibição a clientes.
+ */
+export const extractProductDimensions = (product?: { description?: string; dimensions?: string } | null): string => {
+  if (!product) return '';
+  const desc = product.description || '';
+
+  let raw = '';
+
+  if (desc) {
+    // 1. Linhas com "Dimensões", "Medidas", "Tamanho"
+    const lineMatch = desc.match(
+      /(?:dimens[õo]es|medidas?|tamanho|dimensao)(?:\s*(?:aproximadas?|totais?|do produto|\([^)]*\)))?\s*[:\-–]\s*([^\n\r]+)/i
+    );
+    if (lineMatch && lineMatch[1]) {
+      let r = lineMatch[1].trim();
+      const dotIdx = r.indexOf('.');
+      if (dotIdx > 0 && (r.slice(dotIdx).includes(' ') || dotIdx > 8)) {
+        r = r.slice(0, dotIdx).trim();
+      }
+      r = r.replace(/[;,.\-]+$/, '').trim();
+      if (r.length >= 2 && r.length <= 50) {
+        raw = r;
+      }
+    }
+
+    // 2. Altura, Largura e Comprimento/Profundidade estruturados
+    if (!raw) {
+      const altMatch = desc.match(/(?:alt(?:ura)?)\s*[:\-–]?\s*(\d+(?:[.,]\d+)?\s*(?:cm|mm|m)?)/i);
+      const largMatch = desc.match(/(?:larg(?:ura)?)\s*[:\-–]?\s*(\d+(?:[.,]\d+)?\s*(?:cm|mm|m)?)/i);
+      const profMatch = desc.match(/(?:prof(?:undidade)?|comp(?:rimento)?)\s*[:\-–]?\s*(\d+(?:[.,]\d+)?\s*(?:cm|mm|m)?)/i);
+      if (altMatch && largMatch) {
+        const parts = [
+          altMatch[1] ? `Alt: ${altMatch[1]}` : null,
+          largMatch[1] ? `Larg: ${largMatch[1]}` : null,
+          profMatch ? `Prof: ${profMatch[1]}` : null,
+        ].filter(Boolean);
+        raw = parts.join(' • ');
+      }
+    }
+
+    // 3. Padrão numérico clássico: ex: "12 x 10 x 8 cm" ou "120 × 120 × 150 mm" ou "15 x 10 cm"
+    if (!raw) {
+      const numMatch = desc.match(
+        /\b\d+(?:[.,]\d+)?\s*(?:cm|mm|m)?\s*[xX×*]\s*\d+(?:[.,]\d+)?\s*(?:cm|mm|m)?(?:\s*[xX×*]\s*\d+(?:[.,]\d+)?\s*(?:cm|mm|m)?)?\b/
+      );
+      if (numMatch && numMatch[0]) {
+        raw = numMatch[0].trim();
+      }
+    }
+  }
+
+  // 4. Fallback para campo dimensions do produto se preenchido e não genérico
+  if (!raw && product.dimensions && product.dimensions.trim() && product.dimensions !== 'A confirmar' && product.dimensions !== '--') {
+    raw = product.dimensions.trim();
+  }
+
+  if (!raw) return '';
+
+  return formatDimensionsToCm(raw);
+};
+
+
 

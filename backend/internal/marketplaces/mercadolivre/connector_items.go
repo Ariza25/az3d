@@ -34,10 +34,19 @@ func (c *Connector) FetchCatalog(ctx context.Context, account mp.Account) (mp.Ca
 		return mp.CatalogSyncResult{Provider: c.Provider()}, err
 	}
 
+	activeItems := make([]mp.CatalogItem, 0, len(items))
+	for _, it := range items {
+		st := strings.ToLower(strings.TrimSpace(it.Status))
+		if st == "closed" || st == "inactive" {
+			continue
+		}
+		activeItems = append(activeItems, it)
+	}
+
 	return mp.CatalogSyncResult{
 		Provider: c.Provider(),
-		Items:    items,
-		Message:  fmt.Sprintf("%d anuncio(s) encontrados no Mercado Livre", len(items)),
+		Items:    activeItems,
+		Message:  fmt.Sprintf("%d anuncio(s) ativos encontrados no Mercado Livre", len(activeItems)),
 	}, nil
 }
 
@@ -62,6 +71,10 @@ func (c *Connector) FetchCatalogItems(ctx context.Context, account mp.Account, e
 		sellerID, _ := item.Raw["seller_id"].(string)
 		sellerID = strings.TrimSpace(sellerID)
 		if sellerID != "" && sellerID != "0" && sellerID != strings.TrimSpace(account.SellerID) {
+			continue
+		}
+		st := strings.ToLower(strings.TrimSpace(item.Status))
+		if st == "closed" || st == "inactive" {
 			continue
 		}
 		owned = append(owned, item)

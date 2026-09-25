@@ -1187,6 +1187,9 @@ func (h *ProductHandler) DeleteProduct(c *gin.Context) {
 		return
 	}
 
+	// Remover qualquer mapeamento de marketplace associado a este produto para evitar re-importação automática
+	_ = database.DB.Where("tenant_id = ? AND product_id = ?", tenantID, product.ID).Delete(&models.MarketplaceProductMapping{}).Error
+
 	c.JSON(http.StatusOK, gin.H{"message": "Produto removido com sucesso"})
 }
 

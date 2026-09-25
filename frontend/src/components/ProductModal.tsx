@@ -4,7 +4,7 @@ import { Check, Heart, Layers, Minus, Play, Plus, ShoppingBag, Star, X, FileText
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
-import { getAvailableColors, getColorVisual, getDefaultColor, getStockStatus, getStoreVariantProduct, getTotalStock, money, optimizeImageUrl, getWholesaleDiscount } from '../shared/storePresentation';
+import { extractProductDimensions, formatDimensionsToCm, getAvailableColors, getColorVisual, getDefaultColor, getStockStatus, getStoreVariantProduct, getTotalStock, money, optimizeImageUrl, getWholesaleDiscount } from '../shared/storePresentation';
 import { FreightCalculatorWidget } from './FreightCalculatorWidget';
 
 interface ProductModalProps {
@@ -489,6 +489,35 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
                 </div>
               </div>
 
+              {/* Especificações Rápidas: Dimensões (em cm) e Material */}
+              {(() => {
+                const targetProd = activeProduct || product;
+                const dim = extractProductDimensions(targetProd);
+                const mat = targetProd.material || 'PLA Premium';
+                return (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 p-3 sm:p-3.5 rounded-xl bg-chumbo-950/80 border border-chumbo-800 text-xs">
+                    <div className="min-w-0">
+                      <span className="text-[10px] text-slate-400 uppercase font-mono block">Dimensões</span>
+                      <span className="font-semibold text-slate-100 truncate block" title={dim || 'Sob medida'}>
+                        {dim || 'Sob medida'}
+                      </span>
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[10px] text-slate-400 uppercase font-mono block">Material</span>
+                      <span className="font-semibold text-slate-100 truncate block" title={mat}>
+                        {mat}
+                      </span>
+                    </div>
+                    <div className="min-w-0 col-span-2 sm:col-span-1">
+                      <span className="text-[10px] text-slate-400 uppercase font-mono block">Disponibilidade</span>
+                      <span className={`font-semibold truncate block ${stockStatus.canBuy ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {stockStatus.label}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {feedback && <div className="rounded-xl border border-chumbo-700 bg-chumbo-950 p-3 text-xs text-slate-300">{feedback}</div>}
 
               {/* 2. SEÇÃO DE COMPRA (Cores, Estoque, Frete, Total e Comprar) */}
@@ -700,7 +729,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) 
                   Descrição do produto
                 </h3>
                 <p className="mt-3 whitespace-pre-line text-[14px] sm:text-[15px] leading-7 text-slate-300">
-                  {activeProduct?.description || product.description}
+                  {formatDimensionsToCm(activeProduct?.description || product.description)}
                 </p>
               </div>
 

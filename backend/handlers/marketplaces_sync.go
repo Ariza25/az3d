@@ -334,18 +334,31 @@ func marketplaceCatalogItemIDs(items []marketplaces.CatalogItem) map[string]stru
 
 func mappedMarketplaceItemIDs(tenantID uint, provider string) ([]string, error) {
 	provider = normalizeProvider(provider)
+
+	// Carregar IDs de produtos excluídos para garantir que nunca sejam re-consultados ou ressuscitados
+	var deletedProductIDs []string
+	_ = database.DB.Unscoped().Model(&models.Product{}).
+		Where("tenant_id = ? AND source_provider = ? AND source_external_id <> '' AND deleted_at IS NOT NULL", tenantID, provider).
+		Pluck("source_external_id", &deletedProductIDs).Error
+	deletedMap := make(map[string]struct{}, len(deletedProductIDs))
+	for _, id := range deletedProductIDs {
+		deletedMap[strings.TrimSpace(id)] = struct{}{}
+	}
+
+	// Buscar apenas mapeamentos vinculados a produtos vivos (não deletados)
 	var mappedIDs []string
-	err := database.DB.Model(&models.MarketplaceProductMapping{}).
-		Where("tenant_id = ? AND provider = ? AND external_item_id <> ''", tenantID, provider).
-		Order("id asc").
-		Pluck("external_item_id", &mappedIDs).Error
+	err := database.DB.Table("marketplace_product_mappings as m").
+		Joins("JOIN products as p ON p.id = m.product_id AND p.deleted_at IS NULL").
+		Where("m.tenant_id = ? AND m.provider = ? AND m.external_item_id <> ''", tenantID, provider).
+		Order("m.id asc").
+		Pluck("m.external_item_id", &mappedIDs).Error
 	if err != nil {
 		return nil, err
 	}
 
 	var productIDs []string
 	err = database.DB.Model(&models.Product{}).
-		Where("tenant_id = ? AND source_provider = ? AND source_external_id <> ''", tenantID, provider).
+		Where("tenant_id = ? AND source_provider = ? AND source_external_id <> '' AND deleted_at IS NULL", tenantID, provider).
 		Order("id asc").
 		Pluck("source_external_id", &productIDs).Error
 	if err != nil {
@@ -357,6 +370,9 @@ func mappedMarketplaceItemIDs(tenantID uint, provider string) ([]string, error) 
 	for _, externalID := range append(mappedIDs, productIDs...) {
 		externalID = strings.TrimSpace(externalID)
 		if externalID == "" {
+			continue
+		}
+		if _, isDeleted := deletedMap[externalID]; isDeleted {
 			continue
 		}
 		if _, exists := seen[externalID]; exists {
