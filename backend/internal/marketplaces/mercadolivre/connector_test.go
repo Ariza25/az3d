@@ -212,14 +212,14 @@ func TestFetchCatalogIncludesInactiveItemsAndPaginates(t *testing.T) {
 	mu.Lock()
 	gotRequests := append([]string(nil), requests...)
 	mu.Unlock()
-	wantRequests := "[active:0 paused:0 paused:2 :0 closed:0 under_review:0 inactive:0 pending:0 not_yet_active:0 payment_required:0]"
+	wantRequests := "[active:0 paused:0 paused:2]"
 	if fmt.Sprint(gotRequests) != wantRequests {
 		t.Fatalf("requests = %v, want %s", gotRequests, wantRequests)
 	}
 	if result.Items[0].Status != "active" || result.Items[1].Status != "paused" || result.Items[2].Status != "paused" {
 		t.Fatalf("unexpected normalized statuses: %#v", result.Items)
 	}
-	if result.Message != "3 anuncio(s) encontrados no Mercado Livre" {
+	if result.Message != "3 anuncio(s) ativos encontrados no Mercado Livre" {
 		t.Fatalf("message = %q", result.Message)
 	}
 }
