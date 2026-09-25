@@ -174,3 +174,68 @@ bed_temperature = 75
 		t.Errorf("Esperado 230 °C, obtido %s", parsed.Settings.Others.NozzleTemperature)
 	}
 }
+
+func TestParse3MF_BambuStudio_Orca_NormalPart(t *testing.T) {
+	buf := new(bytes.Buffer)
+	zw := zip.NewWriter(buf)
+
+	// 1. model_settings.config with object type="normal_part"
+	modelSettings := `<?xml version="1.0" encoding="UTF-8"?>
+<config>
+  <object id="1" name="Gatinho Decorativo" type="normal_part">
+    <metadata key="name" value="Gatinho Decorativo Porta Joia" />
+  </object>
+</config>`
+	f1, _ := zw.Create("Metadata/model_settings.config")
+	f1.Write([]byte(modelSettings))
+
+	// 2. slice_info.config with metadata tags and true filament
+	sliceInfo := `<?xml version="1.0" encoding="UTF-8"?>
+<config>
+  <plate>
+    <metadata key="prediction" value="7200" />
+    <metadata key="weight" value="45.50" />
+    <filament id="1" type="PLA Silk" color="#C0C0C0" used_g="45.50" />
+  </plate>
+</config>`
+	f2, _ := zw.Create("Metadata/slice_info.config")
+	f2.Write([]byte(sliceInfo))
+
+	// 3. 3D geometry in 3D/Objects/object_1.model (Bambu Studio export structure)
+	objModel := `<?xml version="1.0" encoding="UTF-8"?>
+<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">
+  <resources>
+    <object id="2" type="model">
+      <mesh>
+        <vertices>
+          <vertex x="10.0" y="20.0" z="5.0" />
+          <vertex x="78.5" y="85.0" z="77.2" />
+        </vertices>
+      </mesh>
+    </object>
+  </resources>
+</model>`
+	f3, _ := zw.Create("3D/Objects/object_1.model")
+	f3.Write([]byte(objModel))
+
+	zw.Close()
+
+	raw := buf.Bytes()
+	parsed, err := Parse3MF(bytes.NewReader(raw), int64(len(raw)), "gatinho.3mf")
+	if err != nil {
+		t.Fatalf("Parse3MF falhou: %v", err)
+	}
+
+	if parsed.Material != "PLA Silk" {
+		t.Errorf("Esperado material 'PLA Silk', mas obteve: '%v'", parsed.Material)
+	}
+	if parsed.PrintMinutes != 120 {
+		t.Errorf("Esperado 120 minutos (7200s), obtido: %v", parsed.PrintMinutes)
+	}
+	if parsed.ProductWeightGrams != 45.5 {
+		t.Errorf("Esperado 45.5g, obtido: %v", parsed.ProductWeightGrams)
+	}
+	if parsed.DimXMm != 68.5 || parsed.DimYMm != 65.0 || parsed.DimZMm != 72.2 {
+		t.Errorf("Dimensões incorretas: %.1f x %.1f x %.1f (esperado 68.5 x 65.0 x 72.2)", parsed.DimXMm, parsed.DimYMm, parsed.DimZMm)
+	}
+}

@@ -357,6 +357,9 @@ export const CatalogApp: React.FC = () => {
     }
   };
 
+  const [isCarouselPaused, setIsCarouselPaused] = useState(false);
+
+
   // Modal de Detalhes Rápido
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
@@ -490,6 +493,32 @@ export const CatalogApp: React.FC = () => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [spotlightProducts.length]);
+
+  // Auto-play do Carrossel de Destaques da Coleção (roda automaticamente a cada 3.8s)
+  useEffect(() => {
+    if (isCarouselPaused || spotlightProducts.length <= 1) return;
+
+    const interval = setInterval(() => {
+      if (!carouselRef.current) return;
+      const container = carouselRef.current;
+      const { scrollLeft, scrollWidth, clientWidth } = container;
+
+      // Se atingir o fim da trilha, retorna suavemente para o início
+      if (scrollLeft + clientWidth >= scrollWidth - 25) {
+        container.scrollTo({ left: 0, behavior: 'smooth' });
+      } else {
+        const cardWidth =
+          clientWidth >= 1024
+            ? clientWidth / 4
+            : clientWidth >= 640
+            ? clientWidth / 2
+            : clientWidth * 0.78;
+        container.scrollBy({ left: cardWidth, behavior: 'smooth' });
+      }
+    }, 3800);
+
+    return () => clearInterval(interval);
+  }, [isCarouselPaused, spotlightProducts.length]);
 
   // Categorias com contador de produtos
   const categoriesWithCounts = useMemo(() => {
@@ -699,10 +728,14 @@ export const CatalogApp: React.FC = () => {
               </div>
             </div>
 
-            {/* Trilho do Carrossel com Snap suave */}
+            {/* Trilho do Carrossel com Snap suave e Rotação Automática */}
             <div
               ref={carouselRef}
               onScroll={checkCarouselScroll}
+              onMouseEnter={() => setIsCarouselPaused(true)}
+              onMouseLeave={() => setIsCarouselPaused(false)}
+              onTouchStart={() => setIsCarouselPaused(true)}
+              onTouchEnd={() => setIsCarouselPaused(false)}
               className="flex gap-3 sm:gap-4 overflow-x-auto pb-3 pt-1 no-scrollbar scroll-smooth snap-x snap-mandatory touch-pan-x -mx-1 px-1"
             >
               {spotlightProducts.map((product) => {
@@ -1022,8 +1055,8 @@ export const CatalogApp: React.FC = () => {
           </div>
         )}
 
-        {/* Loading de Paginação no Scroll / Fim da Lista com Altura Mínima Estável */}
-        <div ref={loadMoreSentinelRef} className="py-6 min-h-[90px] flex flex-col items-center justify-center">
+        {/* Loading de Paginação no Scroll */}
+        <div ref={loadMoreSentinelRef} className={`flex flex-col items-center justify-center ${isLoadingMore ? 'py-6 min-h-[90px]' : 'py-2 min-h-[20px]'}`}>
           {isLoadingMore && (
             <div className="flex items-center gap-3 py-3 px-5 rounded-2xl bg-white dark:bg-chumbo-900 border border-slate-200 dark:border-chumbo-700/80 text-cyan-600 dark:text-cyan-400 shadow-md animate-in fade-in duration-200">
               <Loader2 className="w-5 h-5 animate-spin text-cyan-500" />
@@ -1031,11 +1064,6 @@ export const CatalogApp: React.FC = () => {
                 Carregando mais peças...
               </span>
             </div>
-          )}
-          {!hasMore && filteredProducts.length > 0 && !isLoadingMore && (
-            <p className="text-[11px] sm:text-xs text-slate-400 dark:text-slate-500 py-3 font-medium text-center">
-              Você viu todas as {totalCatalogCount || filteredProducts.length} peças disponíveis.
-            </p>
           )}
         </div>
       </main>

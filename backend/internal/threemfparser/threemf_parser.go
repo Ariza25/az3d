@@ -96,34 +96,33 @@ func Parse3MF(reader io.ReaderAt, size int64, fileName string) (*Parsed3MF, erro
 		FileName: fileName,
 	}
 
+	bounds := &modelBounds{
+		minX: math.MaxFloat64, maxX: -math.MaxFloat64,
+		minY: math.MaxFloat64, maxY: -math.MaxFloat64,
+		minZ: math.MaxFloat64, maxZ: -math.MaxFloat64,
+	}
+
 	// 1. Scan files in archive
 	for _, f := range zr.File {
 		nameLower := strings.ToLower(f.Name)
 
-		// Bambu Studio / OrcaSlicer config files
-		if strings.HasSuffix(nameLower, "project_settings.config") ||
-			strings.HasSuffix(nameLower, "slice_info.config") ||
-			strings.HasSuffix(nameLower, "model_settings.config") {
+		// Bambu Studio / OrcaSlicer / PrusaSlicer config files & metadata
+		if strings.HasSuffix(nameLower, ".config") ||
+			strings.HasSuffix(nameLower, ".json") ||
+			(strings.Contains(nameLower, "metadata/") && strings.HasSuffix(nameLower, ".xml")) {
 			rc, err := f.Open()
 			if err == nil {
-				parseBambuConfigFile(rc, result)
-				rc.Close()
-			}
-		}
-
-		// PrusaSlicer / SuperSlicer / Slic3r config files
-		if strings.HasSuffix(nameLower, "slic3r_pe.config") ||
-			strings.HasSuffix(nameLower, "prusaslicer.config") ||
-			strings.HasSuffix(nameLower, "slic3r.config") {
-			rc, err := f.Open()
-			if err == nil {
-				parsePrusaConfig(rc, result)
+				if strings.Contains(nameLower, "prusaslicer") || strings.Contains(nameLower, "slic3r") {
+					parsePrusaConfig(rc, result)
+				} else {
+					parseBambuConfigFile(rc, result)
+				}
 				rc.Close()
 			}
 		}
 
 		// Embedded plate gcodes
-		if (strings.Contains(nameLower, "plate_") || strings.Contains(nameLower, "slice")) && strings.HasSuffix(nameLower, ".gcode") {
+		if strings.HasSuffix(nameLower, ".gcode") {
 			rc, err := f.Open()
 			if err == nil {
 				parseGcodeComments(rc, result)
@@ -131,11 +130,11 @@ func Parse3MF(reader io.ReaderAt, size int64, fileName string) (*Parsed3MF, erro
 			}
 		}
 
-		// 3D Model XML geometry for bounding box dimensions
-		if strings.HasSuffix(nameLower, "3d/3dmodel.model") || strings.HasSuffix(nameLower, "3dmodel.model") {
+		// 3D Model XML geometry for bounding box dimensions (any .model file in package)
+		if strings.HasSuffix(nameLower, ".model") {
 			rc, err := f.Open()
 			if err == nil {
-				parseModelDimensions(rc, result)
+				parseModelDimensions(rc, bounds)
 				rc.Close()
 			}
 		}
@@ -160,8 +159,11 @@ func Parse3MF(reader io.ReaderAt, size int64, fileName string) (*Parsed3MF, erro
 		}
 	}
 
-	// Format dimensions string if dimensions were found
-	if result.DimXMm > 0 || result.DimYMm > 0 || result.DimZMm > 0 {
+	// Format dimensions string if geometry vertices were found
+	if bounds.hasVertices {
+		result.DimXMm = math.Round((bounds.maxX-bounds.minX)*10) / 10
+		result.DimYMm = math.Round((bounds.maxY-bounds.minY)*10) / 10
+		result.DimZMm = math.Round((bounds.maxZ-bounds.minZ)*10) / 10
 		result.Dimensions = fmt.Sprintf("%.1f x %.1f x %.1f mm", result.DimXMm, result.DimYMm, result.DimZMm)
 	}
 
@@ -184,6 +186,47 @@ func Parse3MF(reader io.ReaderAt, size int64, fileName string) (*Parsed3MF, erro
 	return result, nil
 }
 
+// cleanMaterialName normalizes extracted filament material strings
+func cleanMaterialName(val string) string {
+	val = strings.Trim(val, `"' `)
+	if strings.Contains(val, ";") || strings.Contains(val, ",") {
+		parts := strings.FieldsFunc(val, func(r rune) bool {
+			return r == ';' || r == ','
+		})
+		unique := make([]string, 0)
+		seen := make(map[string]bool)
+		for _, p := range parts {
+			trimmed := strings.Trim(p, `"' `)
+			if trimmed != "" && !seen[strings.ToLower(trimmed)] && isValidFilamentMaterial(trimmed) {
+				seen[strings.ToLower(trimmed)] = true
+				unique = append(unique, trimmed)
+			}
+		}
+		if len(unique) > 0 {
+			return strings.Join(unique, ", ")
+		}
+	}
+	return val
+}
+
+// isValidFilamentMaterial filters out structural part types like "normal_part"
+func isValidFilamentMaterial(val string) bool {
+	if val == "" {
+		return false
+	}
+	lower := strings.ToLower(val)
+	invalidWords := []string{
+		"normal_part", "modifier", "negative_volume", "model", "part",
+		"volume", "true", "false", "null", "none", "undefined", "auto", "default",
+	}
+	for _, inv := range invalidWords {
+		if lower == inv || strings.HasPrefix(lower, inv) {
+			return false
+		}
+	}
+	return true
+}
+
 // parseBambuConfigFile parses Bambu / OrcaSlicer project settings & XML
 func parseBambuConfigFile(r io.Reader, out *Parsed3MF) {
 	data, err := io.ReadAll(r)
@@ -196,43 +239,65 @@ func parseBambuConfigFile(r io.Reader, out *Parsed3MF) {
 		out.SlicerDetected = "Bambu Studio / OrcaSlicer"
 	}
 
-	// Prediction / estimated time
-	rePred := regexp.MustCompile(`(?i)<prediction>(\d+)</prediction>`)
-	if match := rePred.FindStringSubmatch(content); len(match) > 1 {
-		sec, _ := strconv.ParseFloat(match[1], 64)
-		if sec > 0 {
-			out.PrintMinutes = math.Round(sec / 60.0)
+	// 1. Prediction / estimated time (in seconds)
+	if out.PrintMinutes == 0 {
+		rePreds := []*regexp.Regexp{
+			regexp.MustCompile(`(?i)<prediction>(\d+)</prediction>`),
+			regexp.MustCompile(`(?i)<metadata\s+[^>]*key=["'](?:prediction|estimated_time|print_time)["']\s+value=["'](\d+)["']`),
+			regexp.MustCompile(`(?i)["'](?:prediction|estimated_time|print_time)["']\s*[:=]\s*["']?(\d+)["']?`),
 		}
-	}
-
-	// Weight
-	reWeight := regexp.MustCompile(`(?i)<weight>([0-9.]+)</weight>`)
-	if match := reWeight.FindStringSubmatch(content); len(match) > 1 {
-		w, _ := strconv.ParseFloat(match[1], 64)
-		if w > 0 {
-			out.ProductWeightGrams = w
-		}
-	}
-
-	if out.ProductWeightGrams == 0 {
-		reUsedG := regexp.MustCompile(`(?i)used_g=["']?([0-9.]+)["']?`)
-		if match := reUsedG.FindStringSubmatch(content); len(match) > 1 {
-			w, _ := strconv.ParseFloat(match[1], 64)
-			if w > 0 {
-				out.ProductWeightGrams = w
+		for _, re := range rePreds {
+			if match := re.FindStringSubmatch(content); len(match) > 1 {
+				sec, _ := strconv.ParseFloat(match[1], 64)
+				if sec > 0 {
+					out.PrintMinutes = math.Round(sec / 60.0)
+					break
+				}
 			}
 		}
 	}
 
-	// Material
-	reMat := regexp.MustCompile(`(?i)(?:type=["']([A-Za-z0-9_\-+ ]+)["']|<filament_type>([A-Za-z0-9_\-+ ]+)</filament_type>)`)
-	if match := reMat.FindStringSubmatch(content); len(match) > 1 {
-		val := strings.TrimSpace(match[1])
-		if val == "" && len(match) > 2 {
-			val = strings.TrimSpace(match[2])
+	// 2. Weight (in grams)
+	if out.ProductWeightGrams == 0 {
+		reWeights := []*regexp.Regexp{
+			regexp.MustCompile(`(?i)<weight>([0-9.]+)</weight>`),
+			regexp.MustCompile(`(?i)<metadata\s+[^>]*key=["'](?:weight|filament_used_g|used_g)["']\s+value=["']([0-9.]+)["']`),
+			regexp.MustCompile(`(?i)["'](?:weight|filament_used_g|used_g)["']\s*[:=]\s*["']?([0-9.]+)["']?`),
+			regexp.MustCompile(`(?i)used_g=["']?([0-9.]+)["']?`),
 		}
-		if val != "" && !strings.EqualFold(val, "true") && !strings.EqualFold(val, "false") {
-			out.Material = val
+		for _, re := range reWeights {
+			if match := re.FindStringSubmatch(content); len(match) > 1 {
+				w, _ := strconv.ParseFloat(match[1], 64)
+				if w > 0 {
+					out.ProductWeightGrams = math.Round(w*100) / 100
+					break
+				}
+			}
+		}
+	}
+
+	// 3. Material (strictly filament type, ignoring normal_part and other object types)
+	if out.Material == "" {
+		reFilamentType := []*regexp.Regexp{
+			regexp.MustCompile(`(?i)<filament\s+[^>]*type=["']([A-Za-z0-9_\-+ ]+)["']`),
+			regexp.MustCompile(`(?i)<filament_type>([A-Za-z0-9_\-+ ]+)</filament_type>`),
+			regexp.MustCompile(`(?i)<metadata\s+[^>]*key=["']filament_types?["']\s+value=["']([^"']+)["']`),
+			regexp.MustCompile(`(?i)["']filament_types?["']\s*:\s*(?:\[\s*["']?([^"',\]]+)["']?|["']?([^"',\r\n\]]+)["']?)`),
+			regexp.MustCompile(`(?i)filament_types?\s*=\s*([^\r\n]+)`),
+		}
+
+		for _, re := range reFilamentType {
+			if match := re.FindStringSubmatch(content); len(match) > 1 {
+				val := strings.TrimSpace(match[1])
+				if val == "" && len(match) > 2 {
+					val = strings.TrimSpace(match[2])
+				}
+				val = cleanMaterialName(val)
+				if isValidFilamentMaterial(val) {
+					out.Material = val
+					break
+				}
+			}
 		}
 	}
 
@@ -505,15 +570,17 @@ func parseTimeToMinutes(raw string) float64 {
 	return 0
 }
 
-// parseModelDimensions reads standard 3MF XML (3D/3dmodel.model) vertices
-func parseModelDimensions(r io.Reader, out *Parsed3MF) {
+type modelBounds struct {
+	minX, maxX  float64
+	minY, maxY  float64
+	minZ, maxZ  float64
+	hasVertices bool
+}
+
+// parseModelDimensions reads standard 3MF XML (3D/3dmodel.model or 3D/Objects/*.model) vertices
+func parseModelDimensions(r io.Reader, bounds *modelBounds) {
 	decoder := xml.NewDecoder(r)
-
-	minX, maxX := math.MaxFloat64, -math.MaxFloat64
-	minY, maxY := math.MaxFloat64, -math.MaxFloat64
-	minZ, maxZ := math.MaxFloat64, -math.MaxFloat64
-
-	hasVertices := false
+	scale := 1.0
 
 	for {
 		tok, err := decoder.Token()
@@ -522,6 +589,24 @@ func parseModelDimensions(r io.Reader, out *Parsed3MF) {
 		}
 
 		if se, ok := tok.(xml.StartElement); ok {
+			// Check units in <model unit="millimeter">
+			if strings.EqualFold(se.Name.Local, "model") {
+				for _, attr := range se.Attr {
+					if strings.EqualFold(attr.Name.Local, "unit") {
+						switch strings.ToLower(attr.Value) {
+						case "micron":
+							scale = 0.001
+						case "millimeter":
+							scale = 1.0
+						case "centimeter":
+							scale = 10.0
+						case "inch":
+							scale = 25.4
+						}
+					}
+				}
+			}
+
 			if strings.EqualFold(se.Name.Local, "vertex") {
 				var vx, vy, vz float64
 				foundX, foundY, foundZ := false, false, false
@@ -541,33 +626,32 @@ func parseModelDimensions(r io.Reader, out *Parsed3MF) {
 				}
 
 				if foundX && foundY && foundZ {
-					hasVertices = true
-					if vx < minX {
-						minX = vx
+					vx *= scale
+					vy *= scale
+					vz *= scale
+
+					bounds.hasVertices = true
+					if vx < bounds.minX {
+						bounds.minX = vx
 					}
-					if vx > maxX {
-						maxX = vx
+					if vx > bounds.maxX {
+						bounds.maxX = vx
 					}
-					if vy < minY {
-						minY = vy
+					if vy < bounds.minY {
+						bounds.minY = vy
 					}
-					if vy > maxY {
-						maxY = vy
+					if vy > bounds.maxY {
+						bounds.maxY = vy
 					}
-					if vz < minZ {
-						minZ = vz
+					if vz < bounds.minZ {
+						bounds.minZ = vz
 					}
-					if vz > maxZ {
-						maxZ = vz
+					if vz > bounds.maxZ {
+						bounds.maxZ = vz
 					}
 				}
 			}
 		}
 	}
-
-	if hasVertices {
-		out.DimXMm = math.Round((maxX-minX)*10) / 10
-		out.DimYMm = math.Round((maxY-minY)*10) / 10
-		out.DimZMm = math.Round((maxZ-minZ)*10) / 10
-	}
 }
+
