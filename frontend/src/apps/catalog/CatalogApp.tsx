@@ -36,10 +36,10 @@ import { getCurrentStoreRouteStyle, getProductPath, getStorePath } from '../../s
 import { AZ3DLogo } from '../../components/AZ3DLogo';
 
 
-// Preço da peça no catálogo com cupom de 10% aplicado diretamente (sem exibir desconto)
+// Preço da peça no catálogo (exibe o preço exato cadastrado)
 export const getCatalogPrice = (price: number): number => {
   if (!price || price <= 0) return 0;
-  return Math.round(price * 0.9 * 100) / 100;
+  return price;
 };
 
 // Extração de dimensões a partir da descrição ou campo dimensions do produto
@@ -179,18 +179,43 @@ export const CatalogProductCard: React.FC<CatalogProductCardProps> = ({ product,
               <ChevronRight className="w-4.5 h-4.5" />
             </button>
 
-            {/* Indicador de Bolinhas do Card estilo Mercado Livre */}
-            <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/40 backdrop-blur-xs pointer-events-none">
-              {images.slice(0, 6).map((_, idx) => (
-                <span
-                  key={idx}
-                  className={`h-1.5 rounded-full transition-all duration-300 ${
-                    currentImageIndex === idx ? 'w-3.5 bg-white' : 'w-1.5 bg-white/50'
-                  }`}
-                />
-              ))}
-              {images.length > 6 && (
-                <span className="text-[9px] text-white/80 font-mono ml-0.5">+{images.length - 6}</span>
+            {/* Indicador de Bolinhas do Card estilo Mercado Livre com Contador Dinâmico */}
+            <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-xs pointer-events-none transition-all shadow-sm">
+              {images.length <= 6 ? (
+                images.map((_, idx) => (
+                  <span
+                    key={idx}
+                    className={`h-1.5 rounded-full transition-all duration-300 ${
+                      currentImageIndex === idx ? 'w-4 bg-white' : 'w-1.5 bg-white/50'
+                    }`}
+                  />
+                ))
+              ) : (
+                (() => {
+                  const maxDots = 5;
+                  let start = currentImageIndex - Math.floor(maxDots / 2);
+                  if (start < 0) start = 0;
+                  if (start + maxDots > images.length) start = Math.max(0, images.length - maxDots);
+                  const windowIndices = Array.from({ length: Math.min(maxDots, images.length) }, (_, i) => start + i);
+
+                  return (
+                    <>
+                      <span className="text-[10px] font-bold text-white/90 font-mono tracking-tight mr-0.5">
+                        {currentImageIndex + 1}/{images.length}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        {windowIndices.map((imgIdx) => (
+                          <span
+                            key={imgIdx}
+                            className={`h-1.5 rounded-full transition-all duration-300 ${
+                              currentImageIndex === imgIdx ? 'w-3.5 bg-white' : 'w-1.5 bg-white/50'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    </>
+                  );
+                })()
               )}
             </div>
           </>
@@ -325,6 +350,18 @@ export const CatalogApp: React.FC = () => {
   const [carouselCanScrollLeft, setCarouselCanScrollLeft] = useState(false);
   const [carouselCanScrollRight, setCarouselCanScrollRight] = useState(true);
   const [activeCarouselIndex, setActiveCarouselIndex] = useState(0);
+  const [carouselVisibleCards, setCarouselVisibleCards] = useState(4);
+
+  const getCarouselCardStep = () => {
+    if (!carouselRef.current) return 280;
+    const container = carouselRef.current;
+    const item = container.querySelector('.carousel-spotlight-item') as HTMLElement | null;
+    if (item && item.offsetWidth > 0) {
+      return item.offsetWidth + 16;
+    }
+    const { clientWidth } = container;
+    return clientWidth >= 1024 ? clientWidth / 4 : clientWidth >= 640 ? clientWidth / 2 : clientWidth * 0.78;
+  };
 
   const checkCarouselScroll = () => {
     if (!carouselRef.current) return;
@@ -332,18 +369,21 @@ export const CatalogApp: React.FC = () => {
     setCarouselCanScrollLeft(scrollLeft > 15);
     setCarouselCanScrollRight(scrollLeft + clientWidth < scrollWidth - 15);
 
-    const cardWidth = clientWidth >= 1024 ? clientWidth / 4 : clientWidth >= 640 ? clientWidth / 2 : clientWidth * 0.78;
-    const index = Math.round(scrollLeft / cardWidth);
-    setActiveCarouselIndex(Math.max(0, index));
+    const visibleCards = clientWidth >= 1024 ? 4 : clientWidth >= 640 ? 2 : 1;
+    setCarouselVisibleCards(visibleCards);
+
+    const step = getCarouselCardStep();
+    const totalSteps = Math.max(1, spotlightProducts.length - visibleCards + 1);
+    const index = Math.min(totalSteps - 1, Math.max(0, Math.round(scrollLeft / step)));
+    setActiveCarouselIndex(index);
   };
 
   const scrollCarousel = (direction: 'left' | 'right') => {
     if (!carouselRef.current) return;
     const container = carouselRef.current;
-    const cardWidth = container.clientWidth >= 1024 ? container.clientWidth / 4 : container.clientWidth >= 640 ? container.clientWidth / 2 : container.clientWidth * 0.78;
-    const scrollAmount = cardWidth * (container.clientWidth >= 1024 ? 2 : 1);
+    const step = getCarouselCardStep();
     container.scrollBy({
-      left: direction === 'left' ? -scrollAmount : scrollAmount,
+      left: direction === 'left' ? -step : step,
       behavior: 'smooth',
     });
   };
@@ -351,10 +391,11 @@ export const CatalogApp: React.FC = () => {
   const scrollToCarouselIndex = (index: number) => {
     if (!carouselRef.current) return;
     const container = carouselRef.current;
-    const items = container.querySelectorAll('.carousel-spotlight-item');
-    if (items[index]) {
-      (items[index] as HTMLElement).scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
-    }
+    const step = getCarouselCardStep();
+    container.scrollTo({
+      left: index * step,
+      behavior: 'smooth',
+    });
   };
 
   const [isCarouselPaused, setIsCarouselPaused] = useState(false);
@@ -494,7 +535,7 @@ export const CatalogApp: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, [spotlightProducts.length]);
 
-  // Auto-play do Carrossel de Destaques da Coleção (roda automaticamente a cada 3.8s)
+  // Auto-play do Carrossel de Destaques da Coleção (avança 1 card suavemente a cada 3.8s)
   useEffect(() => {
     if (isCarouselPaused || spotlightProducts.length <= 1) return;
 
@@ -507,18 +548,13 @@ export const CatalogApp: React.FC = () => {
       if (scrollLeft + clientWidth >= scrollWidth - 25) {
         container.scrollTo({ left: 0, behavior: 'smooth' });
       } else {
-        const cardWidth =
-          clientWidth >= 1024
-            ? clientWidth / 4
-            : clientWidth >= 640
-            ? clientWidth / 2
-            : clientWidth * 0.78;
-        container.scrollBy({ left: cardWidth, behavior: 'smooth' });
+        const step = getCarouselCardStep();
+        container.scrollBy({ left: step, behavior: 'smooth' });
       }
     }, 3800);
 
     return () => clearInterval(interval);
-  }, [isCarouselPaused, spotlightProducts.length]);
+  }, [isCarouselPaused, spotlightProducts.length, carouselVisibleCards]);
 
   // Categorias com contador de produtos
   const categoriesWithCounts = useMemo(() => {
@@ -783,24 +819,29 @@ export const CatalogApp: React.FC = () => {
               })}
             </div>
 
-            {/* Indicador de Bolinhas do Carrossel */}
-            {spotlightProducts.length > 1 && (
-              <div className="flex items-center justify-center gap-1.5 pt-1">
-                {spotlightProducts.map((_, idx) => (
-                  <button
-                    key={`dot-${idx}`}
-                    type="button"
-                    onClick={() => scrollToCarouselIndex(idx)}
-                    className={`h-1.5 rounded-full transition-all ${
-                      activeCarouselIndex === idx
-                        ? 'w-6 bg-cyan-600 dark:bg-cyan-400'
-                        : 'w-1.5 bg-slate-300 dark:bg-chumbo-700 hover:bg-slate-400 dark:hover:bg-chumbo-600'
-                    }`}
-                    aria-label={`Ir para destaque ${idx + 1}`}
-                  />
-                ))}
-              </div>
-            )}
+            {/* Indicador de Bolinhas do Carrossel (sincronizado com os passos reais de rolagem) */}
+            {(() => {
+              const totalDots = Math.max(1, spotlightProducts.length - carouselVisibleCards + 1);
+              if (totalDots <= 1) return null;
+
+              return (
+                <div className="flex items-center justify-center gap-1.5 pt-1">
+                  {Array.from({ length: totalDots }).map((_, idx) => (
+                    <button
+                      key={`spotlight-dot-${idx}`}
+                      type="button"
+                      onClick={() => scrollToCarouselIndex(idx)}
+                      className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
+                        activeCarouselIndex === idx
+                          ? 'w-6 bg-cyan-600 dark:bg-cyan-400'
+                          : 'w-1.5 bg-slate-300 dark:bg-chumbo-700 hover:bg-slate-400 dark:hover:bg-chumbo-600'
+                      }`}
+                      aria-label={`Ir para posição de destaque ${idx + 1}`}
+                    />
+                  ))}
+                </div>
+              );
+            })()}
           </section>
         )}
 
@@ -1087,10 +1128,10 @@ export const CatalogApp: React.FC = () => {
               <X className="w-5 h-5" />
             </button>
 
-            <div className="md:grid md:grid-cols-2 lg:grid-cols-[1.25fr_1fr] md:gap-8 lg:gap-12 md:items-stretch space-y-4 md:space-y-0">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-10 items-start">
               {/* Coluna Esquerda: Galeria de Fotos Ampliada */}
-              <div className="space-y-3 flex flex-col justify-between">
-                <div className="relative aspect-square md:aspect-auto md:min-h-[460px] lg:min-h-[540px] xl:min-h-[600px] w-full overflow-hidden rounded-2xl bg-slate-50 dark:bg-chumbo-900/60 border border-slate-200 dark:border-chumbo-800 flex items-center justify-center group/modalimg">
+              <div className="min-w-0 w-full space-y-3 flex flex-col">
+                <div className="relative aspect-square md:aspect-auto md:h-[420px] lg:h-[480px] w-full overflow-hidden rounded-2xl bg-slate-50 dark:bg-chumbo-900/60 border border-slate-200 dark:border-chumbo-800 flex items-center justify-center group/modalimg">
                   {(() => {
                     const allImages = getProductImages(detailProduct);
                     const currentImage = allImages[activeImageIndex] || detailProduct.image_url;
@@ -1101,7 +1142,7 @@ export const CatalogApp: React.FC = () => {
                           src={optimizeImageUrl(currentImage)}
                           alt={detailProduct.title}
                           decoding="async"
-                          className="w-full h-full max-h-[600px] object-contain p-2 sm:p-4 lg:p-6 transition-all duration-300"
+                          className="w-full h-full max-h-[480px] object-contain p-2 sm:p-4 transition-all duration-300"
                         />
 
                         {/* Setas de navegação na galeria do modal */}
@@ -1139,18 +1180,19 @@ export const CatalogApp: React.FC = () => {
                   })()}
                 </div>
 
-                {/* Miniaturas de Cores/Ângulos */}
+                {/* Miniaturas de Cores/Ângulos com rolagem horizontal contida */}
                 {(() => {
                   const allImages = getProductImages(detailProduct);
                   if (allImages.length <= 1) return null;
 
                   return (
-                    <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar pt-1">
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar pt-1 w-full max-w-full">
                       {allImages.map((img, idx) => (
                         <button
                           key={idx}
+                          type="button"
                           onClick={() => setActiveImageIndex(idx)}
-                          className={`relative h-14 w-14 sm:h-16 sm:w-16 rounded-xl overflow-hidden border shrink-0 transition-all ${
+                          className={`relative h-14 w-14 sm:h-16 sm:w-16 rounded-xl overflow-hidden border shrink-0 transition-all cursor-pointer ${
                             activeImageIndex === idx
                               ? 'border-cyan-500 ring-2 ring-cyan-500/40 scale-105'
                               : 'border-slate-200 dark:border-chumbo-800 opacity-60 hover:opacity-100'
@@ -1165,10 +1207,10 @@ export const CatalogApp: React.FC = () => {
               </div>
 
               {/* Coluna Direita: Informações & Ações */}
-              <div className="flex flex-col justify-between h-full space-y-5">
-                <div className="space-y-4 flex-1">
+              <div className="min-w-0 w-full flex flex-col justify-between space-y-4">
+                <div className="space-y-4">
                   {/* Cabeçalho do Produto: Título em linha inteira e Preço diretamente abaixo */}
-                  <div className="space-y-2 pr-12 sm:pr-14 md:pr-16">
+                  <div className="space-y-2 pr-10">
                     <h3 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-slate-900 dark:text-white leading-tight break-words">
                       {detailProduct.title}
                     </h3>
@@ -1181,16 +1223,16 @@ export const CatalogApp: React.FC = () => {
                   </div>
 
                   {/* Especificações da Peça 3D */}
-                  <div className="grid grid-cols-3 gap-2.5 p-3 sm:p-4 rounded-xl bg-slate-50 dark:bg-chumbo-900/70 border border-slate-200 dark:border-chumbo-800 text-xs sm:text-sm">
-                    <div>
+                  <div className="grid grid-cols-3 gap-2 sm:gap-3 p-3 sm:p-4 rounded-xl bg-slate-50 dark:bg-chumbo-900/70 border border-slate-200 dark:border-chumbo-800 text-xs sm:text-sm">
+                    <div className="min-w-0">
                       <span className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 block uppercase font-mono">Material</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block">{detailProduct.material || 'PLA'}</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block" title={detailProduct.material || 'PLA'}>{detailProduct.material || 'PLA'}</span>
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <span className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 block uppercase font-mono">Dimensões</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block">{extractProductDimensions(detailProduct) || 'Sob medida'}</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block" title={extractProductDimensions(detailProduct) || 'Sob medida'}>{extractProductDimensions(detailProduct) || 'Sob medida'}</span>
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <span className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 block uppercase font-mono">Status</span>
                       <span className="font-semibold text-emerald-600 dark:text-emerald-400 truncate block">{getStockStatus(detailProduct).label}</span>
                     </div>
@@ -1199,7 +1241,7 @@ export const CatalogApp: React.FC = () => {
                   {detailProduct.description && (
                     <div className="space-y-2">
                       <h5 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Detalhes da Peça</h5>
-                      <p className="text-sm sm:text-base text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line max-h-72 overflow-y-auto pr-2">
+                      <p className="text-sm sm:text-base text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line max-h-60 overflow-y-auto pr-2">
                         {detailProduct.description}
                       </p>
                     </div>
@@ -1207,7 +1249,7 @@ export const CatalogApp: React.FC = () => {
                 </div>
 
                 {/* Ações no Modal fixadas na base */}
-                <div className="pt-4 border-t border-slate-200 dark:border-chumbo-800 grid grid-cols-1 sm:grid-cols-2 gap-3 mt-auto">
+                <div className="pt-4 border-t border-slate-200 dark:border-chumbo-800 grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
                   <button
                     type="button"
                     onClick={() => {
@@ -1217,7 +1259,7 @@ export const CatalogApp: React.FC = () => {
                     }}
                     className="flex items-center justify-center gap-2 py-3 sm:py-3.5 px-4 rounded-xl text-xs sm:text-sm font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-md active:scale-95 cursor-pointer"
                   >
-                    <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
                     <span className="truncate">Tirar dúvidas no WhatsApp</span>
                   </button>
 
@@ -1226,7 +1268,7 @@ export const CatalogApp: React.FC = () => {
                     onClick={() => goToStore(detailProduct.slug || detailProduct.id)}
                     className="flex items-center justify-center gap-2 py-3 sm:py-3.5 px-4 rounded-xl text-xs sm:text-sm font-bold bg-slate-950 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-200 !text-white dark:!text-slate-950 transition-all shadow-md active:scale-95 cursor-pointer"
                   >
-                    <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 !text-white dark:!text-slate-950" />
+                    <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 !text-white dark:!text-slate-950 shrink-0" />
                     <span className="truncate !text-white dark:!text-slate-950 font-bold">Ver na Loja Oficial</span>
                   </button>
                 </div>
