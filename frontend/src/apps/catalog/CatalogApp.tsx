@@ -93,6 +93,201 @@ export const extractProductDimensions = (product: { description?: string; dimens
   return '';
 };
 
+// Coleta todas as imagens associadas ao produto (foto principal, fotos de cores e variações irmãs)
+export const getProductImages = (product?: Product | null): string[] => {
+  if (!product) return [];
+  const urls: string[] = [];
+  const add = (u?: string) => {
+    if (u && !urls.includes(u)) urls.push(u);
+  };
+  add(product.image_url);
+  product.color_images?.forEach((ci) => add(ci.image_url));
+  product.store_variants?.forEach((v) => {
+    add(v.image_url);
+    v.color_images?.forEach((ci) => add(ci.image_url));
+  });
+  return urls.filter(Boolean);
+};
+
+interface CatalogProductCardProps {
+  product: Product;
+  onOpenDetail: (product: Product, initialImageIndex?: number) => void;
+}
+
+export const CatalogProductCard: React.FC<CatalogProductCardProps> = ({ product, onOpenDetail }) => {
+  const images = useMemo(() => getProductImages(product), [product]);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  const activeImage = optimizeImageUrl(images[currentImageIndex] || images[0] || product.image_url);
+  const status = getStockStatus(product);
+  const colors = getAvailableColors(product).slice(0, 4);
+  const rating = product.review_summary?.average_rating || product.rating;
+
+  const handlePrev = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
+  };
+
+  const handleNext = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentImageIndex((prev) => (prev + 1) % images.length);
+  };
+
+  return (
+    <article className="group flex flex-col overflow-hidden rounded-2xl border border-slate-200/90 dark:border-chumbo-800/90 bg-white dark:bg-chumbo-900/50 hover:border-slate-300 dark:hover:border-chumbo-700 transition-all duration-300 shadow-sm hover:shadow-xl hover:shadow-slate-200/50 dark:hover:shadow-black/40">
+      {/* Imagem do Produto com Carrossel de Setas estilo Mercado Livre */}
+      <div
+        className="relative aspect-square w-full cursor-pointer overflow-hidden bg-slate-100 dark:bg-chumbo-950 select-none"
+        onClick={() => onOpenDetail(product, currentImageIndex)}
+      >
+        <img
+          src={activeImage}
+          alt={product.title}
+          loading="lazy"
+          decoding="async"
+          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 dark:from-chumbo-950/80 via-transparent to-transparent opacity-50 pointer-events-none" />
+
+        {/* Badge de Disponibilidade */}
+        <div className="absolute left-2.5 top-2.5 z-10 pointer-events-none">
+          <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border ${status.tone}`}>
+            {status.label}
+          </span>
+        </div>
+
+        {/* Setas de navegação do carrossel no card (estilo Mercado Livre - giram sem abrir o modal) */}
+        {images.length > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={handlePrev}
+              className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-white/95 dark:bg-chumbo-900/95 text-slate-800 dark:text-slate-100 flex items-center justify-center shadow-lg hover:bg-white dark:hover:bg-chumbo-800 hover:scale-110 active:scale-95 transition-all opacity-0 group-hover:opacity-100 max-sm:opacity-90 border border-slate-200/80 dark:border-chumbo-700/80 cursor-pointer"
+              title="Foto anterior"
+              aria-label="Foto anterior"
+            >
+              <ChevronLeft className="w-4.5 h-4.5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={handleNext}
+              className="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-white/95 dark:bg-chumbo-900/95 text-slate-800 dark:text-slate-100 flex items-center justify-center shadow-lg hover:bg-white dark:hover:bg-chumbo-800 hover:scale-110 active:scale-95 transition-all opacity-0 group-hover:opacity-100 max-sm:opacity-90 border border-slate-200/80 dark:border-chumbo-700/80 cursor-pointer"
+              title="Próxima foto"
+              aria-label="Próxima foto"
+            >
+              <ChevronRight className="w-4.5 h-4.5" />
+            </button>
+
+            {/* Indicador de Bolinhas do Card estilo Mercado Livre */}
+            <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/40 backdrop-blur-xs pointer-events-none">
+              {images.slice(0, 6).map((_, idx) => (
+                <span
+                  key={idx}
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    currentImageIndex === idx ? 'w-3.5 bg-white' : 'w-1.5 bg-white/50'
+                  }`}
+                />
+              ))}
+              {images.length > 6 && (
+                <span className="text-[9px] text-white/80 font-mono ml-0.5">+{images.length - 6}</span>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Botão de Zoom/Detalhes Rápido */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenDetail(product, currentImageIndex);
+          }}
+          className="absolute bottom-2.5 right-2.5 z-20 p-2 rounded-xl bg-white/90 dark:bg-chumbo-950/80 text-slate-700 dark:text-slate-300 hover:text-cyan-600 dark:hover:text-white border border-slate-200/60 dark:border-chumbo-700/80 opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-sm"
+          title="Ver detalhes da peça"
+        >
+          <Maximize2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* Informações da Peça */}
+      <div className="p-3 sm:p-4 flex flex-1 flex-col justify-between space-y-3">
+        <div className="space-y-1.5">
+          <div className="flex items-start justify-between gap-1">
+            <h4
+              onClick={() => onOpenDetail(product, currentImageIndex)}
+              className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-300 transition-colors line-clamp-2 cursor-pointer leading-tight"
+            >
+              {product.title}
+            </h4>
+            {rating && rating > 0 && (
+              <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-500 dark:text-amber-300 shrink-0">
+                <Star className="w-3 h-3 fill-amber-400 dark:fill-amber-300" />
+                {rating.toFixed(1)}
+              </span>
+            )}
+          </div>
+
+          {(() => {
+            const dim = extractProductDimensions(product);
+            if (!dim) return null;
+            return (
+              <p className="text-xs sm:text-[13px] font-medium text-slate-700 dark:text-slate-300">
+                Dimensões do produto: <span className="font-bold text-slate-900 dark:text-slate-100">{dim}</span>
+              </p>
+            );
+          })()}
+
+          {/* Swatches de Cores: clicar na cor troca para a foto da cor no card */}
+          {colors.length > 0 && (
+            <div className="flex items-center gap-1 pt-1">
+              {colors.map((c) => {
+                const visual = getColorVisual(c);
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    title={c}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const matched = product.color_images?.find(
+                        (ci) => ci.color_name?.toLowerCase() === c.toLowerCase()
+                      );
+                      if (matched && matched.image_url) {
+                        const targetIdx = images.indexOf(matched.image_url);
+                        if (targetIdx >= 0) setCurrentImageIndex(targetIdx);
+                      }
+                    }}
+                    className="h-3.5 w-3.5 rounded-full border border-white dark:border-chumbo-900 ring-1 ring-slate-300 dark:ring-chumbo-700 shadow-xs hover:scale-125 transition-transform"
+                    style={{ backgroundColor: visual.hex }}
+                  />
+                );
+              })}
+              {colors.length > 1 && (
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                  +{colors.length} cores
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Preço */}
+        <div className="pt-2.5 border-t border-slate-200 dark:border-chumbo-800/80 flex items-center justify-between gap-2">
+          <div>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+              Preço:
+            </span>
+            <span className="text-base sm:text-lg lg:text-xl font-black text-cyan-700 dark:text-cyan-400">
+              {money(getCatalogPrice(product.price))}
+            </span>
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+};
+
 export const CatalogApp: React.FC = () => {
   const {
     activeTenant,
@@ -729,125 +924,16 @@ export const CatalogApp: React.FC = () => {
         ) : viewMode === 'grid' ? (
           /* Grade Visual Ampla (Mobile: 2 colunas / Tablet: 3 colunas / PC: 4 colunas) */
           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-6">
-            {filteredProducts.map((product) => {
-              const cover = optimizeImageUrl(product.color_images?.[0]?.image_url || product.image_url);
-              const status = getStockStatus(product);
-              const colors = getAvailableColors(product).slice(0, 4);
-              const rating = product.review_summary?.average_rating || product.rating;
-
-              return (
-                <article
-                  key={product.id}
-                  className="group flex flex-col overflow-hidden rounded-2xl border border-slate-200/90 dark:border-chumbo-800/90 bg-white dark:bg-chumbo-900/50 hover:border-slate-300 dark:hover:border-chumbo-700 transition-all duration-300 shadow-sm hover:shadow-xl hover:shadow-slate-200/50 dark:hover:shadow-black/40"
-                >
-                  {/* Imagem do Produto com Ações Rápidas */}
-                  <div
-                    className="relative aspect-square w-full cursor-pointer overflow-hidden bg-slate-100 dark:bg-chumbo-950"
-                    onClick={() => {
-                      setDetailProduct(product);
-                      setActiveImageIndex(0);
-                    }}
-                  >
-                    <img
-                      src={cover}
-                      alt={product.title}
-                      loading="lazy"
-                      decoding="async"
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 dark:from-chumbo-950/80 via-transparent to-transparent opacity-60" />
-
-                    {/* Badge de Disponibilidade */}
-                    <div className="absolute left-2.5 top-2.5">
-                      <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border ${status.tone}`}>
-                        {status.label}
-                      </span>
-                    </div>
-
-                    {/* Botão de Zoom/Detalhes Rápido */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDetailProduct(product);
-                        setActiveImageIndex(0);
-                      }}
-                      className="absolute bottom-2.5 right-2.5 p-2 rounded-xl bg-white/90 dark:bg-chumbo-950/80 text-slate-700 dark:text-slate-300 hover:text-cyan-600 dark:hover:text-white border border-slate-200/60 dark:border-chumbo-700/80 opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-sm"
-                      title="Ver detalhes da peça"
-                    >
-                      <Maximize2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-
-                  {/* Informações da Peça */}
-                  <div className="p-3 sm:p-4 flex flex-1 flex-col justify-between space-y-3">
-                    <div className="space-y-1.5">
-                      <div className="flex items-start justify-between gap-1">
-                        <h4
-                          onClick={() => {
-                            setDetailProduct(product);
-                            setActiveImageIndex(0);
-                          }}
-                          className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-300 transition-colors line-clamp-2 cursor-pointer leading-tight"
-                        >
-                          {product.title}
-                        </h4>
-                        {rating && rating > 0 && (
-                          <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-500 dark:text-amber-300 shrink-0">
-                            <Star className="w-3 h-3 fill-amber-400 dark:fill-amber-300" />
-                            {rating.toFixed(1)}
-                          </span>
-                        )}
-                      </div>
-
-                      {(() => {
-                        const dim = extractProductDimensions(product);
-                        if (!dim) return null;
-                        return (
-                          <p className="text-xs sm:text-[13px] font-medium text-slate-700 dark:text-slate-300">
-                            Dimensões do produto: <span className="font-bold text-slate-900 dark:text-slate-100">{dim}</span>
-                          </p>
-                        );
-                      })()}
-
-                      {/* Swatches de Cores */}
-                      {colors.length > 0 && (
-                        <div className="flex items-center gap-1 pt-1">
-                          {colors.map((c) => {
-                            const visual = getColorVisual(c);
-                            return (
-                              <span
-                                key={c}
-                                title={c}
-                                className="h-3 w-3 rounded-full border border-white dark:border-chumbo-900 ring-1 ring-slate-300 dark:ring-chumbo-700 shadow-xs"
-                                style={{ backgroundColor: visual.hex }}
-                              />
-                            );
-                          })}
-                          {colors.length > 1 && (
-                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
-                              +{colors.length} cores
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Preço */}
-                    <div className="pt-2.5 border-t border-slate-200 dark:border-chumbo-800/80 flex items-center justify-between gap-2">
-                      <div>
-                        <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                          Preço:
-                        </span>
-                        <span className="text-base sm:text-lg lg:text-xl font-black text-cyan-700 dark:text-cyan-400">
-                          {money(getCatalogPrice(product.price))}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
+            {filteredProducts.map((product) => (
+              <CatalogProductCard
+                key={product.id}
+                product={product}
+                onOpenDetail={(prod, imgIdx) => {
+                  setDetailProduct(prod);
+                  setActiveImageIndex(imgIdx || 0);
+                }}
+              />
+            ))}
 
             {/* Esqueletos de loading das novas peças para o scroll infinito (Grade) */}
             {isLoadingMore && (
@@ -957,61 +1043,88 @@ export const CatalogApp: React.FC = () => {
       {/* Modal de Detalhe Rápido do Produto - Totalmente responsivo com suporte a Tema Claro e Escuro */}
       {detailProduct && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 md:p-6 bg-black/60 dark:bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/60 dark:bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
           onClick={() => setDetailProduct(null)}
         >
           <div
-            className="relative w-full max-w-lg md:max-w-4xl lg:max-w-5xl overflow-hidden rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-chumbo-700 bg-white dark:bg-chumbo-950 text-slate-900 dark:text-slate-100 p-4 sm:p-6 md:p-8 shadow-2xl max-h-[92vh] md:max-h-[88vh] overflow-y-auto"
+            className="relative w-full max-w-xl md:max-w-5xl lg:max-w-6xl xl:max-w-7xl overflow-hidden rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-chumbo-700 bg-white dark:bg-chumbo-950 text-slate-900 dark:text-slate-100 p-4 sm:p-6 md:p-8 lg:p-10 shadow-2xl max-h-[94vh] md:max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Fechar sem sobreposição */}
             <button
               onClick={() => setDetailProduct(null)}
-              className="absolute top-3.5 right-3.5 sm:top-5 sm:right-5 z-30 p-2 sm:p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-chumbo-900 dark:hover:bg-chumbo-800 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-chumbo-700 transition-all shadow-sm active:scale-95"
+              className="absolute top-3.5 right-3.5 sm:top-5 sm:right-5 z-30 p-2 sm:p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-chumbo-900 dark:hover:bg-chumbo-800 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-chumbo-700 transition-all shadow-sm active:scale-95 cursor-pointer"
               aria-label="Fechar detalhes"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <div className="md:grid md:grid-cols-2 md:gap-8 md:items-stretch space-y-4 md:space-y-0">
-              {/* Coluna Esquerda: Galeria de Fotos */}
-              <div className="space-y-3 flex flex-col">
-                <div className="relative aspect-square sm:aspect-[4/3] md:aspect-square w-full overflow-hidden rounded-2xl bg-slate-50 dark:bg-chumbo-900 border border-slate-200 dark:border-chumbo-800">
+            <div className="md:grid md:grid-cols-2 lg:grid-cols-[1.25fr_1fr] md:gap-8 lg:gap-12 md:items-stretch space-y-4 md:space-y-0">
+              {/* Coluna Esquerda: Galeria de Fotos Ampliada */}
+              <div className="space-y-3 flex flex-col justify-between">
+                <div className="relative aspect-square md:aspect-auto md:min-h-[460px] lg:min-h-[540px] xl:min-h-[600px] w-full overflow-hidden rounded-2xl bg-slate-50 dark:bg-chumbo-900/60 border border-slate-200 dark:border-chumbo-800 flex items-center justify-center group/modalimg">
                   {(() => {
-                    const allImages = [
-                      detailProduct.image_url,
-                      ...(detailProduct.color_images?.map((ci) => ci.image_url) || []),
-                    ].filter(Boolean);
+                    const allImages = getProductImages(detailProduct);
                     const currentImage = allImages[activeImageIndex] || detailProduct.image_url;
 
                     return (
-                      <img
-                        src={optimizeImageUrl(currentImage)}
-                        alt={detailProduct.title}
-                        className="w-full h-full object-contain p-2 sm:p-4"
-                      />
+                      <>
+                        <img
+                          src={optimizeImageUrl(currentImage)}
+                          alt={detailProduct.title}
+                          decoding="async"
+                          className="w-full h-full max-h-[600px] object-contain p-2 sm:p-4 lg:p-6 transition-all duration-300"
+                        />
+
+                        {/* Setas de navegação na galeria do modal */}
+                        {allImages.length > 1 && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveImageIndex((prev) => (prev - 1 + allImages.length) % allImages.length);
+                              }}
+                              className="absolute left-3 top-1/2 -translate-y-1/2 z-20 p-2 sm:p-2.5 rounded-full bg-white/95 dark:bg-chumbo-900/95 text-slate-800 dark:text-slate-100 shadow-lg hover:scale-110 active:scale-95 transition-all border border-slate-200/80 dark:border-chumbo-700/80 cursor-pointer"
+                              title="Foto anterior"
+                              aria-label="Foto anterior"
+                            >
+                              <ChevronLeft className="w-5 h-5" />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveImageIndex((prev) => (prev + 1) % allImages.length);
+                              }}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 z-20 p-2 sm:p-2.5 rounded-full bg-white/95 dark:bg-chumbo-900/95 text-slate-800 dark:text-slate-100 shadow-lg hover:scale-110 active:scale-95 transition-all border border-slate-200/80 dark:border-chumbo-700/80 cursor-pointer"
+                              title="Próxima foto"
+                              aria-label="Próxima foto"
+                            >
+                              <ChevronRight className="w-5 h-5" />
+                            </button>
+                          </>
+                        )}
+                      </>
                     );
                   })()}
                 </div>
 
                 {/* Miniaturas de Cores/Ângulos */}
                 {(() => {
-                  const allImages = [
-                    detailProduct.image_url,
-                    ...(detailProduct.color_images?.map((ci) => ci.image_url) || []),
-                  ].filter(Boolean);
-
+                  const allImages = getProductImages(detailProduct);
                   if (allImages.length <= 1) return null;
 
                   return (
-                    <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar pt-1">
                       {allImages.map((img, idx) => (
                         <button
                           key={idx}
                           onClick={() => setActiveImageIndex(idx)}
-                          className={`relative h-12 w-12 sm:h-14 sm:w-14 rounded-xl overflow-hidden border shrink-0 transition-all ${
+                          className={`relative h-14 w-14 sm:h-16 sm:w-16 rounded-xl overflow-hidden border shrink-0 transition-all ${
                             activeImageIndex === idx
-                              ? 'border-cyan-500 ring-2 ring-cyan-500/40'
+                              ? 'border-cyan-500 ring-2 ring-cyan-500/40 scale-105'
                               : 'border-slate-200 dark:border-chumbo-800 opacity-60 hover:opacity-100'
                           }`}
                         >
@@ -1024,41 +1137,41 @@ export const CatalogApp: React.FC = () => {
               </div>
 
               {/* Coluna Direita: Informações & Ações */}
-              <div className="flex flex-col justify-between h-full space-y-4">
-                <div className="space-y-3.5 flex-1">
+              <div className="flex flex-col justify-between h-full space-y-5">
+                <div className="space-y-4 flex-1">
                   {/* Cabeçalho do Produto: Título em linha inteira e Preço diretamente abaixo */}
-                  <div className="space-y-1.5 pr-12 sm:pr-14 md:pr-16">
-                    <h3 className="text-lg sm:text-2xl font-extrabold text-slate-900 dark:text-white leading-tight break-words">
+                  <div className="space-y-2 pr-12 sm:pr-14 md:pr-16">
+                    <h3 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-slate-900 dark:text-white leading-tight break-words">
                       {detailProduct.title}
                     </h3>
-                    <div className="flex items-baseline gap-2 pt-0.5">
+                    <div className="flex items-baseline gap-2 pt-1">
                       <span className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Preço:</span>
-                      <span className="text-2xl sm:text-3xl font-black text-cyan-700 dark:text-cyan-400">
+                      <span className="text-2xl sm:text-3xl lg:text-4xl font-black text-cyan-700 dark:text-cyan-400">
                         {money(getCatalogPrice(detailProduct.price))}
                       </span>
                     </div>
                   </div>
 
                   {/* Especificações da Peça 3D */}
-                  <div className="grid grid-cols-3 gap-2 p-2.5 sm:p-3 rounded-xl bg-slate-50 dark:bg-chumbo-900/70 border border-slate-200 dark:border-chumbo-800 text-xs">
+                  <div className="grid grid-cols-3 gap-2.5 p-3 sm:p-4 rounded-xl bg-slate-50 dark:bg-chumbo-900/70 border border-slate-200 dark:border-chumbo-800 text-xs sm:text-sm">
                     <div>
-                      <span className="text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 block uppercase font-mono">Material</span>
+                      <span className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 block uppercase font-mono">Material</span>
                       <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block">{detailProduct.material || 'PLA'}</span>
                     </div>
                     <div>
-                      <span className="text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 block uppercase font-mono">Dimensões</span>
+                      <span className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 block uppercase font-mono">Dimensões</span>
                       <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block">{extractProductDimensions(detailProduct) || 'Sob medida'}</span>
                     </div>
                     <div>
-                      <span className="text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 block uppercase font-mono">Status</span>
+                      <span className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 block uppercase font-mono">Status</span>
                       <span className="font-semibold text-emerald-600 dark:text-emerald-400 truncate block">{getStockStatus(detailProduct).label}</span>
                     </div>
                   </div>
 
                   {detailProduct.description && (
-                    <div className="space-y-1.5">
-                      <h5 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Detalhes da Peça</h5>
-                      <p className="text-sm sm:text-base text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line max-h-56 overflow-y-auto pr-1">
+                    <div className="space-y-2">
+                      <h5 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Detalhes da Peça</h5>
+                      <p className="text-sm sm:text-base text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line max-h-72 overflow-y-auto pr-2">
                         {detailProduct.description}
                       </p>
                     </div>
@@ -1066,7 +1179,7 @@ export const CatalogApp: React.FC = () => {
                 </div>
 
                 {/* Ações no Modal fixadas na base */}
-                <div className="pt-4 border-t border-slate-200 dark:border-chumbo-800 grid grid-cols-1 sm:grid-cols-2 gap-2 mt-auto">
+                <div className="pt-4 border-t border-slate-200 dark:border-chumbo-800 grid grid-cols-1 sm:grid-cols-2 gap-3 mt-auto">
                   <button
                     type="button"
                     onClick={() => {
@@ -1074,18 +1187,18 @@ export const CatalogApp: React.FC = () => {
                       const msg = `Olá! Vi o produto *${detailProduct.title}* (${money(getCatalogPrice(detailProduct.price))}) no catálogo da *${storeName}* e gostaria de mais informações!`;
                       window.open(`https://wa.me/5543998068708?text=${encodeURIComponent(msg)}`, '_blank');
                     }}
-                    className="flex items-center justify-center gap-1.5 py-2.5 sm:py-3 px-3 rounded-xl text-xs sm:text-sm font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-md active:scale-95"
+                    className="flex items-center justify-center gap-2 py-3 sm:py-3.5 px-4 rounded-xl text-xs sm:text-sm font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-md active:scale-95 cursor-pointer"
                   >
-                    <MessageCircle className="w-4 h-4" />
+                    <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5" />
                     <span className="truncate">Tirar dúvidas no WhatsApp</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => goToStore(detailProduct.slug || detailProduct.id)}
-                    className="flex items-center justify-center gap-1.5 py-2.5 sm:py-3 px-3 rounded-xl text-xs sm:text-sm font-bold bg-slate-950 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-200 !text-white dark:!text-slate-950 transition-all shadow-md active:scale-95"
+                    className="flex items-center justify-center gap-2 py-3 sm:py-3.5 px-4 rounded-xl text-xs sm:text-sm font-bold bg-slate-950 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-200 !text-white dark:!text-slate-950 transition-all shadow-md active:scale-95 cursor-pointer"
                   >
-                    <ShoppingBag className="w-4 h-4 !text-white dark:!text-slate-950" />
+                    <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 !text-white dark:!text-slate-950" />
                     <span className="truncate !text-white dark:!text-slate-950 font-bold">Ver na Loja Oficial</span>
                   </button>
                 </div>
