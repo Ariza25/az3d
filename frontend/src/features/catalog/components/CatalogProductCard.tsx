@@ -7,24 +7,9 @@ import {
   getColorVisual,
   getStockStatus,
   money,
+  getProductImages,
   optimizeImageUrl,
 } from '../../../shared/storePresentation';
-
-// Coleta todas as imagens associadas ao produto (foto principal, fotos de cores e variações irmãs)
-export const getProductImages = (product?: Product | null): string[] => {
-  if (!product) return [];
-  const urls: string[] = [];
-  const add = (u?: string) => {
-    if (u && !urls.includes(u)) urls.push(u);
-  };
-  add(product.image_url);
-  product.color_images?.forEach((ci) => add(ci.image_url));
-  product.store_variants?.forEach((v) => {
-    add(v.image_url);
-    v.color_images?.forEach((ci) => add(ci.image_url));
-  });
-  return urls.filter(Boolean);
-};
 
 export interface CatalogProductCardProps {
   product: Product;

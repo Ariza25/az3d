@@ -130,6 +130,7 @@ export const COLOR_KEYWORDS: Array<{ match: RegExp; name: string; hex: string }>
  */
 export const sanitizeFileName = (name: string): string => {
   return name
+    // eslint-disable-next-line no-control-regex
     .replace(/[\\/:*?"<>|\x00-\x1F\x7F]+/g, '_')
     .replace(/\s+/g, ' ')
     .trim();
@@ -483,7 +484,7 @@ export const parse3MFProject = async (file: File): Promise<ThreeMfProjectInfo> =
     const name = objectNameMap[objId] || baseObj.name || `Peça #${objId}`;
     let filamentId = objectFilamentMap[objId] || 1;
     let colorHex = filamentPalette[filamentId]?.hex;
-    let colorType = filamentPalette[filamentId]?.type || 'PLA';
+    const colorType = filamentPalette[filamentId]?.type || 'PLA';
     let colorName = '';
 
     // Se o filamento não tem cor mapeada ou se todas as peças caíram no filamento padrão 1,

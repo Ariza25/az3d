@@ -64,7 +64,7 @@ export const CatalogFilterBar: React.FC<CatalogFilterBarProps> = ({
         <div className="flex items-center gap-1.5 sm:gap-2 justify-between sm:justify-end shrink-0">
           <select
             value={sortBy}
-            onChange={(e) => onSortChange(e.target.value as any)}
+            onChange={(e) => onSortChange(e.target.value as CatalogFilterBarProps['sortBy'])}
             className="px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-white dark:bg-chumbo-900 border border-slate-300 dark:border-chumbo-700/80 text-[11px] sm:text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-cyan-500 text-ellipsis shadow-xs cursor-pointer"
           >
             <option value="featured">Destaques</option>

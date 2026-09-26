@@ -41,6 +41,7 @@ const products = [
       { color_name: 'Branco', image_url: whiteVariantImage, sort_order: 0 },
       { color_name: 'Branco', image_url: whiteVariantDetailImage, sort_order: 1 },
       { color_name: 'Vermelho', image_url: redVariantImage, sort_order: 2 },
+      { color_name: 'Vermelho', image_url: redVariantDetailImage, sort_order: 3 },
     ],
     color_stocks: [
       { color_name: 'Branco', stock_qty: 7 },
@@ -134,7 +135,7 @@ test('responsividade da home: sem overflow horizontal e elementos legíveis', as
   await page.goto('/az3d/store');
 
   // Verifica elementos essenciais da loja
-  await expect(page.getByRole('heading', { name: 'AZ3D Studio' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'AZ3D Studio' })).toBeVisible({ timeout: 15000 });
   await expect(page.getByRole('button', { name: 'Explorar catálogo' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Ver produto' })).toBeVisible();
 
@@ -158,8 +159,12 @@ test('responsividade da home: sem overflow horizontal e elementos legíveis', as
 test('responsividade do modal de produto: fotos adaptadas, cores e compra fluida', async ({ page }, testInfo) => {
   await page.goto('/az3d/store');
 
+  const openBtn = page.getByRole('button', { name: 'Ver produto' });
+  await expect(openBtn).toBeVisible({ timeout: 15000 });
+  await expect(page.getByRole('status', { name: 'Carregando' })).toBeHidden({ timeout: 15000 });
+
   // Abre o modal do primeiro produto
-  await page.getByRole('button', { name: 'Ver produto' }).click();
+  await openBtn.click();
 
   const modal = page.getByRole('dialog');
   await expect(modal).toBeVisible();

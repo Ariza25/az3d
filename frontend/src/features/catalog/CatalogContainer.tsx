@@ -4,6 +4,7 @@ import { useTenantCatalog } from '../../shared/hooks/useTenantCatalog';
 import { useTheme } from '../../context/ThemeContext';
 import { api } from '../../services/api';
 import {
+  getProductImages,
   getStockStatus,
   groupMarketplaceProducts,
   money,
@@ -17,7 +18,6 @@ import {
   CatalogProductGrid,
   CatalogQuickDetailModal,
   CatalogFooter,
-  getProductImages,
 } from './components';
 
 export const CatalogContainer: React.FC = () => {
@@ -171,10 +171,10 @@ export const CatalogContainer: React.FC = () => {
       return [...all].sort((a, b) => (b.sales_count || 0) - (a.sales_count || 0)).slice(0, 10);
     }
     return [...all].sort((a, b) => b.id - a.id).slice(0, 10);
-  }, [paginatedProducts.slice(0, 24).map((p) => p.id).join(',')]);
+  }, [paginatedProducts]);
 
   // Cálculo de passos do carrossel
-  const getCarouselCardStep = () => {
+  const getCarouselCardStep = useCallback(() => {
     if (!carouselRef.current) return 280;
     const container = carouselRef.current;
     const item = container.querySelector('.carousel-spotlight-item') as HTMLElement | null;
@@ -183,9 +183,9 @@ export const CatalogContainer: React.FC = () => {
     }
     const { clientWidth } = container;
     return clientWidth >= 1024 ? clientWidth / 4 : clientWidth >= 640 ? clientWidth / 2 : clientWidth * 0.78;
-  };
+  }, []);
 
-  const checkCarouselScroll = () => {
+  const checkCarouselScroll = useCallback(() => {
     if (!carouselRef.current) return;
     const { scrollLeft, scrollWidth, clientWidth } = carouselRef.current;
     setCarouselCanScrollLeft(scrollLeft > 15);
@@ -198,7 +198,7 @@ export const CatalogContainer: React.FC = () => {
     const totalSteps = Math.max(1, spotlightProducts.length - visibleCards + 1);
     const index = Math.min(totalSteps - 1, Math.max(0, Math.round(scrollLeft / step)));
     setActiveCarouselIndex(index);
-  };
+  }, [getCarouselCardStep, spotlightProducts.length]);
 
   const scrollCarousel = (direction: 'left' | 'right') => {
     if (!carouselRef.current) return;
@@ -223,7 +223,7 @@ export const CatalogContainer: React.FC = () => {
     const handleResize = () => checkCarouselScroll();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [spotlightProducts.length]);
+  }, [checkCarouselScroll]);
 
   // Autoplay suave do carrossel
   useEffect(() => {
@@ -243,7 +243,7 @@ export const CatalogContainer: React.FC = () => {
     }, 3800);
 
     return () => clearInterval(interval);
-  }, [isCarouselPaused, spotlightProducts.length, carouselVisibleCards]);
+  }, [isCarouselPaused, spotlightProducts.length, carouselVisibleCards, getCarouselCardStep]);
 
   // Categorias com contadores
   const categoriesWithCounts = useMemo(() => {

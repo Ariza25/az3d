@@ -219,8 +219,12 @@ test('catálogo mobile tem estritamente 1 coluna, sem overflow horizontal, e pre
 test('modal de detalhes adapta fotos e informações perfeitamente no mobile, tablet e desktop', async ({ page }, testInfo) => {
   await page.goto('/az3d/catalog');
 
-  // Abre o modal de detalhes do primeiro item
+  // Aguarda carregamento inicial sumir
   const firstCard = page.locator('article').first();
+  await expect(firstCard).toBeVisible({ timeout: 15000 });
+  await expect(page.getByRole('status', { name: 'Carregando' })).toBeHidden({ timeout: 15000 });
+
+  // Abre o modal de detalhes do primeiro item
   await firstCard.getByRole('button', { name: 'Ver detalhes', exact: true }).click();
 
   const modal = page.getByRole('dialog');
@@ -265,6 +269,10 @@ test('modal de detalhes adapta fotos e informações perfeitamente no mobile, ta
 
 test('alterna para modo compacto sem quebrar ou gerar scroll horizontal', async ({ page }, testInfo) => {
   await page.goto('/az3d/catalog');
+
+  // Aguarda carregamento inicial sumir
+  await expect(page.locator('article').first()).toBeVisible({ timeout: 15000 });
+  await expect(page.getByRole('status', { name: 'Carregando' })).toBeHidden({ timeout: 15000 });
 
   // Alterna para modo compacto (lista)
   await page.getByRole('button', { name: 'Visualização em lista' }).click();
