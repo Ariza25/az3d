@@ -1,12 +1,12 @@
 package handlers
 
 import (
-	"math"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"az3d-backend/database"
+	"az3d-backend/internal/services"
 	"az3d-backend/models"
 	"github.com/gin-gonic/gin"
 )
@@ -190,13 +190,8 @@ func (h *CouponHandler) ValidateCoupon(c *gin.Context) {
 		return
 	}
 
-	// Calcular descontos
-	discountAmount := math.Round((input.Subtotal*(coupon.DiscountPercent/100.0))*100) / 100
-	var shippingDiscount float64
-	if coupon.AppliesToShipping && input.Shipping > 0 {
-		shippingDiscount = math.Round((input.Shipping*(coupon.DiscountPercent/100.0))*100) / 100
-	}
-	totalDiscount := discountAmount + shippingDiscount
+	// Calcular descontos via service
+	discountAmount, shippingDiscount, totalDiscount := services.CalculateCouponDiscount(input.Subtotal, input.Shipping, &coupon)
 
 	c.JSON(http.StatusOK, models.ValidateCouponResponse{
 		Valid:             true,

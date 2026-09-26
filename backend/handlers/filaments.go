@@ -14,8 +14,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type FilamentHandler struct{}
+
+func NewFilamentHandler() *FilamentHandler {
+	return &FilamentHandler{}
+}
+
+var defaultFilamentHandler = NewFilamentHandler()
+
 // GetFilamentSpools returns filament spools for the authenticated tenant.
-func GetFilamentSpools(c *gin.Context) {
+func (h *FilamentHandler) GetFilamentSpools(c *gin.Context) {
 	tenantID := getTenantID(c)
 
 	var spools []models.FilamentSpool
@@ -27,8 +35,13 @@ func GetFilamentSpools(c *gin.Context) {
 	c.JSON(http.StatusOK, spools)
 }
 
+// GetFilamentSpools package wrapper for backward compatibility.
+func GetFilamentSpools(c *gin.Context) {
+	defaultFilamentHandler.GetFilamentSpools(c)
+}
+
 // CreateFilamentSpool creates a new filament spool in PostgreSQL.
-func CreateFilamentSpool(c *gin.Context) {
+func (h *FilamentHandler) CreateFilamentSpool(c *gin.Context) {
 	tenantID := getTenantID(c)
 
 	var input models.FilamentSpoolInput
@@ -74,7 +87,7 @@ func CreateFilamentSpool(c *gin.Context) {
 }
 
 // UpdateFilamentSpool updates a filament spool in PostgreSQL.
-func UpdateFilamentSpool(c *gin.Context) {
+func (h *FilamentHandler) UpdateFilamentSpool(c *gin.Context) {
 	tenantID := getTenantID(c)
 
 	idParam := c.Param("id")
@@ -133,7 +146,7 @@ func UpdateFilamentSpool(c *gin.Context) {
 }
 
 // DeleteFilamentSpool deletes a filament spool from PostgreSQL.
-func DeleteFilamentSpool(c *gin.Context) {
+func (h *FilamentHandler) DeleteFilamentSpool(c *gin.Context) {
 	tenantID := getTenantID(c)
 
 	idParam := c.Param("id")
@@ -179,7 +192,7 @@ type OrderFilamentCheckResponse struct {
 }
 
 // CheckOrderFilament evaluates whether the tenant has enough active filament to print this order.
-func CheckOrderFilament(c *gin.Context) {
+func (h *FilamentHandler) CheckOrderFilament(c *gin.Context) {
 	tenantID := getTenantID(c)
 	orderIDStr := c.Param("orderId")
 
@@ -310,7 +323,7 @@ func CheckOrderFilament(c *gin.Context) {
 }
 
 // DeductFilament deducts weight from a spool and creates an audit usage log.
-func DeductFilament(c *gin.Context) {
+func (h *FilamentHandler) DeductFilament(c *gin.Context) {
 	tenantID := getTenantID(c)
 
 	var input models.DeductFilamentInput
@@ -372,7 +385,7 @@ func DeductFilament(c *gin.Context) {
 }
 
 // GetFilamentSpoolLogs returns consumption history for a given spool.
-func GetFilamentSpoolLogs(c *gin.Context) {
+func (h *FilamentHandler) GetFilamentSpoolLogs(c *gin.Context) {
 	tenantID := getTenantID(c)
 	spoolIDParam := c.Param("id")
 
@@ -393,3 +406,11 @@ func GetFilamentSpoolLogs(c *gin.Context) {
 
 	c.JSON(http.StatusOK, logs)
 }
+
+// Package-level functions for backward compatibility.
+func CreateFilamentSpool(c *gin.Context) { defaultFilamentHandler.CreateFilamentSpool(c) }
+func UpdateFilamentSpool(c *gin.Context) { defaultFilamentHandler.UpdateFilamentSpool(c) }
+func DeleteFilamentSpool(c *gin.Context) { defaultFilamentHandler.DeleteFilamentSpool(c) }
+func CheckOrderFilament(c *gin.Context)  { defaultFilamentHandler.CheckOrderFilament(c) }
+func DeductFilament(c *gin.Context)      { defaultFilamentHandler.DeductFilament(c) }
+func GetFilamentSpoolLogs(c *gin.Context) { defaultFilamentHandler.GetFilamentSpoolLogs(c) }

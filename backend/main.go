@@ -2,21 +2,14 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"az3d-backend/config"
 	"az3d-backend/database"
-	"az3d-backend/handlers"
-	"az3d-backend/internal/services"
-	"az3d-backend/middleware"
-
-	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/gin"
+	"az3d-backend/internal/app"
 )
 
 func main() {
@@ -28,222 +21,12 @@ func main() {
 		log.Println("Aviso: backend iniciado sem banco; defina DATABASE_URL para conectar o Neon")
 	}
 
-	if cfg.Env == "production" {
-		gin.SetMode(gin.ReleaseMode)
-	}
+	application := app.New(cfg, database.DB)
 
-	bgCtx, stopBg := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stopBg()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
-	r := gin.New()
-	r.Use(gin.Recovery(), middleware.StructuredLogger())
-	r.MaxMultipartMemory = cfg.MaxUploadBytes
-
-	if err := r.SetTrustedProxies(cfg.TrustedProxies); err != nil {
-		log.Printf("Aviso: nao foi possivel configurar trusted proxies: %v", err)
-	}
-
-	r.Use(cors.New(cors.Config{
-		AllowOrigins:     cfg.CORSOrigins,
-		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Tenant-ID"},
-		ExposeHeaders:    []string{"Content-Length"},
-		AllowCredentials: true,
-		MaxAge:           12 * time.Hour,
-	}))
-
-	r.OPTIONS("/*path", func(c *gin.Context) {
-		c.Status(204)
-	})
-
-	pricingService := services.NewPricingService(database.DB)
-
-	authHandler := handlers.NewAuthHandler(cfg)
-	productHandler := handlers.NewProductHandler(cfg)
-	mercadoPagoHandler := handlers.NewMercadoPagoHandler(cfg)
-	orderHandler := handlers.NewOrderHandler(mercadoPagoHandler)
-	tenantHandler := handlers.NewTenantHandler()
-	tenantSettingsHandler := handlers.NewTenantSettingsHandler()
-	pricingHandler := handlers.NewPricingHandler(database.DB, pricingService)
-	marketplaceHandler := handlers.NewMarketplaceHandler(cfg)
-	carrierHandler := handlers.NewCarrierHandler(cfg)
-	shipmentHandler := handlers.NewShipmentHandler(cfg)
-	platformHandler := handlers.NewPlatformHandler(cfg)
-	chatHandler := handlers.NewChatHandler()
-	couponHandler := handlers.NewCouponHandler()
-	handlers.StartTrackingSyncJob(bgCtx, cfg)
-	handlers.StartMarketplaceSyncJob(bgCtx, cfg, marketplaceHandler)
-	handlers.StartExpiredPixJob(bgCtx)
-
-	r.Static("/uploads", "./uploads")
-
-	api := r.Group("/api")
-	api.Use(middleware.RateLimiterMiddleware(180, 40))
-	{
-		api.GET("/tenants", tenantHandler.GetTenants)
-		api.GET("/tenants/:identifier", tenantHandler.GetTenantByIdentifier)
-
-		auth := api.Group("/auth")
-		auth.Use(middleware.RateLimiterMiddleware(25, 10))
-		{
-			auth.POST("/customer/register", authHandler.CustomerRegister)
-			auth.POST("/customer/login", authHandler.CustomerLogin)
-			auth.POST("/seller/register", authHandler.SellerRegister)
-			auth.POST("/admin/login", authHandler.AdminLogin)
-			auth.POST("/register", authHandler.Register)
-			auth.POST("/login", authHandler.Login)
-			auth.POST("/forgot-password", authHandler.ForgotPassword)
-			auth.GET("/verify-reset-token", authHandler.VerifyResetToken)
-			auth.POST("/reset-password", authHandler.ResetPassword)
-			auth.GET("/google/start", authHandler.StartGoogleOAuth)
-			auth.GET("/google/callback", authHandler.CompleteGoogleOAuth)
-		}
-
-		api.GET("/categories", productHandler.GetCategories)
-		api.GET("/products", productHandler.GetProducts)
-		api.GET("/products/:id", productHandler.GetProductByID)
-		api.GET("/products/:id/reviews", productHandler.GetProductReviews)
-		api.GET("/tenant/settings", tenantSettingsHandler.GetTenantSettings)
-		api.POST("/coupons/validate", couponHandler.ValidateCoupon)
-		api.POST("/shipping/calculate-quote", handlers.CalculateShippingQuote)
-		api.POST("/quotes/custom-3d", handlers.CreateCustom3DQuote)
-		api.POST("/quotes/parse-stl", handlers.ParseSTLFile)
-		api.GET("/payments/mercadopago/oauth/callback", mercadoPagoHandler.OAuthCallback)
-		api.GET("/marketplaces/mercadolivre/oauth/callback", marketplaceHandler.MercadoLivreOAuthCallback)
-
-		api.GET("/orders/:id/payment-status", orderHandler.GetOrderPaymentStatus)
-
-		protected := api.Group("")
-		protected.Use(middleware.AuthMiddleware(cfg.JWTSecret))
-		{
-			protected.GET("/auth/me", authHandler.Me)
-			protected.PUT("/auth/me", authHandler.UpdateMe)
-			protected.POST("/orders", orderHandler.CreateOrder)
-			protected.GET("/orders/my-orders", orderHandler.GetMyOrders)
-			protected.GET("/favorites", productHandler.GetMyFavorites)
-			protected.GET("/products/:id/review-eligibility", productHandler.GetReviewEligibility)
-			protected.POST("/products/:id/reviews", productHandler.UpsertProductReview)
-			protected.POST("/products/:id/favorite", productHandler.AddProductFavorite)
-			protected.DELETE("/products/:id/favorite", productHandler.RemoveProductFavorite)
-			protected.GET("/chat/tenant/:tenant_id/conversation", chatHandler.GetCustomerConversation)
-			protected.POST("/chat/tenant/:tenant_id/messages", chatHandler.SendCustomerMessage)
-		}
-
-		admin := api.Group("/admin")
-		admin.Use(middleware.AuthMiddleware(cfg.JWTSecret), middleware.TenantAdminMiddleware())
-		{
-			admin.GET("/products", productHandler.GetAdminProducts)
-			admin.POST("/products", productHandler.CreateProduct)
-			admin.PUT("/products/:id", productHandler.UpdateProduct)
-			admin.DELETE("/products/:id", productHandler.DeleteProduct)
-			admin.GET("/stock-alerts", productHandler.GetStockAlerts)
-			admin.GET("/stock-movements", productHandler.GetStockMovements)
-			admin.POST("/stock-adjustments", productHandler.AdjustStock)
-			admin.POST("/uploads/products", productHandler.UploadProductImage)
-			admin.POST("/categories", productHandler.CreateCategory)
-			admin.GET("/tenant/settings", tenantSettingsHandler.GetTenantSettings)
-			admin.PATCH("/tenant/settings", tenantSettingsHandler.UpdateTenantSettings)
-			admin.GET("/pricing/settings", pricingHandler.GetPricingSettings)
-			admin.POST("/pricing/calculate", pricingHandler.Calculate)
-			admin.POST("/pricing/scenario", pricingHandler.CalculateScenario)
-			admin.GET("/pricing/financial-summary", pricingHandler.GetFinancialSummary)
-			admin.GET("/pricing/fixed-costs", pricingHandler.GetFixedCosts)
-			admin.POST("/pricing/fixed-costs", pricingHandler.SaveFixedCost)
-			admin.PUT("/pricing/fixed-costs/:cost_id", pricingHandler.UpdateFixedCost)
-			admin.DELETE("/pricing/fixed-costs/:cost_id", pricingHandler.DeleteFixedCost)
-			admin.GET("/pricing/actual-costs", pricingHandler.GetActualCosts)
-			admin.POST("/pricing/actual-costs", pricingHandler.SaveActualCost)
-			admin.POST("/pricing/material-presets", pricingHandler.SaveMaterialPreset)
-			admin.PUT("/pricing/material-presets/:preset_id", pricingHandler.UpdateMaterialPreset)
-			admin.DELETE("/pricing/material-presets/:preset_id", pricingHandler.DeleteMaterialPreset)
-			admin.POST("/pricing/printer-presets", pricingHandler.SavePrinterPreset)
-			admin.PUT("/pricing/printer-presets/:preset_id", pricingHandler.UpdatePrinterPreset)
-			admin.DELETE("/pricing/printer-presets/:preset_id", pricingHandler.DeletePrinterPreset)
-			admin.POST("/pricing/platform-presets", pricingHandler.SavePlatformPreset)
-			admin.PUT("/pricing/platform-presets/:preset_id", pricingHandler.UpdatePlatformPreset)
-			admin.DELETE("/pricing/platform-presets/:preset_id", pricingHandler.DeletePlatformPreset)
-			admin.POST("/pricing/parse-3mf", pricingHandler.Parse3MFFile)
-			admin.POST("/products/:id/pricing/apply", pricingHandler.ApplyToProduct)
-			admin.GET("/products/:id/pricing/snapshots", pricingHandler.GetProductSnapshots)
-			admin.GET("/products/:id/financials", pricingHandler.GetProductFinancials)
-			admin.GET("/orders", orderHandler.GetAllOrders)
-			admin.PATCH("/orders/:id/status", orderHandler.UpdateOrderStatus)
-			admin.GET("/payments/mercadopago/status", mercadoPagoHandler.GetTenantStatus)
-			admin.POST("/payments/mercadopago/oauth/start", mercadoPagoHandler.StartOAuth)
-			admin.POST("/payments/mercadopago/oauth/refresh", mercadoPagoHandler.RefreshOAuth)
-			admin.DELETE("/payments/mercadopago/oauth", mercadoPagoHandler.DisconnectOAuth)
-
-			admin.GET("/coupons", couponHandler.GetTenantCoupons)
-			admin.POST("/coupons", couponHandler.CreateTenantCoupon)
-			admin.PUT("/coupons/:id", couponHandler.UpdateTenantCoupon)
-			admin.DELETE("/coupons/:id", couponHandler.DeleteTenantCoupon)
-
-			admin.GET("/marketplaces/settings", marketplaceHandler.GetMarketplaceSettings)
-			admin.PATCH("/marketplaces/settings", marketplaceHandler.UpdateMarketplaceSettings)
-			admin.GET("/marketplaces/accounts", marketplaceHandler.GetMarketplaceAccounts)
-			admin.POST("/marketplaces/accounts", marketplaceHandler.SaveMarketplaceAccount)
-			admin.POST("/marketplaces/oauth/start", marketplaceHandler.StartMarketplaceOAuth)
-			admin.POST("/marketplaces/oauth/callback", marketplaceHandler.CompleteMarketplaceOAuth)
-			admin.POST("/marketplaces/disconnect", marketplaceHandler.DisconnectMarketplaceAccount)
-			admin.DELETE("/marketplaces/accounts", marketplaceHandler.DisconnectMarketplaceAccount)
-			admin.POST("/marketplaces/refresh-tokens", marketplaceHandler.RefreshMarketplaceTokens)
-			admin.POST("/marketplaces/test", marketplaceHandler.TestMarketplaceConnection)
-			admin.GET("/marketplaces/mappings", marketplaceHandler.GetProductMappings)
-			admin.POST("/marketplaces/sync-products", marketplaceHandler.SyncMarketplaceProducts)
-			admin.POST("/marketplaces/sync-orders", marketplaceHandler.SyncMarketplaceOrders)
-			admin.GET("/marketplaces/external-orders", marketplaceHandler.GetExternalOrders)
-			admin.GET("/marketplaces/webhook-events", marketplaceHandler.GetMarketplaceWebhookEvents)
-			admin.GET("/marketplaces/trends", marketplaceHandler.GetMLTrends)
-			admin.GET("/marketplaces/search-insights", marketplaceHandler.GetMLSearchInsights)
-			admin.GET("/marketplaces/listing-audit", marketplaceHandler.AuditMLListing)
-			admin.GET("/marketplaces/product-opportunities", marketplaceHandler.GetMLProductOpportunities)
-
-			admin.GET("/carrier-accounts", carrierHandler.GetCarrierAccounts)
-			admin.POST("/carrier-accounts", carrierHandler.SaveCarrierAccount)
-			admin.PATCH("/carrier-accounts/:id/toggle", carrierHandler.ToggleCarrierAccount)
-			admin.GET("/carrier-health", shipmentHandler.GetCarrierHealth)
-			admin.GET("/shipments", shipmentHandler.GetShipments)
-			admin.POST("/shipments", shipmentHandler.SaveShipment)
-			admin.POST("/shipments/:id/sync", shipmentHandler.SyncShipment)
-			admin.POST("/shipments/sync", shipmentHandler.SyncTracking)
-
-			admin.GET("/filaments", handlers.GetFilamentSpools)
-			admin.POST("/filaments", handlers.CreateFilamentSpool)
-			admin.PUT("/filaments/:id", handlers.UpdateFilamentSpool)
-			admin.DELETE("/filaments/:id", handlers.DeleteFilamentSpool)
-			admin.GET("/filaments/:id/logs", handlers.GetFilamentSpoolLogs)
-			admin.POST("/filaments/deduct", handlers.DeductFilament)
-			admin.GET("/filaments/check-order/:orderId", handlers.CheckOrderFilament)
-			admin.GET("/quotes/custom-3d", handlers.GetCustom3DQuotes)
-			admin.GET("/chat/conversations", chatHandler.GetTenantConversations)
-			admin.GET("/chat/conversations/:id/messages", chatHandler.GetTenantConversationMessages)
-			admin.POST("/chat/conversations/:id/messages", chatHandler.SendTenantMessage)
-			admin.GET("/chat/unread-count", chatHandler.GetTenantUnreadChatCount)
-		}
-
-		platform := api.Group("/admin/platform")
-		platform.Use(middleware.AuthMiddleware(cfg.JWTSecret), middleware.MasterAdminMiddleware())
-		{
-			platform.GET("/overview", platformHandler.GetPlatformOverview)
-			platform.DELETE("/tenants/:tenant_id", platformHandler.DeleteTenant)
-			platform.GET("/environment", platformHandler.GetPlatformEnvironment)
-			platform.GET("/observability", platformHandler.GetObservabilityHealth)
-			platform.GET("/outbox", platformHandler.GetWebhookLogs)
-			platform.GET("/payments/mercadopago", mercadoPagoHandler.GetPlatformConfig)
-			platform.POST("/tenants/:tenant_id/payments/mercadopago/oauth/start", mercadoPagoHandler.StartOAuthForTenant)
-			platform.GET("/marketplaces/mercadolivre", marketplaceHandler.GetMercadoLivrePlatformConfig)
-			platform.POST("/tenants/:tenant_id/marketplaces/mercadolivre/oauth/start", marketplaceHandler.StartMercadoLivreOAuthForTenant)
-		}
-
-		api.POST("/webhooks/marketplaces/:provider", marketplaceHandler.ReceiveMarketplaceWebhook)
-		api.POST("/webhooks/payments/mercadopago/:tenant_id", orderHandler.ReceiveMercadoPagoWebhook)
-	}
-
-	r.GET("/health", platformHandler.PublicHealth)
-
-	addr := fmt.Sprintf(":%s", cfg.Port)
-	log.Printf("Servidor Go AZ3D escutando na porta %s (http://localhost:%s)", cfg.Port, cfg.Port)
-	if err := r.Run(addr); err != nil {
-		log.Fatalf("Erro ao iniciar servidor HTTP Go: %v", err)
+	if err := application.Run(ctx); err != nil {
+		log.Fatalf("Erro ao executar servidor Go: %v", err)
 	}
 }

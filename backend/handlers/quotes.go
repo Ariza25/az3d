@@ -19,8 +19,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type QuoteHandler struct {
+	cfg *config.Config
+}
+
+func NewQuoteHandler(cfg *config.Config) *QuoteHandler {
+	return &QuoteHandler{cfg: cfg}
+}
+
+var defaultQuoteHandler = NewQuoteHandler(nil)
+
 // CreateCustom3DQuote persists a 3D STL print quote request in PostgreSQL.
-func CreateCustom3DQuote(c *gin.Context) {
+func (h *QuoteHandler) CreateCustom3DQuote(c *gin.Context) {
 	tenantID := getTenantID(c)
 
 	var input models.Custom3DQuoteInput
@@ -51,7 +61,7 @@ func CreateCustom3DQuote(c *gin.Context) {
 }
 
 // GetCustom3DQuotes lists custom 3D quotes for the tenant admin.
-func GetCustom3DQuotes(c *gin.Context) {
+func (h *QuoteHandler) GetCustom3DQuotes(c *gin.Context) {
 	tenantID := getTenantID(c)
 
 	var quotes []models.Custom3DQuote
@@ -64,7 +74,7 @@ func GetCustom3DQuotes(c *gin.Context) {
 }
 
 // CalculateShippingQuote calculates real SuperFrete freight quotes (PAC, SEDEX, Mini Envios).
-func CalculateShippingQuote(c *gin.Context) {
+func (h *QuoteHandler) CalculateShippingQuote(c *gin.Context) {
 	tenantID := getTenantID(c)
 
 	var input models.ShippingQuoteInput
@@ -305,7 +315,7 @@ func CalculateShippingQuote(c *gin.Context) {
 }
 
 // ParseSTLFile analyzes uploaded .stl 3D mesh and computes volume, dimensions, weight, and price
-func ParseSTLFile(c *gin.Context) {
+func (h *QuoteHandler) ParseSTLFile(c *gin.Context) {
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Arquivo .STL obrigatório no campo 'file'"})
@@ -376,3 +386,8 @@ func parseAnyFloat(val any) float64 {
 	return 0
 }
 
+// Package-level functions for backward compatibility.
+func CreateCustom3DQuote(c *gin.Context)    { defaultQuoteHandler.CreateCustom3DQuote(c) }
+func GetCustom3DQuotes(c *gin.Context)      { defaultQuoteHandler.GetCustom3DQuotes(c) }
+func CalculateShippingQuote(c *gin.Context) { defaultQuoteHandler.CalculateShippingQuote(c) }
+func ParseSTLFile(c *gin.Context)           { defaultQuoteHandler.ParseSTLFile(c) }
