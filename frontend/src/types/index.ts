@@ -84,6 +84,7 @@ export interface Product {
   dimensions: string;
   weight: string;
   slicer_settings?: string;
+  pricing_snapshot?: PrintingPricingInput;
   in_stock: boolean;
   stock_qty: number;
   status: 'draft' | 'active' | 'paused' | string;
