@@ -101,3 +101,6 @@ const TenantAdminConsole: React.FC<{ tenantId?: number }> = ({ tenantId }) => {
     />
   );
 };
+
+export default AdminApp;
+

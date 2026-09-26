@@ -1,15 +1,28 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import { LoadingProvider } from './context/LoadingContext';
 import { ThemeProvider } from './context/ThemeContext';
-import { AdminApp } from './apps/admin/AdminApp';
-import { StoreApp } from './apps/store/StoreApp';
-import { CatalogApp } from './apps/catalog/CatalogApp';
-import { LoginPage } from './apps/auth/LoginPage';
 import { ADMIN_TOKEN_KEY, CUSTOMER_TOKEN_KEY } from './services/api';
 import { getAppPathname, withBasePath } from './shared/basePath';
 import { isCatalogPath, isStoreTenantPath } from './shared/tenantRoutes';
+
+// Code-splitting via dynamic imports
+const AdminApp = lazy(() => import('./apps/admin/AdminApp'));
+const StoreApp = lazy(() => import('./apps/store/StoreApp'));
+const CatalogApp = lazy(() => import('./apps/catalog/CatalogApp'));
+const LoginPage = lazy(() => import('./apps/auth/LoginPage'));
+
+const RouteLoadingFallback = () => (
+  <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-chumbo-950 text-slate-900 dark:text-slate-100">
+    <div className="flex flex-col items-center gap-3">
+      <div className="w-8 h-8 rounded-full border-2 border-laser-500 border-t-transparent animate-spin" />
+      <span className="text-xs font-mono uppercase tracking-widest text-slate-500 dark:text-slate-400">
+        Carregando...
+      </span>
+    </div>
+  </div>
+);
 
 type AppMode = 'admin' | 'store' | 'auth' | 'catalog';
 
@@ -84,27 +97,29 @@ export function App() {
   return (
     <ThemeProvider>
       <LoadingProvider>
-        {currentApp === 'admin' ? (
-          <AuthProvider scope="admin">
-            <AdminApp />
-          </AuthProvider>
-        ) : currentApp === 'auth' ? (
-          <AuthProvider scope="customer">
-            <LoginPage />
-          </AuthProvider>
-        ) : currentApp === 'catalog' ? (
-          <AuthProvider scope="customer">
-            <CartProvider>
-              <CatalogApp />
-            </CartProvider>
-          </AuthProvider>
-        ) : (
-          <AuthProvider scope="customer">
-            <CartProvider>
-              <StoreApp />
-            </CartProvider>
-          </AuthProvider>
-        )}
+        <Suspense fallback={<RouteLoadingFallback />}>
+          {currentApp === 'admin' ? (
+            <AuthProvider scope="admin">
+              <AdminApp />
+            </AuthProvider>
+          ) : currentApp === 'auth' ? (
+            <AuthProvider scope="customer">
+              <LoginPage />
+            </AuthProvider>
+          ) : currentApp === 'catalog' ? (
+            <AuthProvider scope="customer">
+              <CartProvider>
+                <CatalogApp />
+              </CartProvider>
+            </AuthProvider>
+          ) : (
+            <AuthProvider scope="customer">
+              <CartProvider>
+                <StoreApp />
+              </CartProvider>
+            </AuthProvider>
+          )}
+        </Suspense>
       </LoadingProvider>
     </ThemeProvider>
   );

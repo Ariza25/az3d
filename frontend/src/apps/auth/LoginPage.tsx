@@ -466,3 +466,6 @@ const ResetPasswordView: React.FC = () => {
     </div>
   );
 };
+
+export default LoginPage;
+

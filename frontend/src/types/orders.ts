@@ -1,6 +1,6 @@
 import { User } from './auth';
 import { Product } from './products';
-import { OrderShipment } from '../types/shipping';
+import { OrderShipment } from './shipping';
 
 export interface CartItem {
   product: Product;
