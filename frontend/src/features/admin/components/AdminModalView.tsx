@@ -12,7 +12,7 @@ import {
   MarketplaceProductMapping,
 } from '../../../types';
 import { Modal, TabItem } from '../../../components/ui';
-import { ProductFormModal } from '../../../components/ProductFormModal';
+import { ProductFormContainer as ProductFormModal } from '../ProductFormContainer';
 import {
   PricingCalculator,
   PricingManagementPanel,

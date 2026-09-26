@@ -1,7 +1,7 @@
 import React from 'react';
 import { AlertCircle, Save } from 'lucide-react';
 import { Category, Parsed3MFResult, ProductColorImage, ProductInput } from '../../../../types';
-import { SlicerSettingsModal } from '../../../../components/SlicerSettingsModal';
+import { SlicerSettingsModal } from '../SlicerSettingsModal';
 import { ProductFormHeader } from './ProductFormHeader';
 import { ProductGeneralFields } from './ProductGeneralFields';
 import { ProductColorGalleryManager } from './ProductColorGalleryManager';

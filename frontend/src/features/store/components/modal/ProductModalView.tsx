@@ -1,7 +1,7 @@
 import React from 'react';
 import { FileText, Heart, Layers, Star, X } from 'lucide-react';
 import { Product, ProductReview, ValidateCouponResponse } from '../../../../types';
-import { FreightCalculatorWidget } from '../../../../components/FreightCalculatorWidget';
+import { FreightCalculatorWidget } from '../../../cart/components/FreightCalculatorWidget';
 import { ProductGallery, ProductMedia } from './ProductGallery';
 import { ProductQuickSpecs } from './ProductQuickSpecs';
 import { AvailableColorOption, ProductColorSelector } from './ProductColorSelector';

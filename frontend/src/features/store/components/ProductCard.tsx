@@ -1,0 +1,145 @@
+import React from 'react';
+import { Product } from '../../../types';
+import { ShoppingBag, Maximize2, Star } from 'lucide-react';
+import { useCart } from '../../../context/CartContext';
+import { extractProductDimensions, getAvailableColors, getColorVisual, getDefaultColor, getStockStatus, getStoreVariantProduct, money, optimizeImageUrl } from '../../../shared/storePresentation';
+
+const truncateDescription = (text?: string, maxLength = 120): string => {
+  if (!text) return '';
+  const clean = text.replace(/\s+/g, ' ').trim();
+  if (clean.length <= maxLength) return clean;
+  return clean.slice(0, maxLength).trim() + '...';
+};
+
+export interface ProductCardProps {
+  product: Product;
+  onOpenModal: (product: Product) => void;
+}
+
+export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal }) => {
+  const { addToCart } = useCart();
+  const coverImage = optimizeImageUrl(product.color_images?.[0]?.image_url || product.image_url);
+  const stockStatus = getStockStatus(product);
+  const colors = getAvailableColors(product).slice(0, 5);
+  const rating = product.review_summary?.average_rating || product.rating;
+  const reviewCount = product.review_summary?.review_count || product.review_count || 0;
+  const defaultColor = getDefaultColor(product);
+  const defaultProduct = getStoreVariantProduct(product, defaultColor);
+
+  return (
+    <article className="glass-card group flex h-full flex-col overflow-hidden rounded-2xl border border-chumbo-800 transition-all duration-300 hover:border-chumbo-600">
+      <div
+        className="relative aspect-square cursor-pointer overflow-hidden bg-chumbo-950"
+        onClick={() => onOpenModal(product)}
+      >
+        <img
+          src={coverImage}
+          alt={product.title}
+          loading="lazy"
+          decoding="async"
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-chumbo-950 via-transparent to-transparent opacity-80" />
+
+        <div className="absolute left-2 top-2 sm:left-3 sm:top-3">
+          <div className={`border px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[10px] sm:text-[11px] font-bold ${stockStatus.tone}`}>
+            {stockStatus.label}
+          </div>
+        </div>
+
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenModal(product);
+          }}
+          className="absolute top-2 right-2 sm:top-3 sm:right-3 p-1.5 sm:p-2 rounded-xl bg-chumbo-950/80 hover:bg-chumbo-800 text-slate-300 hover:text-white border border-chumbo-700/80 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-200"
+          title="Ver detalhes do produto"
+        >
+          <Maximize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+        </button>
+      </div>
+
+      <div className="flex flex-1 flex-col p-3 sm:p-5">
+        <div className="flex-1">
+          <div className="flex items-start justify-between gap-1">
+            <h3
+              onClick={() => onOpenModal(product)}
+              className="text-xs sm:text-base font-bold text-white group-hover:text-slate-200 transition-colors line-clamp-2 cursor-pointer leading-tight"
+            >
+              {product.title}
+            </h3>
+            {rating && reviewCount > 0 && (
+              <span className="inline-flex shrink-0 items-center gap-0.5 text-[10px] sm:text-xs font-bold text-amber-300">
+                <Star className="h-3 w-3 sm:h-3.5 sm:w-3.5 fill-amber-300" />
+                {rating.toFixed(1)}
+              </span>
+            )}
+          </div>
+
+          {product.description && (
+            <p
+              className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-slate-400 overflow-hidden"
+              style={{
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                maxHeight: '2.6rem',
+              }}
+              title={product.description}
+            >
+              {truncateDescription(product.description, 120)}
+            </p>
+          )}
+
+          {(() => {
+            const dim = extractProductDimensions(product);
+            if (!dim) return null;
+            return (
+              <p className="mt-1 text-[11px] sm:text-xs font-medium text-slate-400 truncate">
+                Dimensões: <span className="font-semibold text-slate-200">{dim}</span>
+              </p>
+            );
+          })()}
+        </div>
+
+        {/* Available Color Swatches */}
+        <div className="mt-2 sm:mt-4 flex items-center justify-between text-[10px] sm:text-[11px] font-mono text-slate-500">
+          <div className="flex items-center -space-x-1 sm:-space-x-1.5">
+            {colors.map((color) => {
+              const visual = getColorVisual(color);
+              return (
+                <span
+                  key={color}
+                  title={color}
+                  className="h-3 w-3 sm:h-4 sm:w-4 rounded-full border border-chumbo-950 ring-1 ring-chumbo-700"
+                  style={{ backgroundColor: visual.hex, borderColor: visual.border }}
+                />
+              );
+            })}
+          </div>
+          {colors.length > 0 && (
+            <span className="text-[10px] text-slate-400 sm:text-xs font-mono">{colors.length} cor{colors.length > 1 ? 'es' : ''}</span>
+          )}
+        </div>
+
+        <div className="mt-3 sm:mt-5 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] items-stretch sm:items-end gap-2 sm:gap-3 border-t border-chumbo-800 pt-2.5 sm:pt-4">
+          <div className="min-w-0">
+            <span className="text-[9px] sm:text-[10px] uppercase font-mono tracking-wider text-slate-400 block">
+              {product.store_variants?.some((variant) => variant.price !== product.price) ? 'A partir de' : 'Preço'}
+            </span>
+            <span className="block whitespace-nowrap text-sm sm:text-xl font-extrabold text-white">{money(product.price)}</span>
+          </div>
+
+          <button
+            onClick={() => addToCart(defaultProduct, 1, defaultColor)}
+            disabled={!stockStatus.canBuy}
+            className="flex h-9 sm:h-11 items-center justify-center space-x-1.5 rounded-xl bg-white px-2.5 sm:px-4 text-chumbo-950 shadow-md transition-all hover:bg-slate-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            <ShoppingBag className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span className="text-[11px] sm:text-xs font-extrabold">{stockStatus.canBuy ? 'Comprar' : 'Esgotado'}</span>
+          </button>
+        </div>
+      </div>
+    </article>
+  );
+};

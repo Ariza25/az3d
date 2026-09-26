@@ -3,7 +3,7 @@ import { Product, TenantSettings } from '../../types';
 import { useTenantCatalog } from '../../shared/hooks/useTenantCatalog';
 import { useCart } from '../../context/CartContext';
 import { api } from '../../services/api';
-import { AvailabilityFilter, StoreSort } from '../../components/StoreFilters';
+import { AvailabilityFilter, StoreSort } from './components/StoreFilters';
 import { getStockStatus, getTotalStock, groupMarketplaceProducts } from '../../shared/storePresentation';
 import { getCurrentStoreRouteStyle, getProductPath, getStorePath } from '../../shared/tenantRoutes';
 import { getAppPathname, withBasePath } from '../../shared/basePath';

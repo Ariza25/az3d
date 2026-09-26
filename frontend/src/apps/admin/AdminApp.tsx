@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, LockKeyhole, ShieldAlert } from 'lucide-react';
-import { AdminModal } from '../../components/AdminModal';
-import { LoginModal } from '../../components/LoginModal';
+import { AdminModalContainer as AdminModal } from '../../features/admin';
+import { LoginModal } from '../../features/auth';
 import { useAuth } from '../../context/AuthContext';
 import { MasterAdminConsole } from '../../features/admin/components/MasterAdminConsole';
 import { useTenantCatalog } from '../../shared/hooks/useTenantCatalog';

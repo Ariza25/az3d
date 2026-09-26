@@ -14,8 +14,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { ADMIN_TOKEN_KEY, api } from '../../services/api';
 import { getAppPathname, withBasePath } from '../../shared/basePath';
-import { ForgotPasswordModal } from '../../components/ForgotPasswordModal';
-import { RegisterModal } from '../../components/RegisterModal';
+import { ForgotPasswordModal, RegisterModal } from '../../features/auth';
 import { AZ3DLogo } from '../../components/AZ3DLogo';
 
 export const LoginPage: React.FC = () => {

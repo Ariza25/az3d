@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Product, Category, Tenant } from '../../../types';
 import { Button, SearchInput } from '../../../components/ui';
 import { Edit2, Plus, Trash2, Calculator } from 'lucide-react';
-import { CatalogCategoriesPanel } from '../../../components/CatalogCategoriesPanel';
+import { CatalogCategoriesPanel } from './CatalogCategoriesPanel';
 import { ProductPricingDetailsModal } from './ProductPricingDetailsModal';
 
 export interface AdminProductsTabProps {
