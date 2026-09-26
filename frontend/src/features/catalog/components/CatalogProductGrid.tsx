@@ -32,7 +32,7 @@ export const CatalogProductGrid: React.FC<CatalogProductGridProps> = ({
 }) => {
   if (isLoading && products.length === 0) {
     return (
-      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5 sm:gap-4 lg:gap-6">
         {Array.from({ length: 8 }).map((_, i) => (
           <div
             key={i}
@@ -75,8 +75,8 @@ export const CatalogProductGrid: React.FC<CatalogProductGridProps> = ({
   return (
     <>
       {viewMode === 'grid' ? (
-        /* Grade Visual Ampla (Mobile: 2 colunas / Tablet: 3 colunas / PC: 4 colunas) */
-        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-6">
+        /* Grade Visual Ampla (Mobile: 1 coluna para não quebrar / Tablet: 2-3 colunas / PC: 4 colunas) */
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5 sm:gap-4 lg:gap-6">
           {products.map((product) => (
             <CatalogProductCard
               key={product.id}
@@ -117,9 +117,9 @@ export const CatalogProductGrid: React.FC<CatalogProductGridProps> = ({
               <div
                 key={product.id}
                 onClick={() => onOpenDetail(product, 0)}
-                className="group flex items-center justify-between gap-3 p-3 rounded-2xl border border-slate-200/90 dark:border-chumbo-800 bg-white dark:bg-chumbo-900/40 hover:bg-slate-50 dark:hover:bg-chumbo-900/80 hover:border-slate-300 dark:hover:border-chumbo-700 transition-all cursor-pointer shadow-xs"
+                className="group flex items-center justify-between gap-2.5 sm:gap-3 p-2.5 sm:p-3 rounded-2xl border border-slate-200/90 dark:border-chumbo-800 bg-white dark:bg-chumbo-900/40 hover:bg-slate-50 dark:hover:bg-chumbo-900/80 hover:border-slate-300 dark:hover:border-chumbo-700 transition-all cursor-pointer shadow-xs"
               >
-                <div className="flex items-center gap-3 min-w-0">
+                <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
                   <img
                     src={cover}
                     alt={product.title}
@@ -127,24 +127,24 @@ export const CatalogProductGrid: React.FC<CatalogProductGridProps> = ({
                     decoding="async"
                     className="h-14 w-14 sm:h-16 sm:w-16 rounded-xl object-cover bg-slate-100 dark:bg-chumbo-950 border border-slate-200 dark:border-chumbo-800 shrink-0"
                   />
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate group-hover:text-cyan-600 dark:group-hover:text-cyan-300">
                       {product.title}
                     </h4>
                     {dim && (
-                      <p className="text-xs sm:text-[13px] font-medium text-slate-700 dark:text-slate-300 truncate">
+                      <p className="text-[11px] sm:text-[13px] font-medium text-slate-700 dark:text-slate-300 truncate">
                         Dimensões do produto: <span className="font-bold text-slate-900 dark:text-slate-100">{dim}</span>
                       </p>
                     )}
-                    <span className={`inline-block mt-1 px-2 py-0.2 rounded-md text-[9px] font-bold border ${status.tone}`}>
+                    <span className={`inline-block mt-0.5 px-2 py-0.2 rounded-md text-[9px] font-bold border ${status.tone}`}>
                       {status.label}
                     </span>
                   </div>
                 </div>
 
-                <div className="shrink-0 text-right">
+                <div className="shrink-0 text-right pl-2">
                   <span className="text-[10px] sm:text-xs font-bold uppercase text-slate-500 dark:text-slate-400 block">Preço:</span>
-                  <span className="text-base sm:text-lg font-black text-cyan-700 dark:text-cyan-400">
+                  <span className="text-sm sm:text-lg font-black text-cyan-700 dark:text-cyan-400">
                     {money(product.price)}
                   </span>
                 </div>

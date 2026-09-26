@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Maximize2, Star } from 'lucide-react';
 import { Product } from '../../../types';
 import {
@@ -34,6 +34,9 @@ export interface CatalogProductCardProps {
 export const CatalogProductCard: React.FC<CatalogProductCardProps> = ({ product, onOpenDetail }) => {
   const images = useMemo(() => getProductImages(product), [product]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const touchStartXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+  const hasSwipedRef = useRef(false);
 
   const activeImage = optimizeImageUrl(images[currentImageIndex] || images[0] || product.image_url);
   const status = getStockStatus(product);
@@ -51,12 +54,45 @@ export const CatalogProductCard: React.FC<CatalogProductCardProps> = ({ product,
     setCurrentImageIndex((prev) => (prev + 1) % images.length);
   };
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartXRef.current = e.touches[0].clientX;
+    touchStartYRef.current = e.touches[0].clientY;
+    hasSwipedRef.current = false;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartXRef.current === null || touchStartYRef.current === null) return;
+    const deltaX = e.changedTouches[0].clientX - touchStartXRef.current;
+    const deltaY = e.changedTouches[0].clientY - touchStartYRef.current;
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+
+    if (Math.abs(deltaX) > 40 && Math.abs(deltaY) < 40 && images.length > 1) {
+      hasSwipedRef.current = true;
+      if (deltaX < 0) {
+        setCurrentImageIndex((prev) => (prev + 1) % images.length);
+      } else {
+        setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
+      }
+    }
+  };
+
+  const handleImageClick = () => {
+    if (hasSwipedRef.current) {
+      hasSwipedRef.current = false;
+      return;
+    }
+    onOpenDetail(product, currentImageIndex);
+  };
+
   return (
     <article className="group flex flex-col overflow-hidden rounded-2xl border border-slate-200/90 dark:border-chumbo-800/90 bg-white dark:bg-chumbo-900/50 hover:border-slate-300 dark:hover:border-chumbo-700 transition-all duration-300 shadow-sm hover:shadow-xl hover:shadow-slate-200/50 dark:hover:shadow-black/40">
-      {/* Imagem do Produto com Carrossel de Setas estilo Mercado Livre */}
+      {/* Imagem do Produto com Carrossel de Setas e Swipe Touch */}
       <div
         className="relative aspect-square w-full cursor-pointer overflow-hidden bg-slate-100 dark:bg-chumbo-950 select-none"
-        onClick={() => onOpenDetail(product, currentImageIndex)}
+        onClick={handleImageClick}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
       >
         <img
           src={activeImage}
@@ -69,7 +105,7 @@ export const CatalogProductCard: React.FC<CatalogProductCardProps> = ({ product,
 
         {/* Badge de Disponibilidade */}
         <div className="absolute left-2.5 top-2.5 z-10 pointer-events-none">
-          <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border ${status.tone}`}>
+          <span className={`px-2.5 py-0.5 rounded-lg text-[10px] sm:text-xs font-bold border ${status.tone}`}>
             {status.label}
           </span>
         </div>
@@ -80,7 +116,7 @@ export const CatalogProductCard: React.FC<CatalogProductCardProps> = ({ product,
             <button
               type="button"
               onClick={handlePrev}
-              className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-white/95 dark:bg-chumbo-900/95 text-slate-800 dark:text-slate-100 flex items-center justify-center shadow-lg hover:bg-white dark:hover:bg-chumbo-800 hover:scale-110 active:scale-95 transition-all opacity-0 group-hover:opacity-100 max-sm:opacity-90 border border-slate-200/80 dark:border-chumbo-700/80 cursor-pointer"
+              className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white/95 dark:bg-chumbo-900/95 text-slate-800 dark:text-slate-100 flex items-center justify-center shadow-lg hover:bg-white dark:hover:bg-chumbo-800 hover:scale-110 active:scale-95 transition-all opacity-0 group-hover:opacity-100 max-sm:opacity-90 border border-slate-200/80 dark:border-chumbo-700/80 cursor-pointer"
               title="Foto anterior"
               aria-label="Foto anterior"
             >
@@ -90,7 +126,7 @@ export const CatalogProductCard: React.FC<CatalogProductCardProps> = ({ product,
             <button
               type="button"
               onClick={handleNext}
-              className="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-white/95 dark:bg-chumbo-900/95 text-slate-800 dark:text-slate-100 flex items-center justify-center shadow-lg hover:bg-white dark:hover:bg-chumbo-800 hover:scale-110 active:scale-95 transition-all opacity-0 group-hover:opacity-100 max-sm:opacity-90 border border-slate-200/80 dark:border-chumbo-700/80 cursor-pointer"
+              className="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white/95 dark:bg-chumbo-900/95 text-slate-800 dark:text-slate-100 flex items-center justify-center shadow-lg hover:bg-white dark:hover:bg-chumbo-800 hover:scale-110 active:scale-95 transition-all opacity-0 group-hover:opacity-100 max-sm:opacity-90 border border-slate-200/80 dark:border-chumbo-700/80 cursor-pointer"
               title="Próxima foto"
               aria-label="Próxima foto"
             >
@@ -139,47 +175,48 @@ export const CatalogProductCard: React.FC<CatalogProductCardProps> = ({ product,
           </>
         )}
 
-        {/* Botão de Zoom/Detalhes Rápido */}
+        {/* Botão de Zoom/Ampliar Rápido */}
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
             onOpenDetail(product, currentImageIndex);
           }}
-          className="absolute bottom-2.5 right-2.5 z-20 p-2 rounded-xl bg-white/90 dark:bg-chumbo-950/80 text-slate-700 dark:text-slate-300 hover:text-cyan-600 dark:hover:text-white border border-slate-200/60 dark:border-chumbo-700/80 opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-sm cursor-pointer"
-          title="Ver detalhes da peça"
+          className="absolute bottom-2.5 right-2.5 z-20 p-2 rounded-xl bg-white/90 dark:bg-chumbo-950/80 text-slate-700 dark:text-slate-300 hover:text-cyan-600 dark:hover:text-white border border-slate-200/60 dark:border-chumbo-700/80 opacity-0 group-hover:opacity-100 max-sm:opacity-90 transition-all duration-200 shadow-sm cursor-pointer"
+          title="Ampliar foto da peça"
+          aria-label="Ampliar foto da peça"
         >
           <Maximize2 className="w-3.5 h-3.5" />
         </button>
       </div>
 
       {/* Informações da Peça */}
-      <div className="p-3 sm:p-4 flex flex-1 flex-col justify-between space-y-3">
+      <div className="p-3.5 sm:p-4 flex flex-1 flex-col justify-between space-y-3">
         <div className="space-y-1.5">
-          <div className="flex items-start justify-between gap-1">
+          <div className="flex items-start justify-between gap-2">
             <h4
-              onClick={() => onOpenDetail(product, currentImageIndex)}
-              className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-300 transition-colors line-clamp-2 cursor-pointer leading-tight"
+              onClick={handleImageClick}
+              className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-300 transition-colors line-clamp-2 cursor-pointer leading-snug"
             >
               {product.title}
             </h4>
             {rating && rating > 0 && (
-              <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-500 dark:text-amber-300 shrink-0">
-                <Star className="w-3 h-3 fill-amber-400 dark:fill-amber-300" />
+              <span className="inline-flex items-center gap-0.5 text-xs font-bold text-amber-500 dark:text-amber-300 shrink-0 bg-amber-500/10 px-1.5 py-0.5 rounded-md">
+                <Star className="w-3.5 h-3.5 fill-amber-400 dark:fill-amber-300" />
                 {rating.toFixed(1)}
               </span>
             )}
           </div>
 
           {dim && (
-            <p className="text-xs sm:text-[13px] font-medium text-slate-700 dark:text-slate-300">
+            <p className="text-xs sm:text-[13px] font-medium text-slate-600 dark:text-slate-300">
               Dimensões do produto: <span className="font-bold text-slate-900 dark:text-slate-100">{dim}</span>
             </p>
           )}
 
           {/* Swatches de Cores: clicar na cor troca para a foto da cor no card */}
           {colors.length > 0 && (
-            <div className="flex items-center gap-1 pt-1">
+            <div className="flex items-center gap-1.5 pt-1 flex-wrap">
               {colors.map((c) => {
                 const visual = getColorVisual(c);
                 return (
@@ -197,13 +234,13 @@ export const CatalogProductCard: React.FC<CatalogProductCardProps> = ({ product,
                         if (targetIdx >= 0) setCurrentImageIndex(targetIdx);
                       }
                     }}
-                    className="h-3.5 w-3.5 rounded-full border border-white dark:border-chumbo-900 ring-1 ring-slate-300 dark:ring-chumbo-700 shadow-xs hover:scale-125 transition-transform cursor-pointer"
+                    className="h-4 w-4 rounded-full border border-white dark:border-chumbo-900 ring-1 ring-slate-300 dark:ring-chumbo-700 shadow-xs hover:scale-125 transition-transform cursor-pointer"
                     style={{ backgroundColor: visual.hex }}
                   />
                 );
               })}
               {colors.length > 1 && (
-                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
                   +{colors.length} cores
                 </span>
               )}
@@ -211,16 +248,24 @@ export const CatalogProductCard: React.FC<CatalogProductCardProps> = ({ product,
           )}
         </div>
 
-        {/* Preço */}
+        {/* Preço e Botão Ver Detalhes */}
         <div className="pt-2.5 border-t border-slate-200 dark:border-chumbo-800/80 flex items-center justify-between gap-2">
           <div>
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+            <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
               Preço:
             </span>
-            <span className="text-base sm:text-lg lg:text-xl font-black text-cyan-700 dark:text-cyan-400">
+            <span className="text-lg sm:text-xl lg:text-2xl font-black text-cyan-700 dark:text-cyan-400">
               {money(product.price)}
             </span>
           </div>
+
+          <button
+            type="button"
+            onClick={() => onOpenDetail(product, currentImageIndex)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold bg-cyan-600 hover:bg-cyan-500 text-white transition-all shadow-sm active:scale-95 cursor-pointer"
+          >
+            <span>Ver detalhes</span>
+          </button>
         </div>
       </div>
     </article>
