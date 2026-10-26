@@ -68,7 +68,7 @@ func (h *AuthHandler) StartGoogleOAuth(c *gin.Context) {
 		return
 	}
 
-	tenantID := getTenantIDFromRequest(c)
+	tenantID := getTenantID(c)
 	returnTo := sanitizeReturnPath(c.Query("return_to"), scope)
 	state := googleOAuthState{
 		Scope:     scope,
@@ -375,20 +375,6 @@ func (h *AuthHandler) redirectGoogleError(c *gin.Context, message string, scope 
 		"&scope=" + url.QueryEscape(scope) +
 		"&return_to=" + url.QueryEscape(sanitizeReturnPath(returnTo, scope))
 	c.Redirect(http.StatusFound, target)
-}
-
-func getTenantIDFromRequest(c *gin.Context) uint {
-	if tenantHeader := strings.TrimSpace(c.GetHeader("X-Tenant-ID")); tenantHeader != "" {
-		if parsed, err := strconv.Atoi(tenantHeader); err == nil && parsed > 0 {
-			return uint(parsed)
-		}
-	}
-	if tenantQuery := strings.TrimSpace(c.Query("tenant_id")); tenantQuery != "" {
-		if parsed, err := strconv.Atoi(tenantQuery); err == nil && parsed > 0 {
-			return uint(parsed)
-		}
-	}
-	return 1
 }
 
 func sanitizeReturnPath(returnTo string, scope string) string {

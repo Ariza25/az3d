@@ -1210,4 +1210,3 @@ func cleanDigits(val string) string {
 	}
 	return digits
 }
-

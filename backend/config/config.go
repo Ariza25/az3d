@@ -57,6 +57,7 @@ type Config struct {
 	SMTPFrom                   string
 	SMTPTLSMode                string
 	HTTPWriteTimeout           int
+	MarketplaceWebhooksEnabled bool
 }
 
 func LoadConfig() *Config {
@@ -95,7 +96,8 @@ func LoadConfig() *Config {
 		RequireStrongSecrets:       getEnvBool("REQUIRE_STRONG_SECRETS", false),
 		CredentialEncryptionKey:    getEnv("CREDENTIAL_ENCRYPTION_KEY", ""),
 		TrackingSyncIntervalMin:    getEnvIntAllowZero("TRACKING_SYNC_INTERVAL_MINUTES", 0),
-		MarketplaceSyncIntervalMin: getEnvIntAllowZero("MARKETPLACE_SYNC_INTERVAL_MINUTES", 1),
+		MarketplaceSyncIntervalMin: getEnvIntAllowZero("MARKETPLACE_SYNC_INTERVAL_MINUTES", 0),
+		MarketplaceWebhooksEnabled: getEnvBool("MARKETPLACE_WEBHOOKS_ENABLED", true),
 		GoogleOAuthClientID:        getEnv("GOOGLE_OAUTH_CLIENT_ID", ""),
 		GoogleOAuthClientSecret:    getEnv("GOOGLE_OAUTH_CLIENT_SECRET", ""),
 		GoogleOAuthRedirectURL:     getEnv("GOOGLE_OAUTH_REDIRECT_URL", ""),

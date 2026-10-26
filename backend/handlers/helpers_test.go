@@ -2,7 +2,10 @@ package handlers
 
 import (
 	"errors"
+	"net/http/httptest"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 )
 
 func TestIsDuplicateKeyError(t *testing.T) {
@@ -42,5 +45,91 @@ func TestIsForeignKeyError(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("isForeignKeyError(%v) = %v, want %v", tt.err, got, tt.want)
 		}
+	}
+}
+
+func TestGetTenantID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("from context", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Set("tenantID", uint(42))
+
+		got := getTenantID(c)
+		if got != 42 {
+			t.Errorf("expected tenantID 42, got %d", got)
+		}
+	})
+
+	t.Run("from header", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/test", nil)
+		c.Request.Header.Set("X-Tenant-ID", "99")
+
+		got := getTenantID(c)
+		if got != 99 {
+			t.Errorf("expected tenantID 99, got %d", got)
+		}
+	})
+
+	t.Run("from query param", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/test?tenant_id=7", nil)
+
+		got := getTenantID(c)
+		if got != 7 {
+			t.Errorf("expected tenantID 7, got %d", got)
+		}
+	})
+
+	t.Run("default fallback", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/test", nil)
+
+		got := getTenantID(c)
+		if got != 1 {
+			t.Errorf("expected tenantID fallback 1, got %d", got)
+		}
+	})
+}
+
+func TestGetUserID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("found uint", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Set("userID", uint(123))
+
+		id, ok := getUserID(c)
+		if !ok || id != 123 {
+			t.Errorf("expected (123, true), got (%d, %v)", id, ok)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+
+		id, ok := getUserID(c)
+		if ok || id != 0 {
+			t.Errorf("expected (0, false), got (%d, %v)", id, ok)
+		}
+	})
+}
+
+func TestFirstNonEmpty(t *testing.T) {
+	got := firstNonEmpty("", "  ", "hello", "world")
+	if got != "hello" {
+		t.Errorf("expected 'hello', got '%s'", got)
+	}
+
+	gotEmpty := firstNonEmpty("", "  ")
+	if gotEmpty != "" {
+		t.Errorf("expected '', got '%s'", gotEmpty)
 	}
 }

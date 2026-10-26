@@ -5,19 +5,19 @@ import (
 )
 
 type TenantCarrierAccount struct {
-	ID                   uint       `gorm:"primaryKey" json:"id"`
-	TenantID             uint       `gorm:"not null;index;uniqueIndex:idx_carrier_account_tenant_provider" json:"tenant_id"`
-	Tenant               *Tenant    `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
-	Provider             string     `gorm:"size:50;not null;uniqueIndex:idx_carrier_account_tenant_provider" json:"provider"`
-	AccountName          string     `gorm:"size:120" json:"account_name"`
-	AuthType             string     `gorm:"size:40;default:'contract_credentials'" json:"auth_type"`
-	OriginCEP            string     `gorm:"size:10" json:"origin_cep"`
-	EncryptedCredentials string     `gorm:"type:text" json:"-"`
-	TokenExpiresAt       *time.Time `json:"token_expires_at,omitempty"`
-	IsActive             bool       `gorm:"default:true" json:"is_active"`
-	IsConnected          bool       `gorm:"default:false" json:"is_connected"`
-	SyncTracking         bool       `gorm:"default:true" json:"sync_tracking"`
-	LastSyncAt           *time.Time `json:"last_sync_at,omitempty"`
+	ID                   uint           `gorm:"primaryKey" json:"id"`
+	TenantID             uint           `gorm:"not null;index;uniqueIndex:idx_carrier_account_tenant_provider" json:"tenant_id"`
+	Tenant               *Tenant        `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+	Provider             string         `gorm:"size:50;not null;uniqueIndex:idx_carrier_account_tenant_provider" json:"provider"`
+	AccountName          string         `gorm:"size:120" json:"account_name"`
+	AuthType             string         `gorm:"size:40;default:'contract_credentials'" json:"auth_type"`
+	OriginCEP            string         `gorm:"size:10" json:"origin_cep"`
+	EncryptedCredentials string         `gorm:"type:text" json:"-"`
+	TokenExpiresAt       *time.Time     `json:"token_expires_at,omitempty"`
+	IsActive             bool           `gorm:"default:true" json:"is_active"`
+	IsConnected          bool           `gorm:"default:false" json:"is_connected"`
+	SyncTracking         bool           `gorm:"default:true" json:"sync_tracking"`
+	LastSyncAt           *time.Time     `json:"last_sync_at,omitempty"`
 	LastError            string         `gorm:"type:text" json:"last_error,omitempty"`
 	Settings             map[string]any `gorm:"-" json:"settings,omitempty"`
 	CreatedAt            time.Time      `json:"created_at"`
@@ -57,11 +57,11 @@ type ShipmentEvent struct {
 }
 
 type Order struct {
-	ID              uint            `gorm:"primaryKey" json:"id"`
-	TenantID        uint            `gorm:"default:1;index" json:"tenant_id"`
-	Tenant          *Tenant         `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
-	UserID          uint            `gorm:"not null" json:"user_id"`
-	User            *User           `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	ID                uint            `gorm:"primaryKey" json:"id"`
+	TenantID          uint            `gorm:"default:1;index" json:"tenant_id"`
+	Tenant            *Tenant         `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+	UserID            uint            `gorm:"not null" json:"user_id"`
+	User              *User           `gorm:"foreignKey:UserID" json:"user,omitempty"`
 	SubtotalAmount    float64         `gorm:"default:0" json:"subtotal_amount"`
 	ShippingCost      float64         `gorm:"default:0" json:"shipping_cost"`
 	CouponCode        string          `gorm:"size:50" json:"coupon_code,omitempty"`

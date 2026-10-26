@@ -213,4 +213,3 @@ func cleanCEP(val string) string {
 	}
 	return digits
 }
-

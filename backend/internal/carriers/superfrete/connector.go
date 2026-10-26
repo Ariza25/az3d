@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	defaultBaseURL = "https://api.superfrete.com/api/v0"
+	defaultBaseURL   = "https://api.superfrete.com/api/v0"
 	defaultUserAgent = "AZ3D-Platform/1.0"
 )
 
@@ -47,12 +47,12 @@ type ShippingOption struct {
 }
 
 type superFreteCalcResponseItem struct {
-	ID           int     `json:"id"`
-	Name         string  `json:"name"`
-	Price        float64 `json:"price"`
-	Discount     any     `json:"discount"`
-	Currency     string  `json:"currency"`
-	DeliveryTime int     `json:"delivery_time"`
+	ID            int     `json:"id"`
+	Name          string  `json:"name"`
+	Price         float64 `json:"price"`
+	Discount      any     `json:"discount"`
+	Currency      string  `json:"currency"`
+	DeliveryTime  int     `json:"delivery_time"`
 	DeliveryRange struct {
 		Min int `json:"min"`
 		Max int `json:"max"`

@@ -16,16 +16,16 @@ type AmazonTrendKeyword struct {
 }
 
 type AmazonCompetitorItem struct {
-	ID             string  `json:"id"`
-	ASIN           string  `json:"asin"`
-	Title          string  `json:"title"`
-	Price          float64 `json:"price"`
-	Rating         float64 `json:"rating"`
-	ReviewCount    int     `json:"review_count"`
-	IsPrime        bool    `json:"is_prime"`
-	IsFBA          bool    `json:"is_fba"`
-	Brand          string  `json:"brand"`
-	Thumbnail      string  `json:"thumbnail"`
+	ID          string  `json:"id"`
+	ASIN        string  `json:"asin"`
+	Title       string  `json:"title"`
+	Price       float64 `json:"price"`
+	Rating      float64 `json:"rating"`
+	ReviewCount int     `json:"review_count"`
+	IsPrime     bool    `json:"is_prime"`
+	IsFBA       bool    `json:"is_fba"`
+	Brand       string  `json:"brand"`
+	Thumbnail   string  `json:"thumbnail"`
 }
 
 type AmazonSearchInsight struct {
@@ -47,16 +47,16 @@ type AmazonSearchInsight struct {
 }
 
 type AmazonListingAudit struct {
-	Title           string   `json:"title"`
-	HealthScore     int      `json:"health_score"` // 0-100
-	TitleScore      int      `json:"title_score"`  // 0-25
-	BulletPointsScore int    `json:"bullet_points_score"` // 0-25
-	PriceScore      int      `json:"price_score"`  // 0-25
-	PrimeScore      int      `json:"prime_score"`  // 0-25
-	TitleLength     int      `json:"title_length"`
-	AmazonFee       float64  `json:"amazon_fee"`
-	FBAFee          float64  `json:"fba_fee"`
-	Recommendations []string `json:"recommendations"`
+	Title             string   `json:"title"`
+	HealthScore       int      `json:"health_score"`        // 0-100
+	TitleScore        int      `json:"title_score"`         // 0-25
+	BulletPointsScore int      `json:"bullet_points_score"` // 0-25
+	PriceScore        int      `json:"price_score"`         // 0-25
+	PrimeScore        int      `json:"prime_score"`         // 0-25
+	TitleLength       int      `json:"title_length"`
+	AmazonFee         float64  `json:"amazon_fee"`
+	FBAFee            float64  `json:"fba_fee"`
+	Recommendations   []string `json:"recommendations"`
 }
 
 type AmazonProductOpportunity struct {

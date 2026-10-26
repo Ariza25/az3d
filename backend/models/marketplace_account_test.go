@@ -33,4 +33,3 @@ func TestMarketplaceAccountCredentialHooksEncryptAndDecryptTokens(t *testing.T) 
 		t.Fatalf("credentials were not restored after save: %#v", account)
 	}
 }
-

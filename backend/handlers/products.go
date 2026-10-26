@@ -277,14 +277,8 @@ func getCustomerUserID(c *gin.Context) (uint, bool) {
 		return 0, false
 	}
 
-	userIDVal, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuario nao autenticado"})
-		return 0, false
-	}
-
-	userID, ok := userIDVal.(uint)
-	if !ok || userID == 0 {
+	userID, ok := getUserID(c)
+	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuario nao autenticado"})
 		return 0, false
 	}
@@ -458,35 +452,6 @@ func customerPurchasedProduct(tenantID uint, userID uint, productID uint) bool {
 		Where("orders.tenant_id = ? AND orders.user_id = ? AND order_items.product_id = ? AND orders.status <> ?", tenantID, userID, productID, "cancelled").
 		Count(&count)
 	return count > 0
-}
-
-func getTenantID(c *gin.Context) uint {
-	if ctxVal, exists := c.Get("tenantID"); exists {
-		if id, ok := ctxVal.(uint); ok && id > 0 {
-			return id
-		}
-	}
-
-	// 1. Tentar pegar do header X-Tenant-ID
-	if headerVal := c.GetHeader("X-Tenant-ID"); headerVal != "" {
-		if id, err := strconv.Atoi(headerVal); err == nil && id > 0 {
-			return uint(id)
-		}
-	}
-	// 2. Tentar pegar da Query string ?tenant_id=
-	if queryVal := c.Query("tenant_id"); queryVal != "" {
-		if id, err := strconv.Atoi(queryVal); err == nil && id > 0 {
-			return uint(id)
-		}
-	}
-	// 3. Tentar pegar do contexto autenticado (JWT)
-	if ctxVal, exists := c.Get("tenantID"); exists {
-		if id, ok := ctxVal.(uint); ok && id > 0 {
-			return id
-		}
-	}
-	// Padrão: Tenant 1 (AZ3D)
-	return 1
 }
 
 // GET /api/categories

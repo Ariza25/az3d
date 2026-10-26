@@ -408,9 +408,9 @@ func (h *FilamentHandler) GetFilamentSpoolLogs(c *gin.Context) {
 }
 
 // Package-level functions for backward compatibility.
-func CreateFilamentSpool(c *gin.Context) { defaultFilamentHandler.CreateFilamentSpool(c) }
-func UpdateFilamentSpool(c *gin.Context) { defaultFilamentHandler.UpdateFilamentSpool(c) }
-func DeleteFilamentSpool(c *gin.Context) { defaultFilamentHandler.DeleteFilamentSpool(c) }
-func CheckOrderFilament(c *gin.Context)  { defaultFilamentHandler.CheckOrderFilament(c) }
-func DeductFilament(c *gin.Context)      { defaultFilamentHandler.DeductFilament(c) }
+func CreateFilamentSpool(c *gin.Context)  { defaultFilamentHandler.CreateFilamentSpool(c) }
+func UpdateFilamentSpool(c *gin.Context)  { defaultFilamentHandler.UpdateFilamentSpool(c) }
+func DeleteFilamentSpool(c *gin.Context)  { defaultFilamentHandler.DeleteFilamentSpool(c) }
+func CheckOrderFilament(c *gin.Context)   { defaultFilamentHandler.CheckOrderFilament(c) }
+func DeductFilament(c *gin.Context)       { defaultFilamentHandler.DeductFilament(c) }
 func GetFilamentSpoolLogs(c *gin.Context) { defaultFilamentHandler.GetFilamentSpoolLogs(c) }

@@ -725,7 +725,6 @@ func marketplaceAccountFromModel(account models.MarketplaceAccount) marketplaces
 	}
 }
 
-
 func marketplaceConnectorErrorMessage(err error) string {
 	if err == nil {
 		return ""

@@ -46,8 +46,8 @@ type Product struct {
 	Weight         string `gorm:"size:50;default:'180g'" json:"weight"`
 	SlicerSettings string `gorm:"type:text" json:"slicer_settings,omitempty"`
 	InStock        bool   `gorm:"default:true" json:"in_stock"`
-	StockQty    int    `gorm:"default:10" json:"stock_qty"`
-	Status      string `gorm:"size:20;default:'active';index" json:"status"`
+	StockQty       int    `gorm:"default:10" json:"stock_qty"`
+	Status         string `gorm:"size:20;default:'active';index" json:"status"`
 
 	SourceProvider   string     `gorm:"size:50;index" json:"source_provider"`
 	SourceExternalID string     `gorm:"size:120;index" json:"source_external_id"`

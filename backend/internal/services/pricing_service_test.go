@@ -10,21 +10,21 @@ import (
 
 func TestCalculatePrintingPricing_StandardValues(t *testing.T) {
 	input := models.PricingCalculationInput{
-		ProductWeightGrams:  100, // 100g
-		SupportWeightGrams:  20,  // 20g support
-		PrintMinutes:        120, // 2 hours
-		SpoolPrice:          120, // R$ 120 / kg
-		SpoolWeightGrams:    1000,
-		PrinterPowerKW:      0.10, // 100W printer
-		EnergyTariffPerKWh:  1.0,  // R$ 1.00 / kWh
-		PackagingCost:       2.0,  // R$ 2.00
-		LaborCost:           5.0,  // R$ 5.00
-		ExtraCost:           1.0,  // R$ 1.00
-		FailureRatePercent:  10,   // 10%
-		MarginPercent:       50,   // 50%
-		PlatformFeePercent:  10,   // 10%
-		PaymentFeePercent:   5,    // 5%
-		FixedFee:            2.0,  // R$ 2.00
+		ProductWeightGrams: 100, // 100g
+		SupportWeightGrams: 20,  // 20g support
+		PrintMinutes:       120, // 2 hours
+		SpoolPrice:         120, // R$ 120 / kg
+		SpoolWeightGrams:   1000,
+		PrinterPowerKW:     0.10, // 100W printer
+		EnergyTariffPerKWh: 1.0,  // R$ 1.00 / kWh
+		PackagingCost:      2.0,  // R$ 2.00
+		LaborCost:          5.0,  // R$ 5.00
+		ExtraCost:          1.0,  // R$ 1.00
+		FailureRatePercent: 10,   // 10%
+		MarginPercent:      50,   // 50%
+		PlatformFeePercent: 10,   // 10%
+		PaymentFeePercent:  5,    // 5%
+		FixedFee:           2.0,  // R$ 2.00
 	}
 
 	result := services.CalculatePrintingPricing(input)

@@ -357,4 +357,3 @@ func TestParse3MF_BambuMultiFilamentAndMeters(t *testing.T) {
 		t.Errorf("Esperado peso somado de 51g, obtido %v", parsed.ProductWeightGrams)
 	}
 }
-

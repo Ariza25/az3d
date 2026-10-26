@@ -21,12 +21,11 @@ func NewChatHandler() *ChatHandler {
 // GET /api/chat/tenant/:tenant_id/conversation
 // Retorna ou inicia a conversa do comprador autenticado com o tenant informado
 func (h *ChatHandler) GetCustomerConversation(c *gin.Context) {
-	val, exists := c.Get("userID")
-	if !exists {
+	userID, ok := getUserID(c)
+	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Não autenticado"})
 		return
 	}
-	userID := val.(uint)
 
 	tenantIDStr := c.Param("tenant_id")
 	tenantIDUint, err := strconv.ParseUint(tenantIDStr, 10, 32)
@@ -86,12 +85,11 @@ func (h *ChatHandler) GetCustomerConversation(c *gin.Context) {
 // POST /api/chat/tenant/:tenant_id/messages
 // Envia mensagem do comprador para o tenant
 func (h *ChatHandler) SendCustomerMessage(c *gin.Context) {
-	val, exists := c.Get("userID")
-	if !exists {
+	userID, ok := getUserID(c)
+	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Não autenticado"})
 		return
 	}
-	userID := val.(uint)
 
 	tenantIDStr := c.Param("tenant_id")
 	tenantIDUint, err := strconv.ParseUint(tenantIDStr, 10, 32)
@@ -222,12 +220,11 @@ func (h *ChatHandler) SendTenantMessage(c *gin.Context) {
 	tenantID := getTenantID(c)
 	convID := c.Param("id")
 
-	val, exists := c.Get("userID")
-	if !exists {
+	userID, ok := getUserID(c)
+	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Não autenticado"})
 		return
 	}
-	userID := val.(uint)
 
 	var conversation models.ChatConversation
 	if err := database.DB.Where("id = ? AND tenant_id = ?", convID, tenantID).First(&conversation).Error; err != nil {

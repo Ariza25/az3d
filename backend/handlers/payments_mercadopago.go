@@ -480,11 +480,11 @@ type mercadoPagoDirectPaymentResponse struct {
 }
 
 type mpCardTokenRequest struct {
-	CardNumber      string               `json:"card_number"`
-	Cardholder      mpCardholderInfo     `json:"cardholder"`
-	SecurityCode    string               `json:"security_code"`
-	ExpirationMonth int                  `json:"expiration_month"`
-	ExpirationYear  int                  `json:"expiration_year"`
+	CardNumber      string           `json:"card_number"`
+	Cardholder      mpCardholderInfo `json:"cardholder"`
+	SecurityCode    string           `json:"security_code"`
+	ExpirationMonth int              `json:"expiration_month"`
+	ExpirationYear  int              `json:"expiration_year"`
 }
 
 type mpCardholderInfo struct {

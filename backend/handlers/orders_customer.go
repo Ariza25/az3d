@@ -41,12 +41,11 @@ func getWholesaleDiscountPercent(qty int) float64 {
 }
 
 func (h *OrderHandler) CreateOrder(c *gin.Context) {
-	userIDVal, exists := c.Get("userID")
-	if !exists {
+	userID, ok := getUserID(c)
+	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuario nao autenticado"})
 		return
 	}
-	userID := userIDVal.(uint)
 	tenantID := getTenantID(c)
 
 	var input models.CreateOrderInput
@@ -135,7 +134,7 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 			wholesalePct := getWholesaleDiscountPercent(itemInput.Quantity)
 			itemUnitPrice := unitPrice
 			if wholesalePct > 0 {
-				itemUnitPrice = math.Round((unitPrice * (1.0 - (wholesalePct / 100.0))) * 100) / 100
+				itemUnitPrice = math.Round((unitPrice*(1.0-(wholesalePct/100.0)))*100) / 100
 			}
 
 			subtotalWithoutWholesale += unitPrice * float64(itemInput.Quantity)
@@ -523,12 +522,11 @@ func (h *OrderHandler) GetOrderPaymentStatus(c *gin.Context) {
 }
 
 func (h *OrderHandler) GetMyOrders(c *gin.Context) {
-	userIDVal, exists := c.Get("userID")
-	if !exists {
+	userID, ok := getUserID(c)
+	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuario nao autenticado"})
 		return
 	}
-	userID := userIDVal.(uint)
 	tenantID := getTenantID(c)
 
 	_ = CancelExpiredPixOrders(database.DB, tenantID)

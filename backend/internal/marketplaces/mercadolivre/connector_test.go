@@ -805,4 +805,3 @@ func TestResolveAccountIdentityExtractsNickname(t *testing.T) {
 		t.Fatalf("accountName = %q, want AZ3D_STUDIO", identity.AccountName)
 	}
 }
-

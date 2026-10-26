@@ -47,10 +47,10 @@ type ShopeeSearchInsight struct {
 
 type ShopeeListingAudit struct {
 	Title           string   `json:"title"`
-	HealthScore     int      `json:"health_score"` // 0-100
-	TitleScore      int      `json:"title_score"`  // 0-25
-	HashtagScore    int      `json:"hashtag_score"`// 0-25
-	PriceScore      int      `json:"price_score"`  // 0-25
+	HealthScore     int      `json:"health_score"`   // 0-100
+	TitleScore      int      `json:"title_score"`    // 0-25
+	HashtagScore    int      `json:"hashtag_score"`  // 0-25
+	PriceScore      int      `json:"price_score"`    // 0-25
 	ShippingScore   int      `json:"shipping_score"` // 0-25
 	TitleLength     int      `json:"title_length"`
 	HasHashtags     bool     `json:"has_hashtags"`
@@ -171,7 +171,7 @@ func (c *Connector) FetchSearchInsights(ctx context.Context, query string) (Shop
 				SoldQuantity:   342,
 				ItemRating:     4.9,
 				HistoricalSold: 1240,
-				ShopName       : "3DPrintStore.BR",
+				ShopName:       "3DPrintStore.BR",
 				IsOfficialShop: true,
 				FreeShipping:   true,
 				Thumbnail:      "https://cf.shopee.com.br/file/br-11134207-7r98o-lx12345.jpg",
@@ -183,7 +183,7 @@ func (c *Connector) FetchSearchInsights(ctx context.Context, query string) (Shop
 				SoldQuantity:   188,
 				ItemRating:     4.8,
 				HistoricalSold: 560,
-				ShopName       : "Geek3DPress",
+				ShopName:       "Geek3DPress",
 				IsOfficialShop: false,
 				FreeShipping:   true,
 				Thumbnail:      "https://cf.shopee.com.br/file/br-11134207-7r98o-lx12346.jpg",

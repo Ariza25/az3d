@@ -196,8 +196,8 @@ func (h *AuthHandler) loginWithAllowedRoles(c *gin.Context, allowedRoles map[str
 
 // GET /api/auth/me
 func (h *AuthHandler) Me(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
+	userID, ok := getUserID(c)
+	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Nao autenticado"})
 		return
 	}
@@ -213,8 +213,8 @@ func (h *AuthHandler) Me(c *gin.Context) {
 
 // PUT /api/auth/me
 func (h *AuthHandler) UpdateMe(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
+	userID, ok := getUserID(c)
+	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Nao autenticado"})
 		return
 	}

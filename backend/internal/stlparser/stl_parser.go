@@ -17,10 +17,10 @@ type Point3D struct {
 }
 
 type Triangle struct {
-	Normal   Point3D `json:"normal"`
-	V1       Point3D `json:"v1"`
-	V2       Point3D `json:"v2"`
-	V3       Point3D `json:"v3"`
+	Normal Point3D `json:"normal"`
+	V1     Point3D `json:"v1"`
+	V2     Point3D `json:"v2"`
+	V3     Point3D `json:"v3"`
 }
 
 type MeshAnalysis struct {
@@ -33,12 +33,12 @@ type MeshAnalysis struct {
 }
 
 type SliceResult struct {
-	Mesh              MeshAnalysis `json:"mesh"`
-	MaterialType      string       `json:"material_type"`
-	InfillPercent     int          `json:"infill_percent"`
-	EstimatedWeightG  float64      `json:"estimated_weight_g"`
-	EstimatedHours    float64      `json:"estimated_hours"`
-	EstimatedPrice    float64      `json:"estimated_price"`
+	Mesh             MeshAnalysis `json:"mesh"`
+	MaterialType     string       `json:"material_type"`
+	InfillPercent    int          `json:"infill_percent"`
+	EstimatedWeightG float64      `json:"estimated_weight_g"`
+	EstimatedHours   float64      `json:"estimated_hours"`
+	EstimatedPrice   float64      `json:"estimated_price"`
 }
 
 // Material densities in g/cm3

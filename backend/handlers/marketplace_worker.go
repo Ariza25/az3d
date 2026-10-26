@@ -22,11 +22,6 @@ func StartMarketplaceSyncJob(ctx context.Context, cfg *config.Config, handler *M
 	}
 	interval := time.Duration(cfg.MarketplaceSyncIntervalMin) * time.Minute
 	go func() {
-		startupCtx, startupCancel := context.WithTimeout(ctx, 4*time.Minute)
-		accounts, products, failed := handler.ReconcileMarketplaceCatalogs(startupCtx)
-		startupCancel()
-		log.Printf("[marketplace-sync] startup catalog reconciliation accounts=%d products=%d failed=%d", accounts, products, failed)
-
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		cycles := 0
@@ -156,9 +151,20 @@ func marketplaceWorkerError(message string) error {
 
 func markMarketplaceEventRetry(event models.MarketplaceWebhookEvent, message string) {
 	retries := event.RetryCount + 1
-	delay := time.Duration(1<<minInt(retries, 6)) * time.Minute
-	next := time.Now().Add(delay)
-	database.DB.Model(&models.MarketplaceWebhookEvent{}).Where("id = ?", event.ID).Updates(map[string]any{"status": "failed", "retry_count": retries, "next_attempt_at": &next, "error_message": strings.TrimSpace(message)})
+	var next *time.Time
+	// Não retentar indefinidamente: se exceder 5 tentativas ou for erro de permissão/política (403), não agenda nova tentativa automática
+	isPermanentError := strings.Contains(message, "403") || strings.Contains(message, "Acesso negado") || retries >= 5
+	if !isPermanentError {
+		delay := time.Duration(1<<minInt(retries, 6)) * time.Minute
+		t := time.Now().Add(delay)
+		next = &t
+	}
+	database.DB.Model(&models.MarketplaceWebhookEvent{}).Where("id = ?", event.ID).Updates(map[string]any{
+		"status":          "failed",
+		"retry_count":     retries,
+		"next_attempt_at": next,
+		"error_message":   strings.TrimSpace(message),
+	})
 }
 
 func minInt(a, b int) int {

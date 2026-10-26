@@ -53,10 +53,10 @@ type MLSearchInsight struct {
 type MLListingAudit struct {
 	ItemID          string   `json:"item_id"`
 	Title           string   `json:"title"`
-	HealthScore     int      `json:"health_score"` // 0-100
-	TitleScore      int      `json:"title_score"`  // 0-25
-	ImageScore      int      `json:"image_score"`  // 0-25
-	PriceScore      int      `json:"price_score"`  // 0-25
+	HealthScore     int      `json:"health_score"`   // 0-100
+	TitleScore      int      `json:"title_score"`    // 0-25
+	ImageScore      int      `json:"image_score"`    // 0-25
+	PriceScore      int      `json:"price_score"`    // 0-25
 	ShippingScore   int      `json:"shipping_score"` // 0-25
 	TitleLength     int      `json:"title_length"`
 	HasKeywords     bool     `json:"has_keywords"`
@@ -258,8 +258,8 @@ func (c *Connector) FetchSearchInsightsWithToken(ctx context.Context, query stri
 		medianSold := solds[len(solds)/2]
 
 		recPrice := math.Round(avgPrice * 0.95)
-		estCost := math.Round((recPrice * 0.25) * 100) / 100
-		estProfit := math.Round((recPrice - estCost - (recPrice * 0.14)) * 100) / 100
+		estCost := math.Round((recPrice*0.25)*100) / 100
+		estProfit := math.Round((recPrice-estCost-(recPrice*0.14))*100) / 100
 		profitMargin := 0.0
 		if recPrice > 0 {
 			profitMargin = math.Round((estProfit / recPrice) * 100)
@@ -353,8 +353,8 @@ func generateFallbackSearchInsight(query string) MLSearchInsight {
 	}
 
 	recPrice := math.Round(basePrice * 0.96)
-	estCost := math.Round((recPrice * 0.24) * 100) / 100
-	estProfit := math.Round((recPrice - estCost - (recPrice * 0.14)) * 100) / 100
+	estCost := math.Round((recPrice*0.24)*100) / 100
+	estProfit := math.Round((recPrice-estCost-(recPrice*0.14))*100) / 100
 	margin := math.Round((estProfit / recPrice) * 100)
 
 	return MLSearchInsight{

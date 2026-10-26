@@ -77,4 +77,3 @@ func TestDisconnectMarketplaceAccount(t *testing.T) {
 		t.Fatalf("unmet sqlmock expectations: %v", err)
 	}
 }
-

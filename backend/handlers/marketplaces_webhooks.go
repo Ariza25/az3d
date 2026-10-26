@@ -20,6 +20,10 @@ import (
 
 // POST /api/webhooks/marketplaces/:provider
 func (h *MarketplaceHandler) ReceiveMarketplaceWebhook(c *gin.Context) {
+	if h != nil && h.cfg != nil && !h.cfg.MarketplaceWebhooksEnabled {
+		c.JSON(http.StatusOK, gin.H{"message": "Webhooks de marketplace temporariamente desativados."})
+		return
+	}
 	provider := normalizeProvider(c.Param("provider"))
 	if provider == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Marketplace obrigatorio"})
@@ -136,7 +140,7 @@ func resolveWebhookTenantID(c *gin.Context, provider string, payload map[string]
 			continue
 		}
 		var account models.MarketplaceAccount
-		if err := database.DB.Where("provider = ? AND (shop_id = ? OR seller_id = ?)", provider, value, value).First(&account).Error; err == nil {
+		if err := database.DB.Where("provider = ? AND (shop_id = ? OR seller_id = ?) AND is_active = true AND is_connected = true", provider, value, value).First(&account).Error; err == nil {
 			return account.TenantID
 		}
 	}
