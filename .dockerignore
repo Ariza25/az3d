@@ -8,3 +8,5 @@ graphify-out
 !**/.env.example
 **/*.log
 backend/az3d-server.exe
+backend/workers/
+

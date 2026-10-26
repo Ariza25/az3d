@@ -55,6 +55,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode; scope?: AuthSco
           return;
         }
         setUser(userData);
+        if (userData.tenant_id) {
+          localStorage.setItem('az3d_tenant_id', String(userData.tenant_id));
+        }
       } catch (error) {
         console.error('Sessao expirada:', error);
         logout();
@@ -74,6 +77,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode; scope?: AuthSco
     localStorage.setItem(tokenKey, response.token);
     setToken(response.token);
     setUser(response.user);
+    if (response.user.tenant_id) {
+      localStorage.setItem('az3d_tenant_id', String(response.user.tenant_id));
+    }
   };
 
   const register = async (name: string, email: string, password: string, tenantId?: number) => {

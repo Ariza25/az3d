@@ -30,7 +30,7 @@ export const CatalogContainer: React.FC = () => {
   const [viewMode, setViewMode] = useState<'grid' | 'compact'>('grid');
 
   // Paginação com scroll infinito
-  const PAGE_SIZE = 24;
+  const PAGE_SIZE = 36;
   const [paginatedProducts, setPaginatedProducts] = useState<Product[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
@@ -79,6 +79,9 @@ export const CatalogContainer: React.FC = () => {
   // Busca de produtos paginada
   const fetchProductsPage = useCallback(async (page: number, append: boolean = false) => {
     if (!activeTenant) return;
+    if (isFetchingRef.current && append) return;
+    isFetchingRef.current = true;
+
     if (page === 1) {
       setIsCatalogLoading(true);
     } else {
@@ -96,12 +99,10 @@ export const CatalogContainer: React.FC = () => {
       );
 
       const items = res.items || [];
-      const more = Boolean(res.has_more);
       const nextPage = res.page || page;
+      const total = res.total || 0;
 
-      setTotalCatalogCount(res.total || 0);
-      setHasMore(more);
-      hasMoreRef.current = more;
+      setTotalCatalogCount(total);
       setCurrentPage(nextPage);
       currentPageRef.current = nextPage;
 
@@ -109,26 +110,37 @@ export const CatalogContainer: React.FC = () => {
         setPaginatedProducts((prev) => {
           const existingIds = new Set(prev.map((p) => p.id));
           const uniqueNew = items.filter((p) => !existingIds.has(p.id));
-          return [...prev, ...uniqueNew];
+          const updated = [...prev, ...uniqueNew];
+          const stillHasMore = Boolean(res.has_more) && items.length > 0 && uniqueNew.length > 0 && updated.length < total;
+          setHasMore(stillHasMore);
+          hasMoreRef.current = stillHasMore;
+          return updated;
         });
       } else {
         setPaginatedProducts(items);
+        const stillHasMore = Boolean(res.has_more) && items.length > 0 && items.length < total;
+        setHasMore(stillHasMore);
+        hasMoreRef.current = stillHasMore;
       }
     } catch (err) {
       console.error('Erro ao buscar produtos paginados do backend:', err);
       if (!append) {
         setPaginatedProducts([]);
-        setHasMore(false);
-        hasMoreRef.current = false;
       }
+      setHasMore(false);
+      hasMoreRef.current = false;
     } finally {
       setIsCatalogLoading(false);
       setIsLoadingMore(false);
+      setTimeout(() => {
+        isFetchingRef.current = false;
+      }, 300);
     }
   }, [activeTenant, selectedCategory, searchQuery, sortBy]);
 
   // Recarrega página 1 quando filtros mudam
   useEffect(() => {
+    isFetchingRef.current = false;
     const timer = setTimeout(() => {
       fetchProductsPage(1, false);
     }, 180);
@@ -144,15 +156,10 @@ export const CatalogContainer: React.FC = () => {
       (entries) => {
         const [entry] = entries;
         if (entry.isIntersecting && hasMoreRef.current && !isFetchingRef.current) {
-          isFetchingRef.current = true;
-          fetchProductsPage(currentPageRef.current + 1, true).finally(() => {
-            setTimeout(() => {
-              isFetchingRef.current = false;
-            }, 300);
-          });
+          fetchProductsPage(currentPageRef.current + 1, true);
         }
       },
-      { rootMargin: '300px' }
+      { rootMargin: '200px' }
     );
 
     observer.observe(sentinel);
@@ -355,6 +362,7 @@ export const CatalogContainer: React.FC = () => {
           viewMode={viewMode}
           isLoading={isCatalogLoading}
           isLoadingMore={isLoadingMore}
+          hasMore={hasMore}
           hasFilterActive={Boolean(searchQuery || selectedCategory !== 'todas')}
           onOpenDetail={(product, initialIdx) => {
             setDetailProduct(product);

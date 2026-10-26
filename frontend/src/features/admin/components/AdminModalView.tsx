@@ -31,6 +31,7 @@ import { AdminProductsTab } from './AdminProductsTab';
 import { AdminOrdersTab } from './AdminOrdersTab';
 import { ImageConverterTab } from './ImageConverterTab';
 import { ThreeMfSplitterTab } from './ThreeMfSplitterTab';
+import { Studio3DTab } from './Studio3DTab';
 import { TenantChatPanel } from './TenantChatPanel';
 import { PromotionsManagementPanel } from './PromotionsManagementPanel';
 import {
@@ -55,7 +56,8 @@ export type AdminSection =
   | 'settings'
   | 'marketplaces'
   | 'intelligence'
-  | 'image_converter';
+  | 'image_converter'
+  | 'studio_3d';
 
 export interface AdminModalViewProps {
   isOpen: boolean;
@@ -448,6 +450,8 @@ export const AdminModalView: React.FC<AdminModalViewProps> = ({
             {activeTab === 'promotions' && <PromotionsManagementPanel tenantId={activeTenant?.id} />}
 
             {activeTab === 'image_converter' && <ImageConverterTab />}
+
+            {activeTab === 'studio_3d' && <Studio3DTab />}
 
             {activeTab === 'split_3mf' && <ThreeMfSplitterTab />}
 

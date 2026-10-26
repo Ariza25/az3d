@@ -28,6 +28,7 @@ import {
   Sparkles,
   MessageSquare,
   Tag,
+  Wand2,
 } from 'lucide-react';
 import { AdminModalView, AdminSection } from './components/AdminModalView';
 
@@ -77,6 +78,7 @@ const initialAdminSection = (): AdminSection => {
       'marketplaces',
       'intelligence',
       'image_converter',
+      'studio_3d',
     ].includes(value)
     ? value
     : 'dashboard';
@@ -303,7 +305,8 @@ export const AdminModalContainer: React.FC<AdminModalContainerProps> = ({
     { id: 'finance', label: 'Financeiro', icon: <TrendingUp className="h-4 w-4" /> },
     { id: 'marketplaces', label: 'Marketplaces', icon: <ShoppingCart className="h-4 w-4" /> },
     { id: 'intelligence', label: 'ML Trends', icon: <TrendingUp className="h-4 w-4" /> },
-    { id: 'image_converter', label: 'Formatador ML', icon: <Sparkles className="h-4 w-4 text-laser-400" /> },
+    { id: 'image_converter', label: 'Otimizador de Fotos', icon: <Sparkles className="h-4 w-4 text-laser-400" /> },
+    { id: 'studio_3d', label: 'Estúdio 3D (2D ➔ 3MF)', icon: <Wand2 className="h-4 w-4 text-emerald-500" /> },
     { id: 'split_3mf', label: 'Divisor 3MF', icon: <Boxes className="h-4 w-4 text-cyan-600 dark:text-cyan-400" /> },
     { id: 'settings', label: 'Configurações', icon: <Settings className="h-4 w-4" /> },
   ];

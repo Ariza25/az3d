@@ -43,7 +43,7 @@ export const productsApi = {
   ): Promise<Product[] | PaginatedResponse<Product>> => {
     const params = new URLSearchParams();
     if (tenantId) params.append('tenant_id', String(tenantId));
-    if (category && category !== 'todas') params.append('category', category);
+    if (category && category.toLowerCase() !== 'todas') params.append('category', category);
     if (query) params.append('q', query);
     const effectiveSort = (!sortBy || sortBy === 'featured') ? 'name' : sortBy;
     params.append('sort', effectiveSort);
@@ -75,7 +75,7 @@ export const productsApi = {
   ): Promise<PaginatedResponse<Product>> => {
     const params = new URLSearchParams();
     if (tenantId) params.append('tenant_id', String(tenantId));
-    if (category && category !== 'todas') params.append('category', category);
+    if (category && category.toLowerCase() !== 'todas') params.append('category', category);
     if (query) params.append('q', query);
     const effectiveSort = (!sortBy || sortBy === 'featured') ? 'name' : sortBy;
     params.append('sort', effectiveSort);

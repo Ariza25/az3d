@@ -1,0 +1,13 @@
+# Requisitos para o Worker de IA 3D Local (NVIDIA RTX 4060)
+fastapi>=0.110.0
+uvicorn>=0.28.0
+python-multipart>=0.0.9
+pillow>=10.2.0
+trimesh>=4.2.0
+numpy>=1.26.0
+
+# Para instalar PyTorch com suporte a CUDA 12.1 na sua RTX 4060:
+# pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+
+# Para instalar o TripoSR (IA 3D da Stability AI):
+# pip install git+https://github.com/VAST-AI-Research/TripoSR.git

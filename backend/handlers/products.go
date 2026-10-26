@@ -40,10 +40,8 @@ func withProductRelations(db *gorm.DB) *gorm.DB {
 
 func publishedProductQuery(query *gorm.DB, tenantID uint) *gorm.DB {
 	return query.Where(
-		"tenant_id = ? AND (status = ? OR status = '' OR source_provider = ?)",
+		"tenant_id = ? AND (status IS NULL OR status = '' OR LOWER(status) = 'active' OR (source_provider IS NOT NULL AND source_provider <> '') OR LOWER(status) NOT IN ('inactive', 'deleted', 'archived', 'paused'))",
 		tenantID,
-		"active",
-		"mercadolivre",
 	)
 }
 
@@ -468,20 +466,20 @@ func (h *ProductHandler) GetCategories(c *gin.Context) {
 // GET /api/products
 func (h *ProductHandler) GetProducts(c *gin.Context) {
 	tenantID := getTenantID(c)
-	categorySlug := c.Query("category")
-	searchQuery := c.Query("q")
+	categorySlug := strings.TrimSpace(c.Query("category"))
+	searchQuery := strings.TrimSpace(c.Query("q"))
 	pageStr := strings.TrimSpace(c.Query("page"))
 	limitStr := strings.TrimSpace(c.Query("limit"))
 	isPaginated := c.Query("paginated") == "true" || pageStr != ""
 
 	// Produtos publicados continuam visiveis mesmo sem estoque para que a loja
-	// possa sinalizar indisponibilidade. Anuncios importados do Mercado Livre sao
+	// possa sinalizar indisponibilidade. Anuncios importados de marketplaces sao
 	// publicados automaticamente, independentemente do status externo do anuncio.
 	query := publishedProductQuery(database.DB.Model(&models.Product{}), tenantID)
 
-	if categorySlug != "" && categorySlug != "todas" {
+	if categorySlug != "" && strings.ToLower(categorySlug) != "todas" {
 		var category models.Category
-		if err := database.DB.Where("tenant_id = ? AND slug = ?", tenantID, categorySlug).First(&category).Error; err == nil {
+		if err := database.DB.Where("tenant_id = ? AND LOWER(slug) = ?", tenantID, strings.ToLower(categorySlug)).First(&category).Error; err == nil {
 			query = query.Where("category_id = ?", category.ID)
 		}
 	}

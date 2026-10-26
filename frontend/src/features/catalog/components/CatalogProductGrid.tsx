@@ -14,6 +14,7 @@ export interface CatalogProductGridProps {
   viewMode: 'grid' | 'compact';
   isLoading: boolean;
   isLoadingMore: boolean;
+  hasMore: boolean;
   hasFilterActive: boolean;
   onOpenDetail: (product: Product, initialImageIndex?: number) => void;
   onClearFilters: () => void;
@@ -25,6 +26,7 @@ export const CatalogProductGrid: React.FC<CatalogProductGridProps> = ({
   viewMode,
   isLoading,
   isLoadingMore,
+  hasMore,
   hasFilterActive,
   onOpenDetail,
   onClearFilters,
@@ -84,26 +86,6 @@ export const CatalogProductGrid: React.FC<CatalogProductGridProps> = ({
               onOpenDetail={onOpenDetail}
             />
           ))}
-
-          {/* Esqueletos de loading das novas peças para o scroll infinito (Grade) */}
-          {isLoadingMore && (
-            <>
-              {Array.from({ length: 4 }).map((_, idx) => (
-                <div
-                  key={`loading-more-card-${idx}`}
-                  className="flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 dark:border-chumbo-800/80 bg-white/70 dark:bg-chumbo-900/40 p-2.5 sm:p-3 space-y-2.5 sm:space-y-3 animate-pulse"
-                >
-                  <div className="relative aspect-square w-full rounded-xl bg-slate-200/80 dark:bg-chumbo-800/60 flex items-center justify-center">
-                    {idx === 0 && (
-                      <Loader2 className="w-7 h-7 text-cyan-500 animate-spin" />
-                    )}
-                  </div>
-                  <div className="h-4 w-3/4 rounded bg-slate-200/80 dark:bg-chumbo-800/60" />
-                  <div className="h-4 w-1/3 rounded bg-slate-200/80 dark:bg-chumbo-800/60" />
-                </div>
-              ))}
-            </>
-          )}
         </div>
       ) : (
         /* Lista Compacta */
@@ -151,32 +133,28 @@ export const CatalogProductGrid: React.FC<CatalogProductGridProps> = ({
               </div>
             );
           })}
-
-          {/* Esqueleto de loading na lista compacta */}
-          {isLoadingMore && (
-            <div className="flex items-center gap-3 p-4 rounded-2xl border border-slate-200/80 dark:border-chumbo-800/80 bg-white/70 dark:bg-chumbo-900/40 animate-pulse">
-              <div className="h-14 w-14 sm:h-16 sm:w-16 rounded-xl bg-slate-200/80 dark:bg-chumbo-800/60 flex items-center justify-center shrink-0">
-                <Loader2 className="w-5 h-5 text-cyan-500 animate-spin" />
-              </div>
-              <div className="flex-1 space-y-2">
-                <div className="h-4 w-1/2 rounded bg-slate-200/80 dark:bg-chumbo-800/60" />
-                <div className="h-3 w-1/4 rounded bg-slate-200/80 dark:bg-chumbo-800/60" />
-              </div>
-            </div>
-          )}
         </div>
       )}
 
-      {/* Loading de Paginação no Scroll Sentinel */}
-      <div ref={sentinelRef} className={`flex flex-col items-center justify-center ${isLoadingMore ? 'py-6 min-h-[90px]' : 'py-2 min-h-[20px]'}`}>
-        {isLoadingMore && (
-          <div className="flex items-center gap-3 py-3 px-5 rounded-2xl bg-white dark:bg-chumbo-900 border border-slate-200 dark:border-chumbo-700/80 text-cyan-600 dark:text-cyan-400 shadow-md animate-in fade-in duration-200">
-            <Loader2 className="w-5 h-5 animate-spin text-cyan-500" />
-            <span className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200">
+      {/* Sentinel e Indicador de Paginação no Scroll Infinito */}
+      <div
+        ref={sentinelRef}
+        className="w-full min-h-[64px] flex items-center justify-center py-6 select-none"
+      >
+        {isLoadingMore ? (
+          <div className="flex items-center gap-2.5 py-2.5 px-5 rounded-full bg-white dark:bg-chumbo-900 border border-slate-200 dark:border-chumbo-700 text-cyan-600 dark:text-cyan-400 shadow-sm transition-all">
+            <Loader2 className="w-4 h-4 animate-spin text-cyan-500" />
+            <span className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">
               Carregando mais peças...
             </span>
           </div>
-        )}
+        ) : !hasMore && products.length > 0 ? (
+          <div className="flex items-center gap-2 text-xs font-medium text-slate-400 dark:text-slate-500">
+            <span className="h-px w-8 bg-slate-200 dark:bg-chumbo-800" />
+            <span>Todos os itens exibidos</span>
+            <span className="h-px w-8 bg-slate-200 dark:bg-chumbo-800" />
+          </div>
+        ) : null}
       </div>
     </>
   );

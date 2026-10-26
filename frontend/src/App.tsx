@@ -75,6 +75,17 @@ const consumeGoogleCallback = () => {
 
   if (token) {
     localStorage.setItem(scope === 'admin' || scope === 'seller' ? ADMIN_TOKEN_KEY : CUSTOMER_TOKEN_KEY, token);
+    try {
+      const parts = token.split('.');
+      if (parts.length >= 2) {
+        const payload = JSON.parse(atob(parts[1]));
+        if (payload.tenant_id) {
+          localStorage.setItem('az3d_tenant_id', String(payload.tenant_id));
+        }
+      }
+    } catch {
+      // Ignora falha de parse caso o token tenha outro formato
+    }
   } else if (error) {
     sessionStorage.setItem('az3d_auth_error', error);
   }

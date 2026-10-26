@@ -26,3 +26,9 @@ frontend/playwright-report/
 Thumbs.db
 .vscode/
 .idea/
+
+# Local AI worker
+backend/workers/TripoSR/
+backend/workers/**/__pycache__/
+__pycache__/
+

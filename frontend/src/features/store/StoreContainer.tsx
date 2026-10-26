@@ -257,6 +257,16 @@ export const StoreContainer: React.FC = () => {
     setSearchQuery('');
   };
 
+  const handleSelectCategory = (categorySlug: string) => {
+    setActiveCategory(categorySlug);
+    if (categorySlug === 'todas') {
+      setMaterialFilter('todos');
+      setAvailabilityFilter('all');
+      if (priceCeiling > 0) setMaxPrice(priceCeiling);
+      setSearchQuery('');
+    }
+  };
+
   return (
     <StoreView
       activeTenant={activeTenant}
@@ -305,7 +315,7 @@ export const StoreContainer: React.FC = () => {
           window.history.replaceState({}, '', getStorePath(activeTenant.slug, getCurrentStoreRouteStyle()));
         }
       }}
-      onSelectCategory={setActiveCategory}
+      onSelectCategory={handleSelectCategory}
       onOpenProduct={openProduct}
       onCloseProduct={closeProduct}
       onSortChange={setSortBy}
