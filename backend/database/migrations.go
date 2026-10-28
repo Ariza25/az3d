@@ -65,6 +65,7 @@ func runAutoMigrate(db *gorm.DB) error {
 		&models.PasswordResetToken{},
 		&models.ChatConversation{},
 		&models.ChatMessage{},
+		&models.MarketplaceTrendingKeyword{},
 	)
 	if err != nil {
 		return err

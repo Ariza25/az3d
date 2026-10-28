@@ -90,6 +90,18 @@ export const MarketplaceIntelligencePanel: React.FC<MarketplaceIntelligencePanel
     }
   };
 
+  const handleRefreshTrends = async () => {
+    setLoadingTrends(true);
+    try {
+      const res = await api.refreshMLTrends(selectedCategory === 'all' ? undefined : selectedCategory, provider, tenantId);
+      setTrends(res.trends || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingTrends(false);
+    }
+  };
+
   const loadSearchInsights = async (query: string, targetProvider = provider) => {
     if (!query.trim()) return;
     setLoadingInsights(true);
@@ -167,6 +179,8 @@ export const MarketplaceIntelligencePanel: React.FC<MarketplaceIntelligencePanel
             setActiveTab('insights');
             void loadSearchInsights(keyword);
           }}
+          onRefreshTrends={() => void handleRefreshTrends()}
+          isRefreshing={loadingTrends}
         />
       )}
 
@@ -191,6 +205,7 @@ export const MarketplaceIntelligencePanel: React.FC<MarketplaceIntelligencePanel
           onSearch={(q) => void loadSearchInsights(q)}
           searchInsight={searchInsight}
           loadingInsights={loadingInsights}
+          provider={provider}
         />
       )}
 

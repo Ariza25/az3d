@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowUpRight, Filter, Flame, TrendingUp } from 'lucide-react';
+import { ArrowUpRight, Filter, Flame, RefreshCw, TrendingUp } from 'lucide-react';
 import { MLTrendKeyword } from '../../../../../types';
 
 interface MarketplaceTrendsTabProps {
@@ -7,6 +7,8 @@ interface MarketplaceTrendsTabProps {
   selectedCategory: string;
   onSelectCategory: (cat: string) => void;
   onAnalyzeKeyword: (keyword: string) => void;
+  onRefreshTrends?: () => void;
+  isRefreshing?: boolean;
 }
 
 export const MarketplaceTrendsTab: React.FC<MarketplaceTrendsTabProps> = ({
@@ -14,26 +16,44 @@ export const MarketplaceTrendsTab: React.FC<MarketplaceTrendsTabProps> = ({
   selectedCategory,
   onSelectCategory,
   onAnalyzeKeyword,
+  onRefreshTrends,
+  isRefreshing = false,
 }) => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-amber-400" />
-          <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Categoria:</span>
-          <select
-            value={selectedCategory}
-            onChange={(e) => onSelectCategory(e.target.value)}
-            className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-900 focus:border-amber-500 focus:outline-none dark:border-chumbo-700 dark:bg-chumbo-900 dark:text-white"
-          >
-            <option value="all">Todas as categorias</option>
-            <option value="Organização">Organização / Setup</option>
-            <option value="Decoração">Decoração / Casa</option>
-            <option value="Geek/Games">Geek / Games</option>
-            <option value="Utilitários">Utilitários & Ferramentas</option>
-            <option value="Colecionáveis">Colecionáveis / RPG</option>
-          </select>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-amber-400" />
+            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Categoria:</span>
+            <select
+              value={selectedCategory}
+              onChange={(e) => onSelectCategory(e.target.value)}
+              className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-900 focus:border-amber-500 focus:outline-none dark:border-chumbo-700 dark:bg-chumbo-900 dark:text-white"
+            >
+              <option value="all">Todas as categorias</option>
+              <option value="Organização">Organização / Setup</option>
+              <option value="Decoração">Decoração / Casa</option>
+              <option value="Geek/Games">Geek / Games</option>
+              <option value="Utilitários">Utilitários & Ferramentas</option>
+              <option value="Colecionáveis">Colecionáveis / RPG</option>
+              <option value="Insumos 3D">Insumos 3D / Filamentos</option>
+            </select>
+          </div>
+
+          {onRefreshTrends && (
+            <button
+              onClick={onRefreshTrends}
+              disabled={isRefreshing}
+              className="flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-bold text-amber-700 hover:bg-amber-500/20 transition-all dark:text-amber-400"
+              title="Dispara o crawler em segundo plano para raspar novas buscas populares em tempo real"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <span>Atualizar Tendências ao Vivo (Worker)</span>
+            </button>
+          )}
         </div>
+
         <div className="text-xs text-slate-500 dark:text-slate-400">
           Exibindo <span className="font-bold text-amber-700 dark:text-amber-400">{trends.length}</span> buscas em alta no marketplace
         </div>
@@ -69,11 +89,24 @@ export const MarketplaceTrendsTab: React.FC<MarketplaceTrendsTabProps> = ({
                 {item.keyword}
               </h3>
 
-              {item.category && (
-                <span className="mt-1 inline-block text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                  {item.category}
-                </span>
-              )}
+              <div className="mt-1 flex items-center justify-between gap-2">
+                {item.category ? (
+                  <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                    {item.category}
+                  </span>
+                ) : <span />}
+                {item.source && (
+                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                    item.source === 'shopee_live'
+                      ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                      : item.source === 'crawler_live'
+                      ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                      : 'bg-slate-500/10 text-slate-600 dark:text-slate-400'
+                  }`}>
+                    {item.source === 'shopee_live' ? 'Shopee Live' : item.source === 'crawler_live' ? 'ML Scraper' : 'Oficial'}
+                  </span>
+                )}
+              </div>
 
               {/* Volume Trend Sparkline visualization */}
               <div className="mt-4 flex items-end gap-1.5 h-10 border-b border-slate-100 pb-1 dark:border-chumbo-800/80">

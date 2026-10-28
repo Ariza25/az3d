@@ -267,3 +267,19 @@ type MarketplaceProductImportResult struct {
 	Product Product                   `json:"product"`
 	Mapping MarketplaceProductMapping `json:"mapping"`
 }
+
+type MarketplaceTrendingKeyword struct {
+	ID          uint      `gorm:"primaryKey" json:"id"`
+	Provider    string    `gorm:"size:40;index" json:"provider"` // "mercadolivre", "shopee", "amazon"
+	Keyword     string    `gorm:"size:255;index" json:"keyword"`
+	Category    string    `gorm:"size:80;index" json:"category"`
+	Rank        int       `json:"rank"`
+	Status      string    `gorm:"size:30" json:"status"` // "hot", "rising", "viral", "stable"
+	SearchVol   int       `json:"search_vol"`
+	VolumeTrend string    `gorm:"type:text" json:"volume_trend"`
+	URL         string    `gorm:"size:500" json:"url,omitempty"`
+	Score       float64   `json:"score"`
+	Source      string    `gorm:"size:50" json:"source"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}

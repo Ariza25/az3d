@@ -10,6 +10,7 @@ import (
 
 	"az3d-backend/config"
 	"az3d-backend/handlers"
+	"az3d-backend/internal/marketplaces/worker"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -27,6 +28,7 @@ type App struct {
 func New(cfg *config.Config, db *gorm.DB) *App {
 	h := NewHandlers(cfg, db)
 	router := BuildRouter(cfg, h)
+	worker.InitTrendsWorker(db)
 
 	return &App{
 		Config:   cfg,
@@ -41,6 +43,10 @@ func (a *App) StartBackgroundJobs(ctx context.Context) {
 	handlers.StartTrackingSyncJob(ctx, a.Config)
 	handlers.StartMarketplaceSyncJob(ctx, a.Config, a.Handlers.Marketplace)
 	handlers.StartExpiredPixJob(ctx)
+
+	if w := worker.GetGlobalWorker(); w != nil {
+		w.StartScheduled(ctx, 2*time.Hour)
+	}
 }
 
 // Run starts the HTTP server and blocks until the context is cancelled, performing graceful shutdown.

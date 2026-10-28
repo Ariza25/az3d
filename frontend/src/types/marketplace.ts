@@ -123,9 +123,11 @@ export interface MLTrendKeyword {
   url?: string;
   category?: string;
   rank: number;
-  status: 'hot' | 'rising' | 'stable' | string;
+  status: 'hot' | 'rising' | 'stable' | 'viral' | string;
   search_vol: number;
   volume_trend: number[];
+  source?: string;
+  updated_at?: string;
 }
 
 export interface MLCompetitorItem {
@@ -156,6 +158,7 @@ export interface MLSearchInsight {
   estimated_profit: number;
   profit_margin_percent: number;
   top_sellers: MLCompetitorItem[];
+  source?: string;
 }
 
 export interface MLListingAudit {

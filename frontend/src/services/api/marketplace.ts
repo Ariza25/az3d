@@ -212,6 +212,22 @@ export const marketplaceApi = {
     return res.json();
   },
 
+  refreshMLTrends: async (
+    category?: string,
+    provider = 'mercadolivre',
+    tenantId?: number
+  ): Promise<{ message: string; category?: string; provider?: string; trends: MLTrendKeyword[] }> => {
+    const params = new URLSearchParams();
+    if (category) params.append('category', category);
+    if (provider) params.append('provider', provider);
+    const res = await fetch(`${API_BASE_URL}/admin/marketplaces/trends/refresh?${params.toString()}`, {
+      method: 'POST',
+      headers: getAdminHeaders(tenantId),
+    });
+    if (!res.ok) throw new Error('Erro ao atualizar tendências do marketplace');
+    return res.json();
+  },
+
   getMLSearchInsights: async (
     query?: string,
     provider = 'mercadolivre',

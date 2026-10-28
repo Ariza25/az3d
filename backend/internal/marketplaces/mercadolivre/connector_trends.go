@@ -8,6 +8,8 @@ import (
 	"os"
 	"sort"
 	"strings"
+
+	"az3d-backend/internal/marketplaces/crawler"
 )
 
 type MLTrendKeyword struct {
@@ -48,6 +50,7 @@ type MLSearchInsight struct {
 	EstimatedProfit     float64            `json:"estimated_profit"`
 	ProfitMarginPercent float64            `json:"profit_margin_percent"`
 	TopSellers          []MLCompetitorItem `json:"top_sellers"`
+	Source              string             `json:"source,omitempty"`
 }
 
 type MLListingAudit struct {
@@ -280,10 +283,89 @@ func (c *Connector) FetchSearchInsightsWithToken(ctx context.Context, query stri
 			EstimatedProfit:     estProfit,
 			ProfitMarginPercent: profitMargin,
 			TopSellers:          competitors,
+			Source:              "official_api",
 		}, nil
 	}
 
-	return generateFallbackSearchInsight(query), nil
+	liveItems, total, liveErr := crawler.FetchLiveMercadoLivreSearch(ctx, query, token)
+	if liveErr == nil && len(liveItems) > 0 {
+		var totalPrice float64
+		minPrice := liveItems[0].Price
+		maxPrice := liveItems[0].Price
+		freeShipCount := 0
+		liderCount := 0
+		fullCount := 0
+		solds := make([]int, 0, len(liveItems))
+		competitors := make([]MLCompetitorItem, 0, len(liveItems))
+
+		for _, item := range liveItems {
+			totalPrice += item.Price
+			if item.Price < minPrice && item.Price > 0 {
+				minPrice = item.Price
+			}
+			if item.Price > maxPrice {
+				maxPrice = item.Price
+			}
+			if item.FreeShipping {
+				freeShipCount++
+			}
+			if item.MercadoLider {
+				liderCount++
+			}
+			if item.FullShipping {
+				fullCount++
+			}
+			solds = append(solds, item.SoldQuantity)
+
+			competitors = append(competitors, MLCompetitorItem{
+				ID:           item.ID,
+				Title:        item.Title,
+				Price:        item.Price,
+				SoldQuantity: item.SoldQuantity,
+				Permalink:    item.Permalink,
+				Thumbnail:    item.Thumbnail,
+				Condition:    item.Condition,
+				FreeShipping: item.FreeShipping,
+				MercadoLider: item.MercadoLider,
+				FullShipping: item.FullShipping,
+			})
+		}
+
+		count := float64(len(liveItems))
+		avgPrice := totalPrice / count
+		sort.Ints(solds)
+		medianSold := solds[len(solds)/2]
+
+		recPrice := math.Round(avgPrice * 0.95)
+		estCost := math.Round((recPrice*0.25)*100) / 100
+		estProfit := math.Round((recPrice-estCost-(recPrice*0.14))*100) / 100
+		profitMargin := 0.0
+		if recPrice > 0 {
+			profitMargin = math.Round((estProfit / recPrice) * 100)
+		}
+
+		return MLSearchInsight{
+			Query:               query,
+			TotalResults:        total,
+			MinPrice:            minPrice,
+			MaxPrice:            maxPrice,
+			AvgPrice:            math.Round(avgPrice*100) / 100,
+			MedianSold:          medianSold,
+			FreeShippingRatio:   math.Round((float64(freeShipCount)/count)*100) / 100,
+			MercadoLiderRatio:   math.Round((float64(liderCount)/count)*100) / 100,
+			FullRatio:           math.Round((float64(fullCount)/count)*100) / 100,
+			RecommendedPrice:    recPrice,
+			EstimatedPrintCost:  estCost,
+			EstimatedProfit:     estProfit,
+			ProfitMarginPercent: profitMargin,
+			TopSellers:          competitors,
+			Source:              "crawler_live",
+		}, nil
+	}
+
+	fallback := generateFallbackSearchInsight(query)
+	fallback.Source = "curated_fallback"
+	return fallback, nil
 }
 
 func generateFallbackSearchInsight(query string) MLSearchInsight {
