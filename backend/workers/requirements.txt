@@ -5,6 +5,11 @@ python-multipart>=0.0.9
 pillow>=10.2.0
 trimesh>=4.2.0
 numpy>=1.26.0
+scipy>=1.12.0
+scikit-image>=0.22.0
+opencv-python-headless>=4.9.0
+# Opcional (recomendado para recorte neural de fundo ainda mais preciso):
+# pip install rembg[gpu]
 
 # Para instalar PyTorch com suporte a CUDA 12.1 na sua RTX 4060:
 # pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121

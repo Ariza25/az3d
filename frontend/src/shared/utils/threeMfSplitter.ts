@@ -1,5 +1,40 @@
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+import {
+  SplitPartMesh,
+  SplitEngineOptions,
+  PlaneCutOptions,
+  ConnectorShape,
+  SeamCapMode,
+  RawColoredSoup,
+  DEFAULT_SPLIT_ENGINE_OPTIONS,
+  extractColoredSoupFrom3MfZip,
+  parseStlFileToSoup,
+  parseObjFileToSoup,
+  buildSplitColorParts,
+  cutPartByAxisPlane,
+  exportSplitPartTo3MF,
+  exportSplitPartToSTL,
+  exportUnifiedAssembly3MF,
+} from './split3mfEngine';
+
+export type {
+  SplitPartMesh,
+  SplitEngineOptions,
+  PlaneCutOptions,
+  ConnectorShape,
+  SeamCapMode,
+  RawColoredSoup,
+};
+
+export {
+  DEFAULT_SPLIT_ENGINE_OPTIONS,
+  buildSplitColorParts,
+  cutPartByAxisPlane,
+  exportSplitPartTo3MF,
+  exportSplitPartToSTL,
+  exportUnifiedAssembly3MF,
+};
 
 export interface PlateObject {
   id: string;
@@ -35,13 +70,18 @@ export interface ColorGroupInfo {
 export interface ThreeMfProjectInfo {
   fileName: string;
   fileSizeBytes: number;
-  slicer: 'Bambu Studio / OrcaSlicer' | 'PrusaSlicer' | 'Padrão / Desconhecido';
+  inputFormat: '3mf' | 'stl' | 'obj';
+  slicer: 'Bambu Studio / OrcaSlicer' | 'PrusaSlicer' | 'STL / OBJ Direto' | 'Padrão / Desconhecido';
   plates: PlateInfo[];
   colorGroups: ColorGroupInfo[];
   objects: ParsedObjectInfo[];
+  splitParts: SplitPartMesh[];
+  coloredSoup: RawColoredSoup;
+  hadPaintedTriangles: boolean;
+  totalTriangles: number;
   globalThumbnailUrl?: string;
-  rawZip: JSZip;
-  modelXmlString: string;
+  rawZip?: JSZip;
+  modelXmlString?: string;
   modelSettingsString?: string;
 }
 
@@ -104,9 +144,6 @@ export const getColorNameFromHex = (hex: string): string => {
   return closest.name;
 };
 
-/**
- * Heurísticas de detecção de cores por palavras-chave no nome do objeto
- */
 export const COLOR_KEYWORDS: Array<{ match: RegExp; name: string; hex: string }> = [
   { match: /(?:preto|black|negro|escuro)/i, name: 'Preto', hex: '#1A1A1A' },
   { match: /(?:branco|white|blanco|claro)/i, name: 'Branco', hex: '#FFFFFF' },
@@ -125,9 +162,6 @@ export const COLOR_KEYWORDS: Array<{ match: RegExp; name: string; hex: string }>
   { match: /(?:ciano|cyan)/i, name: 'Ciano', hex: '#00B4D8' },
 ];
 
-/**
- * Normaliza nomes de arquivos para evitar caracteres inválidos no download
- */
 export const sanitizeFileName = (name: string): string => {
   return name
     // eslint-disable-next-line no-control-regex
@@ -136,9 +170,6 @@ export const sanitizeFileName = (name: string): string => {
     .trim();
 };
 
-/**
- * Dispara o download de um Blob no navegador com compatibilidade estrita no Chrome/Edge/Firefox
- */
 export const downloadBlob = (blob: Blob, fileName: string): void => {
   const safeName = sanitizeFileName(fileName);
   try {
@@ -164,13 +195,64 @@ export const downloadBlob = (blob: Blob, fileName: string): void => {
 };
 
 /**
- * Analisa e extrai todas as informações de mesas, objetos e miniaturas de um .3mf
+ * Analisa arquivos `.3mf` (Bambu Studio, OrcaSlicer, PrusaSlicer), `.stl` ou `.obj`,
+ * extraindo tanto as mesas/objetos originais quanto a divisão geométrica real por cor/pintura (`SplitPartMesh[]`)!
  */
-export const parse3MFProject = async (file: File): Promise<ThreeMfProjectInfo> => {
+export const parse3DModelProject = async (
+  file: File,
+  splitOptions: SplitEngineOptions = DEFAULT_SPLIT_ENGINE_OPTIONS
+): Promise<ThreeMfProjectInfo> => {
+  const lowerName = file.name.toLowerCase();
+
+  // Caso 1: STL ou OBJ direto (igual ao split3mf.com)
+  if (lowerName.endsWith('.stl') || lowerName.endsWith('.obj')) {
+    const isStl = lowerName.endsWith('.stl');
+    const soup = isStl
+      ? await parseStlFileToSoup(file, DEFAULT_BAMBU_COLORS[0])
+      : await parseObjFileToSoup(file, DEFAULT_BAMBU_COLORS);
+
+    // Para STL único com múltiplas cascas desconectadas, mantém agrupado por material por padrão
+    const splitParts = await buildSplitColorParts(
+      soup,
+      splitOptions,
+      getColorNameFromHex,
+      DEFAULT_BAMBU_COLORS
+    );
+
+    const baseObjName = file.name.replace(/\.(stl|obj)$/i, '');
+    const colorGroups: ColorGroupInfo[] = splitParts.map((sp) => ({
+      filamentId: sp.extruderId,
+      colorHex: sp.colorHex,
+      colorName: sp.colorName,
+      filamentType: sp.filamentType,
+      objects: [{ id: sp.id, name: sp.name, filamentId: String(sp.extruderId), colorHex: sp.colorHex }],
+    }));
+
+    return {
+      fileName: file.name,
+      fileSizeBytes: file.size,
+      inputFormat: isStl ? 'stl' : 'obj',
+      slicer: 'STL / OBJ Direto',
+      plates: [
+        {
+          plateIndex: 1,
+          name: 'Mesa 1',
+          objects: [{ id: '1', name: baseObjName, filamentId: '1', colorHex: DEFAULT_BAMBU_COLORS[0] }],
+        },
+      ],
+      colorGroups,
+      objects: [{ id: '1', name: baseObjName, trianglesCount: soup.indices.length / 3, plateIndex: 1 }],
+      splitParts,
+      coloredSoup: soup,
+      hadPaintedTriangles: soup.hadPaintedTriangles,
+      totalTriangles: soup.indices.length / 3,
+    };
+  }
+
+  // Caso 2: Pacote .3MF completo
   const zip = new JSZip();
   const loadedZip = await zip.loadAsync(file);
 
-  // 1. Encontrar o 3D Model XML
   let modelXmlPath = '';
   for (const path of Object.keys(loadedZip.files)) {
     if (path.toLowerCase().endsWith('3d/3dmodel.model') || path.toLowerCase().endsWith('3dmodel.model')) {
@@ -187,7 +269,6 @@ export const parse3MFProject = async (file: File): Promise<ThreeMfProjectInfo> =
   const parser = new DOMParser();
   const xmlDoc = parser.parseFromString(modelXmlString, 'application/xml');
 
-  // 2. Extrair objetos base do 3dmodel.model
   const rawObjects: Record<string, { id: string; name: string; componentIds: string[] }> = {};
   const objectNodes = xmlDoc.getElementsByTagName('object');
   for (let i = 0; i < objectNodes.length; i++) {
@@ -203,7 +284,6 @@ export const parse3MFProject = async (file: File): Promise<ThreeMfProjectInfo> =
     rawObjects[id] = { id, name, componentIds };
   }
 
-  // Itens na tag <build>
   const buildItems: Array<{ objectId: string; plateId?: number }> = [];
   const buildNodes = xmlDoc.getElementsByTagName('build');
   if (buildNodes.length > 0) {
@@ -212,8 +292,9 @@ export const parse3MFProject = async (file: File): Promise<ThreeMfProjectInfo> =
       const item = itemNodes[i];
       const objectId = item.getAttribute('objectid');
       if (objectId) {
-        // Alguns fatiadores colocam plate_id direto no <item>
-        const plateAttr = item.getAttribute('plate_id') ||
+        const plateAttr =
+          item.getAttribute('plate_id') ||
+          item.getAttribute('plater_id') ||
           item.getAttribute('BambuStudio:plate_id') ||
           item.getAttribute('slic3r:plate_id');
         buildItems.push({
@@ -224,30 +305,53 @@ export const parse3MFProject = async (file: File): Promise<ThreeMfProjectInfo> =
     }
   }
 
-  // 3. Procurar metadados do Bambu Studio / OrcaSlicer (model_settings.config ou slice_info.config)
   let slicer: ThreeMfProjectInfo['slicer'] = 'Padrão / Desconhecido';
   let modelSettingsString: string | undefined = undefined;
   const plateMap: Record<number, PlateInfo> = {};
   const objectToPlateMap: Record<string, number> = {};
   const objectNameMap: Record<string, string> = {};
   const objectFilamentMap: Record<string, number> = {};
-  const filamentPalette: Record<number, { hex: string; type?: string }> = {};
+  const partFilamentMap: Record<string, number> = {};
+  const filamentPalette: Record<number, { hex: string; type?: string; name?: string }> = {};
 
   for (const [path, zipEntry] of Object.entries(loadedZip.files)) {
+    if (zipEntry.dir) continue;
     const lower = path.toLowerCase();
     if (lower.includes('bambustudio') || lower.includes('orcaslicer') || lower.includes('model_settings.config')) {
       slicer = 'Bambu Studio / OrcaSlicer';
-    } else if (lower.includes('prusaslicer') || lower.includes('slic3r')) {
+    } else if ((lower.includes('prusaslicer') || lower.includes('slic3r')) && slicer === 'Padrão / Desconhecido') {
       slicer = 'PrusaSlicer';
     }
 
-    // Extrair tabela de cores dos arquivos de configuração e metadados
     if (lower.endsWith('.config') || lower.endsWith('.json') || lower.endsWith('.xml')) {
       try {
         const text = await zipEntry.async('string');
 
-        // Regex para filament_colour
-        const hexMatch = text.match(/key=["']filament_colours?["']\s+value=["']([^"']+)["']/i) ||
+        // JSON puro (Metadata/project_settings.config do Bambu Studio / OrcaSlicer)
+        if (text.trim().startsWith('{')) {
+          try {
+            const jsonCfg = JSON.parse(text);
+            const cols = jsonCfg.filament_colour || jsonCfg.filament_colours;
+            const typs = jsonCfg.filament_type || jsonCfg.filament_types;
+            if (Array.isArray(cols)) {
+              cols.forEach((c: unknown, idx: number) => {
+                if (typeof c === 'string' && /^#?[0-9a-fA-F]{6,8}$/.test(c.trim())) {
+                  const fId = idx + 1;
+                  const cleanHex = c.trim().startsWith('#') ? c.trim().slice(0, 7) : `#${c.trim().slice(0, 6)}`;
+                  filamentPalette[fId] = {
+                    hex: cleanHex,
+                    type: Array.isArray(typs) && typeof typs[idx] === 'string' ? typs[idx] : filamentPalette[fId]?.type,
+                  };
+                }
+              });
+            }
+          } catch {
+            // Prossegue para regex fallback
+          }
+        }
+
+        const hexMatch =
+          text.match(/key=["']filament_colours?["']\s+value=["']([^"']+)["']/i) ||
           text.match(/["']filament_colours?["']\s*:\s*\[([^\]]+)\]/i) ||
           text.match(/filament_colours?\s*=\s*([^\r\n]+)/i);
 
@@ -259,7 +363,8 @@ export const parse3MFProject = async (file: File): Promise<ThreeMfProjectInfo> =
 
           colors.forEach((c, idx) => {
             const fId = idx + 1;
-            const fullHex = c.startsWith('#') ? c : `#${c}`;
+            const rawHex = c.startsWith('#') ? c : `#${c}`;
+            const fullHex = rawHex.slice(0, 7);
             if (!filamentPalette[fId]) {
               filamentPalette[fId] = { hex: fullHex };
             } else {
@@ -268,8 +373,8 @@ export const parse3MFProject = async (file: File): Promise<ThreeMfProjectInfo> =
           });
         }
 
-        // Regex para filament_type
-        const typeMatch = text.match(/key=["']filament_types?["']\s+value=["']([^"']+)["']/i) ||
+        const typeMatch =
+          text.match(/key=["']filament_types?["']\s+value=["']([^"']+)["']/i) ||
           text.match(/["']filament_types?["']\s*:\s*\[([^\]]+)\]/i) ||
           text.match(/filament_types?\s*=\s*([^\r\n]+)/i);
 
@@ -287,9 +392,8 @@ export const parse3MFProject = async (file: File): Promise<ThreeMfProjectInfo> =
           });
         }
 
-        // Tags <filament id="1" color="#..." type="..." />
         const filTagRegex = /<filament\s+([^>]+)>/gi;
-        let filM;
+        let filM: RegExpExecArray | null;
         while ((filM = filTagRegex.exec(text)) !== null) {
           const attrs = filM[1];
           const idM = attrs.match(/id=["'](\d+)["']/i);
@@ -299,78 +403,114 @@ export const parse3MFProject = async (file: File): Promise<ThreeMfProjectInfo> =
             const fId = parseInt(idM[1], 10);
             if (!filamentPalette[fId]) {
               filamentPalette[fId] = {
-                hex: colM ? (colM[1].startsWith('#') ? colM[1] : `#${colM[1]}`) : DEFAULT_BAMBU_COLORS[(fId - 1) % DEFAULT_BAMBU_COLORS.length],
+                hex: colM
+                  ? (colM[1].startsWith('#') ? colM[1].slice(0, 7) : `#${colM[1].slice(0, 6)}`)
+                  : DEFAULT_BAMBU_COLORS[(fId - 1) % DEFAULT_BAMBU_COLORS.length],
               };
             }
-            if (colM) filamentPalette[fId].hex = colM[1].startsWith('#') ? colM[1] : `#${colM[1]}`;
+            if (colM) {
+              filamentPalette[fId].hex = colM[1].startsWith('#') ? colM[1].slice(0, 7) : `#${colM[1].slice(0, 6)}`;
+            }
             if (typM) filamentPalette[fId].type = typM[1];
           }
         }
-      } catch (e) {
-        // ignora
+      } catch {
+        // Ignora arquivo auxiliar ilegível
       }
     }
 
-    if (lower.endsWith('model_settings.config') || lower.endsWith('project_settings.config')) {
+    if (lower.endsWith('model_settings.config')) {
       modelSettingsString = await zipEntry.async('string');
       try {
         const configDoc = parser.parseFromString(modelSettingsString, 'application/xml');
-        // Mesas definidas em <plate>
-        const plateNodes = configDoc.getElementsByTagName('plate');
-        for (let p = 0; p < plateNodes.length; p++) {
-          const pNode = plateNodes[p];
-          let pId = p + 1;
-          let pName = `Mesa ${pId}`;
 
-          const metas = pNode.getElementsByTagName('metadata');
-          for (let m = 0; m < metas.length; m++) {
-            const key = metas[m].getAttribute('key');
-            const val = metas[m].getAttribute('value');
-            if (key === 'plate_id' && val) pId = parseInt(val, 10);
-            if (key === 'plate_name' && val) pName = val;
-            if (key === 'index' && val && !pId) pId = parseInt(val, 10);
-          }
-
-          plateMap[pId] = {
-            plateIndex: pId,
-            name: pName,
-            objects: [],
-          };
-        }
-
-        // Mapeamento de objetos em <object>
+        // 1. Mapeamento de objetos e sub-partes (<object> e <part>)
         const configObjNodes = configDoc.getElementsByTagName('object');
         for (let o = 0; o < configObjNodes.length; o++) {
           const oNode = configObjNodes[o];
           const objId = oNode.getAttribute('id');
           if (!objId) continue;
 
-          let targetPlateId = 1;
+          let targetPlateId = 0;
           let customName = '';
           let filId = 1;
-          const metas = oNode.getElementsByTagName('metadata');
-          for (let m = 0; m < metas.length; m++) {
-            const key = metas[m].getAttribute('key');
-            const val = metas[m].getAttribute('value');
-            if (key === 'plate_id' && val) targetPlateId = parseInt(val, 10);
-            if (key === 'name' && val) customName = val;
-            if ((key === 'filament_id' || key === 'tray_id') && val) filId = parseInt(val, 10);
-          }
 
-          // Partes filhas também podem ter filament_id
-          const partNodes = oNode.getElementsByTagName('part');
-          for (let p = 0; p < partNodes.length; p++) {
-            const pMetas = partNodes[p].getElementsByTagName('metadata');
-            for (let pm = 0; pm < pMetas.length; pm++) {
-              const k = pMetas[pm].getAttribute('key');
-              const v = pMetas[pm].getAttribute('value');
-              if ((k === 'filament_id' || k === 'tray_id') && v) filId = parseInt(v, 10);
+          // Ler apenas metadados diretos de <object> primeiro
+          for (let c = 0; c < oNode.children.length; c++) {
+            const ch = oNode.children[c];
+            if (ch.tagName === 'metadata') {
+              const key = ch.getAttribute('key');
+              const val = ch.getAttribute('value');
+              if ((key === 'plate_id' || key === 'plater_id') && val) targetPlateId = parseInt(val, 10);
+              if (key === 'name' && val) customName = val;
+              if ((key === 'extruder' || key === 'filament_id' || key === 'tray_id') && val) {
+                const parsed = parseInt(val, 10);
+                if (parsed > 0) filId = parsed;
+              }
+            } else if (ch.tagName === 'part') {
+              const partId = ch.getAttribute('id');
+              let partExt = filId;
+              const pMetas = ch.getElementsByTagName('metadata');
+              for (let pm = 0; pm < pMetas.length; pm++) {
+                const k = pMetas[pm].getAttribute('key');
+                const v = pMetas[pm].getAttribute('value');
+                if ((k === 'extruder' || k === 'filament_id' || k === 'tray_id') && v) {
+                  const parsed = parseInt(v, 10);
+                  if (parsed > 0) partExt = parsed;
+                }
+              }
+              if (partId) {
+                partFilamentMap[`${objId}_${partId}`] = partExt;
+                if (!objectFilamentMap[partId]) {
+                  objectFilamentMap[partId] = partExt;
+                }
+              }
             }
           }
 
-          objectToPlateMap[objId] = targetPlateId;
+          if (targetPlateId > 0) {
+            objectToPlateMap[objId] = targetPlateId;
+          }
           objectFilamentMap[objId] = filId;
           if (customName) objectNameMap[objId] = customName;
+        }
+
+        // 2. Mesas definidas em <plate> (Bambu Studio usa `plater_id`, `plater_name` e `<model_instance>`)
+        const plateNodes = configDoc.getElementsByTagName('plate');
+        for (let p = 0; p < plateNodes.length; p++) {
+          const pNode = plateNodes[p];
+          let pId = p + 1;
+          let pName = '';
+
+          for (let c = 0; c < pNode.children.length; c++) {
+            const ch = pNode.children[c];
+            if (ch.tagName === 'metadata') {
+              const key = ch.getAttribute('key');
+              const val = ch.getAttribute('value');
+              if ((key === 'plater_id' || key === 'plate_id' || key === 'index') && val) {
+                const parsed = parseInt(val, 10);
+                if (parsed > 0) pId = parsed;
+              }
+              if ((key === 'plater_name' || key === 'plate_name') && val && val.trim()) {
+                pName = val.trim();
+              }
+            } else if (ch.tagName === 'model_instance') {
+              const instMetas = ch.getElementsByTagName('metadata');
+              for (let im = 0; im < instMetas.length; im++) {
+                const ik = instMetas[im].getAttribute('key');
+                const iv = instMetas[im].getAttribute('value');
+                if (ik === 'object_id' && iv) {
+                  objectToPlateMap[iv] = pId;
+                }
+              }
+            }
+          }
+
+          plateMap[pId] = {
+            plateIndex: pId,
+            name: pName ? `Mesa ${pId} - ${pName}` : `Mesa ${pId}`,
+            objects: [],
+          };
         }
       } catch (err) {
         console.warn('Erro ao processar model_settings.config:', err);
@@ -378,17 +518,19 @@ export const parse3MFProject = async (file: File): Promise<ThreeMfProjectInfo> =
     }
   }
 
-  // 4. Procurar Miniaturas de Mesas (Metadata/plate_X.png, top_X.png ou pick_X.png)
+  // Miniaturas de Mesas
   const plateThumbnailMap: Record<number, string> = {};
   let globalThumbnailUrl: string | undefined = undefined;
 
   for (const [path, zipEntry] of Object.entries(loadedZip.files)) {
+    if (zipEntry.dir) continue;
     const lower = path.toLowerCase();
     if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
-      const matchPlate = lower.match(/(?:plate|top|pick)[_-]?(\d+)/i);
+      if (lower.includes('no_light') || lower.includes(' pick_') || lower.includes('/pick_')) continue;
+      const matchPlate = lower.match(/(?:plate|top)[_-]?(\d+)/i);
       if (matchPlate && matchPlate[1]) {
         const pIndex = parseInt(matchPlate[1], 10);
-        if (!plateThumbnailMap[pIndex]) {
+        if (!plateThumbnailMap[pIndex] || lower.includes('plate_')) {
           const blob = await zipEntry.async('blob');
           plateThumbnailMap[pIndex] = URL.createObjectURL(blob);
         }
@@ -401,16 +543,14 @@ export const parse3MFProject = async (file: File): Promise<ThreeMfProjectInfo> =
     }
   }
 
-  // 5. Associar objetos às mesas
+  // Associar objetos às mesas
   for (const buildItem of buildItems) {
     const objId = buildItem.objectId;
     const baseObj = rawObjects[objId];
     const name = objectNameMap[objId] || baseObj?.name || `Peça #${objId}`;
 
     let plateId = buildItem.plateId || objectToPlateMap[objId];
-    if (!plateId || plateId < 1) {
-      plateId = 1;
-    }
+    if (!plateId || plateId < 1) plateId = 1;
 
     if (!plateMap[plateId]) {
       plateMap[plateId] = {
@@ -422,7 +562,8 @@ export const parse3MFProject = async (file: File): Promise<ThreeMfProjectInfo> =
 
     if (!plateMap[plateId].objects.some((o) => o.id === objId)) {
       const filId = objectFilamentMap[objId] || 1;
-      const colorHex = filamentPalette[filId]?.hex || DEFAULT_BAMBU_COLORS[(filId - 1) % DEFAULT_BAMBU_COLORS.length];
+      const colorHex =
+        filamentPalette[filId]?.hex || DEFAULT_BAMBU_COLORS[(filId - 1) % DEFAULT_BAMBU_COLORS.length];
       plateMap[plateId].objects.push({
         id: objId,
         name,
@@ -432,106 +573,95 @@ export const parse3MFProject = async (file: File): Promise<ThreeMfProjectInfo> =
     }
   }
 
-  // Se não houver mesas mapeadas, criamos mesas pelos objetos
-  if (Object.keys(plateMap).length === 0) {
+  // Remover mesas vazias caso o projeto tenha definido pratos em branco no model_settings.config
+  const nonEmptyPlates = Object.values(plateMap).filter((p) => p.objects.length > 0);
+  if (nonEmptyPlates.length === 0) {
     const objList = Object.values(rawObjects);
     if (objList.length > 0) {
       objList.forEach((obj, idx) => {
         const pIdx = idx + 1;
         const filId = objectFilamentMap[obj.id] || 1;
-        const colorHex = filamentPalette[filId]?.hex || DEFAULT_BAMBU_COLORS[(filId - 1) % DEFAULT_BAMBU_COLORS.length];
+        const colorHex =
+          filamentPalette[filId]?.hex || DEFAULT_BAMBU_COLORS[(filId - 1) % DEFAULT_BAMBU_COLORS.length];
         plateMap[pIdx] = {
           plateIndex: pIdx,
           name: obj.name || `Mesa ${pIdx}`,
           objects: [{ id: obj.id, name: obj.name, filamentId: String(filId), colorHex }],
         };
       });
-    } else {
-      plateMap[1] = {
-        plateIndex: 1,
-        name: 'Mesa 1 (Padrão)',
-        objects: [{ id: '1', name: 'Modelo 3D', filamentId: '1', colorHex: DEFAULT_BAMBU_COLORS[0] }],
-      };
     }
   }
 
-  // Injetar miniaturas nas mesas
-  const sortedPlates = Object.values(plateMap)
+  const finalPlatesList = Object.values(plateMap).filter((p) => p.objects.length > 0);
+  const sortedPlates = finalPlatesList
     .sort((a, b) => a.plateIndex - b.plateIndex)
     .map((plate) => ({
       ...plate,
       thumbnailUrl: plateThumbnailMap[plate.plateIndex] || globalThumbnailUrl,
     }));
 
-  const allObjects: ParsedObjectInfo[] = Object.values(rawObjects).map((obj) => ({
-    id: obj.id,
-    name: objectNameMap[obj.id] || obj.name,
-    plateIndex: objectToPlateMap[obj.id],
-  }));
+  // Extrair sopa global de triângulos coloridos (incluindo `3D/Objects/*.model` e subdivisão `paint_color`)!
+  const coloredSoup = await extractColoredSoupFrom3MfZip(
+    loadedZip,
+    modelXmlPath,
+    filamentPalette,
+    objectFilamentMap,
+    partFilamentMap,
+    DEFAULT_BAMBU_COLORS
+  );
 
-  // 6. Construir Grupos de Cores / Filamentos
-  const colorGroupMap: Record<string, ColorGroupInfo> = {};
-  const buildObjectIds = new Set(buildItems.map((b) => b.objectId));
-  const activeObjects = buildObjectIds.size > 0
-    ? Object.entries(rawObjects).filter(([id]) => buildObjectIds.has(id))
-    : Object.entries(rawObjects);
+  // Construir peças 3D divididas por cor e fechadas (watertight)
+  const splitParts = await buildSplitColorParts(
+    coloredSoup,
+    splitOptions,
+    getColorNameFromHex,
+    DEFAULT_BAMBU_COLORS
+  );
 
-  // Analisar se todos os objetos caíram no mesmo filamento
-  const distinctFilaments = new Set(Object.values(objectFilamentMap));
-  const hasMultipleFilamentIds = distinctFilaments.size > 1;
-
-  for (const [objId, baseObj] of activeObjects) {
-    const name = objectNameMap[objId] || baseObj.name || `Peça #${objId}`;
-    let filamentId = objectFilamentMap[objId] || 1;
-    let colorHex = filamentPalette[filamentId]?.hex;
-    const colorType = filamentPalette[filamentId]?.type || 'PLA';
-    let colorName = '';
-
-    // Se o filamento não tem cor mapeada ou se todas as peças caíram no filamento padrão 1,
-    // verifica se o nome da peça contém uma cor descritiva (muito comum em modelos baixados)
-    const keywordMatch = COLOR_KEYWORDS.find((kw) => kw.match.test(name));
-
-    if ((!hasMultipleFilamentIds && keywordMatch) || !colorHex) {
-      if (keywordMatch) {
-        colorHex = keywordMatch.hex;
-        colorName = keywordMatch.name;
-        filamentId = 100 + COLOR_KEYWORDS.indexOf(keywordMatch) + 1;
-      } else {
-        colorHex = DEFAULT_BAMBU_COLORS[(filamentId - 1) % DEFAULT_BAMBU_COLORS.length];
-        colorName = getColorNameFromHex(colorHex);
-      }
-    } else {
-      colorName = getColorNameFromHex(colorHex);
-    }
-
-    const groupKey = `${filamentId}_${colorHex.toUpperCase()}`;
-    if (!colorGroupMap[groupKey]) {
-      colorGroupMap[groupKey] = {
-        filamentId,
-        colorHex,
-        colorName,
-        filamentType: colorType,
-        objects: [],
-      };
-    }
-
-    colorGroupMap[groupKey].objects.push({
-      id: objId,
-      name,
-      filamentId: String(filamentId),
-      colorHex,
-    });
+  if (coloredSoup.hadPaintedTriangles && slicer === 'Padrão / Desconhecido') {
+    slicer = 'Bambu Studio / OrcaSlicer';
   }
 
-  const colorGroups = Object.values(colorGroupMap).sort((a, b) => a.filamentId - b.filamentId);
+  const buildObjectIds = new Set(buildItems.map((b) => b.objectId));
+  const rootObjList =
+    buildObjectIds.size > 0
+      ? Object.values(rawObjects).filter((o) => buildObjectIds.has(o.id))
+      : Object.values(rawObjects);
+
+  const allObjects: ParsedObjectInfo[] = rootObjList.map((obj) => ({
+    id: obj.id,
+    name: objectNameMap[obj.id] || obj.name,
+    plateIndex: objectToPlateMap[obj.id] || 1,
+  }));
+
+  // Sincronizar `colorGroups` com as peças reais divididas (`splitParts`) para compatibilidade completa
+  const colorGroups: ColorGroupInfo[] = splitParts.map((sp) => ({
+    filamentId: sp.extruderId,
+    colorHex: sp.colorHex,
+    colorName: sp.colorName,
+    filamentType: sp.filamentType,
+    objects: [
+      {
+        id: sp.id,
+        name: `${sp.name} (${sp.triangleCount.toLocaleString()} faces)`,
+        filamentId: String(sp.extruderId),
+        colorHex: sp.colorHex,
+      },
+    ],
+  }));
 
   return {
     fileName: file.name,
     fileSizeBytes: file.size,
+    inputFormat: '3mf',
     slicer,
     plates: sortedPlates,
     colorGroups,
     objects: allObjects,
+    splitParts,
+    coloredSoup,
+    hadPaintedTriangles: coloredSoup.hadPaintedTriangles,
+    totalTriangles: coloredSoup.indices.length / 3,
     globalThumbnailUrl,
     rawZip: loadedZip,
     modelXmlString,
@@ -539,16 +669,20 @@ export const parse3MFProject = async (file: File): Promise<ThreeMfProjectInfo> =
   };
 };
 
+// Alias retrocompatível
+export const parse3MFProject = parse3DModelProject;
+
 /**
- * Coleta recursivamente todos os IDs de objetos necessários (incluindo subcomponentes de montagens)
+ * Coleta recursivamente IDs de objetos no XML principal e caminhos `p:path` de sub-modelos externos (`3D/Objects/*.model`)
  */
-const collectObjectIdsRecursively = (
+const collectObjectDependencies = (
   targetId: string,
   xmlDoc: Document,
-  collected: Set<string>
+  collectedIds: Set<string>,
+  collectedExternalPaths: Set<string>
 ) => {
-  if (collected.has(targetId)) return;
-  collected.add(targetId);
+  if (collectedIds.has(targetId)) return;
+  collectedIds.add(targetId);
 
   const objects = xmlDoc.getElementsByTagName('object');
   for (let i = 0; i < objects.length; i++) {
@@ -556,9 +690,16 @@ const collectObjectIdsRecursively = (
     if (obj.getAttribute('id') === targetId) {
       const components = obj.getElementsByTagName('component');
       for (let c = 0; c < components.length; c++) {
-        const subId = components[c].getAttribute('objectid');
-        if (subId) {
-          collectObjectIdsRecursively(subId, xmlDoc, collected);
+        const comp = components[c];
+        const extPath =
+          comp.getAttribute('p:path') ||
+          comp.getAttribute('path') ||
+          comp.getAttributeNS('http://schemas.microsoft.com/3dmanufacturing/production/2015/06', 'path');
+        const subId = comp.getAttribute('objectid');
+        if (extPath) {
+          collectedExternalPaths.add(extPath.replace(/^\/+/, '').toLowerCase());
+        } else if (subId) {
+          collectObjectDependencies(subId, xmlDoc, collectedIds, collectedExternalPaths);
         }
       }
       break;
@@ -567,45 +708,54 @@ const collectObjectIdsRecursively = (
 };
 
 /**
- * Gera um novo arquivo .3mf independente contendo apenas a mesa solicitada
+ * Gera um novo arquivo .3mf independente contendo apenas a mesa solicitada (preservando `3D/Objects/*.model` necessários)
  */
 export const generatePlate3MF = async (
   project: ThreeMfProjectInfo,
   targetPlateIndex: number
 ): Promise<Blob> => {
+  if (!project.rawZip || !project.modelXmlString) {
+    throw new Error('Separação por mesas originais está disponível apenas para projetos .3MF.');
+  }
+
   const targetPlate = project.plates.find((p) => p.plateIndex === targetPlateIndex);
   if (!targetPlate) {
     throw new Error(`Mesa #${targetPlateIndex} não encontrada no projeto.`);
   }
 
   const targetObjectIds = new Set(targetPlate.objects.map((o) => o.id));
+  const parser = new DOMParser();
+  const xmlDoc = parser.parseFromString(project.modelXmlString, 'application/xml');
 
-  // Criar clone do ZIP
+  const requiredObjectIds = new Set<string>();
+  const requiredExternalPaths = new Set<string>();
+  targetObjectIds.forEach((id) =>
+    collectObjectDependencies(id, xmlDoc, requiredObjectIds, requiredExternalPaths)
+  );
+
   const newZip = new JSZip();
   for (const [path, entry] of Object.entries(project.rawZip.files)) {
     if (entry.dir) continue;
-    // Omitir gcodes e imagens de outras mesas para deixar o arquivo leve e limpo
-    const lower = path.toLowerCase();
+    const lower = path.replace(/^\/+/, '').toLowerCase();
+
+    // Omitir gcodes e miniaturas de outras mesas
     const otherPlateMatch = lower.match(/(?:plate|top|pick)[_-]?(\d+)/i);
     if (otherPlateMatch && otherPlateMatch[1]) {
       const pIdx = parseInt(otherPlateMatch[1], 10);
-      if (pIdx !== targetPlateIndex) {
+      if (pIdx !== targetPlateIndex) continue;
+    }
+
+    // Se for um sub-modelo em 3d/objects/, copiar apenas os referenciados pelos objetos desta mesa
+    if (lower.startsWith('3d/objects/') && lower.endsWith('.model')) {
+      if (requiredExternalPaths.size > 0 && !requiredExternalPaths.has(lower)) {
         continue;
       }
     }
+
     const data = await entry.async('uint8array');
     newZip.file(path, data);
   }
 
-  // Atualizar 3D/3dmodel.model
-  const parser = new DOMParser();
-  const xmlDoc = parser.parseFromString(project.modelXmlString, 'application/xml');
-
-  // Identificar todos os object IDs necessários para esta mesa
-  const requiredObjectIds = new Set<string>();
-  targetObjectIds.forEach((id) => collectObjectIdsRecursively(id, xmlDoc, requiredObjectIds));
-
-  // Filtrar <build> para incluir somente itens pertencentes a esta mesa
   const buildNodes = xmlDoc.getElementsByTagName('build');
   if (buildNodes.length > 0) {
     const build = buildNodes[0];
@@ -618,7 +768,6 @@ export const generatePlate3MF = async (
     }
   }
 
-  // Filtrar <resources> para remover objetos não utilizados
   const resourcesNodes = xmlDoc.getElementsByTagName('resources');
   if (resourcesNodes.length > 0) {
     const resources = resourcesNodes[0];
@@ -634,7 +783,6 @@ export const generatePlate3MF = async (
   const serializer = new XMLSerializer();
   const updatedXml = serializer.serializeToString(xmlDoc);
 
-  // Sobrescrever 3D/3dmodel.model no novo ZIP
   for (const path of Object.keys(newZip.files)) {
     if (path.toLowerCase().endsWith('3d/3dmodel.model') || path.toLowerCase().endsWith('3dmodel.model')) {
       newZip.file(path, updatedXml);
@@ -642,23 +790,31 @@ export const generatePlate3MF = async (
     }
   }
 
-  // Se houver model_settings.config, filtrar apenas a mesa e objetos correspondentes
   if (project.modelSettingsString) {
     try {
       const configDoc = parser.parseFromString(project.modelSettingsString, 'application/xml');
       const plateNodes = Array.from(configDoc.getElementsByTagName('plate'));
-      for (const pNode of plateNodes) {
-        let pId = 1;
+      plateNodes.forEach((pNode, idx) => {
+        let pId = idx + 1;
         const metas = pNode.getElementsByTagName('metadata');
         for (let m = 0; m < metas.length; m++) {
-          if (metas[m].getAttribute('key') === 'plate_id') {
-            pId = parseInt(metas[m].getAttribute('value') || '1', 10);
+          const k = metas[m].getAttribute('key');
+          if (k === 'plater_id' || k === 'plate_id') {
+            pId = parseInt(metas[m].getAttribute('value') || String(pId), 10);
           }
         }
         if (pId !== targetPlateIndex) {
           pNode.parentNode?.removeChild(pNode);
+        } else {
+          // Renumerar mesa única resultante para plater_id = 1
+          for (let m = 0; m < metas.length; m++) {
+            const k = metas[m].getAttribute('key');
+            if (k === 'plater_id' || k === 'plate_id') {
+              metas[m].setAttribute('value', '1');
+            }
+          }
         }
-      }
+      });
 
       const objNodes = Array.from(configDoc.getElementsByTagName('object'));
       for (const oNode of objNodes) {
@@ -676,7 +832,7 @@ export const generatePlate3MF = async (
         }
       }
     } catch (e) {
-      console.warn('Aviso: falha ao atualizar model_settings.config no split:', e);
+      console.warn('Aviso: falha ao atualizar model_settings.config no split de mesa:', e);
     }
   }
 
@@ -689,24 +845,38 @@ export const generatePlate3MF = async (
 };
 
 /**
- * Gera um novo arquivo .3mf independente contendo apenas um objeto/peça específica
+ * Gera um novo arquivo .3mf independente contendo apenas um objeto raiz específico
  */
 export const generateObject3MF = async (
   project: ThreeMfProjectInfo,
   targetObjectId: string
 ): Promise<Blob> => {
-  const newZip = new JSZip();
-  for (const [path, entry] of Object.entries(project.rawZip.files)) {
-    if (entry.dir) continue;
-    const data = await entry.async('uint8array');
-    newZip.file(path, data);
+  if (!project.rawZip || !project.modelXmlString) {
+    // Fallback para projetos STL/OBJ
+    const firstPart = project.splitParts[0];
+    if (!firstPart) throw new Error('Objeto não encontrado.');
+    return await exportSplitPartTo3MF(firstPart, false);
   }
 
   const parser = new DOMParser();
   const xmlDoc = parser.parseFromString(project.modelXmlString, 'application/xml');
 
   const requiredObjectIds = new Set<string>();
-  collectObjectIdsRecursively(targetObjectId, xmlDoc, requiredObjectIds);
+  const requiredExternalPaths = new Set<string>();
+  collectObjectDependencies(targetObjectId, xmlDoc, requiredObjectIds, requiredExternalPaths);
+
+  const newZip = new JSZip();
+  for (const [path, entry] of Object.entries(project.rawZip.files)) {
+    if (entry.dir) continue;
+    const lower = path.replace(/^\/+/, '').toLowerCase();
+    if (lower.startsWith('3d/objects/') && lower.endsWith('.model')) {
+      if (requiredExternalPaths.size > 0 && !requiredExternalPaths.has(lower)) {
+        continue;
+      }
+    }
+    const data = await entry.async('uint8array');
+    newZip.file(path, data);
+  }
 
   const buildNodes = xmlDoc.getElementsByTagName('build');
   if (buildNodes.length > 0) {
@@ -751,7 +921,7 @@ export const generateObject3MF = async (
 };
 
 /**
- * Gera um arquivo ZIP contendo todas as mesas divididas como arquivos .3mf individuais
+ * Gera um arquivo ZIP contendo todas as mesas originais divididas como arquivos .3mf individuais
  */
 export const generateAllPlatesZip = async (
   project: ThreeMfProjectInfo,
@@ -759,19 +929,18 @@ export const generateAllPlatesZip = async (
 ): Promise<Blob> => {
   const masterZip = new JSZip();
   const total = project.plates.length;
-
-  const baseBaseName = project.fileName.replace(/\.3mf$/i, '');
+  const baseName = project.fileName.replace(/\.(3mf|stl|obj)$/i, '');
 
   for (let i = 0; i < total; i++) {
     const plate = project.plates[i];
     if (onProgress) {
-      onProgress(Math.round(((i) / total) * 100), plate.name);
+      onProgress(Math.round((i / total) * 100), plate.name);
     }
 
     const plateBlob = await generatePlate3MF(project, plate.plateIndex);
-    const cleanPlateName = plate.name.replace(/^(mesa|plate)\s*\d+[:_-]?\s*/i, '').trim();
+    const cleanPlateName = plate.name.replace(/^(mesa|plate)\s*\d+[\s:_-]*/i, '').trim();
     const suffix = cleanPlateName ? `_${cleanPlateName}` : '';
-    const plateFileName = sanitizeFileName(`${baseBaseName}_Mesa_${plate.plateIndex}${suffix}.3mf`);
+    const plateFileName = sanitizeFileName(`${baseName}_Mesa_${plate.plateIndex}${suffix}.3mf`);
     masterZip.file(plateFileName, plateBlob);
   }
 
@@ -788,185 +957,72 @@ export const generateAllPlatesZip = async (
 };
 
 /**
- * Gera um novo arquivo .3mf independente contendo apenas as peças de uma cor/filamento específico
+ * Gera um pacote `.zip` com TODAS as peças divididas por cor/corte (`SplitPartMesh[]`),
+ * suportando exportação individual em `.3mf` ou `.stl` (igual ao split3mf.com)!
  */
-export const generateColor3MF = async (
-  project: ThreeMfProjectInfo,
-  colorGroup: ColorGroupInfo
+export const generateAllSplitPartsZip = async (
+  parts: ReadonlyArray<SplitPartMesh>,
+  originalFileName: string,
+  format: '3mf' | 'stl' = '3mf',
+  keepAssemblyPosition = true,
+  onProgress?: (percent: number, currentPartName: string) => void
 ): Promise<Blob> => {
-  const targetObjectIds = new Set(colorGroup.objects.map((o) => o.id));
-  const newZip = new JSZip();
-
-  // Copiar arquivos originais, ignorando miniaturas de mesas antigas para deixar o arquivo leve
-  for (const [path, entry] of Object.entries(project.rawZip.files)) {
-    if (entry.dir) continue;
-    const lower = path.toLowerCase();
-    if (lower.match(/(?:plate|top|pick)[_-]?(\d+)/i)) {
-      continue;
-    }
-    const data = await entry.async('uint8array');
-    newZip.file(path, data);
+  const visibleParts = parts.filter((p) => p.visible && p.triangleCount > 0);
+  if (visibleParts.length === 0) {
+    throw new Error('Nenhuma peça visível selecionada para exportar.');
   }
 
-  // Atualizar 3D/3dmodel.model
-  const parser = new DOMParser();
-  const xmlDoc = parser.parseFromString(project.modelXmlString, 'application/xml');
-
-  // Identificar todos os object IDs necessários para esta cor
-  const requiredObjectIds = new Set<string>();
-  targetObjectIds.forEach((id) => collectObjectIdsRecursively(id, xmlDoc, requiredObjectIds));
-
-  // Filtrar <build> para incluir somente itens pertencentes a esta cor
-  const buildNodes = xmlDoc.getElementsByTagName('build');
-  if (buildNodes.length > 0) {
-    const build = buildNodes[0];
-    const items = Array.from(build.getElementsByTagName('item'));
-    for (const item of items) {
-      const objId = item.getAttribute('objectid');
-      if (!objId || !targetObjectIds.has(objId)) {
-        build.removeChild(item);
-      }
-    }
-  }
-
-  // Filtrar <resources> para remover objetos não utilizados
-  const resourcesNodes = xmlDoc.getElementsByTagName('resources');
-  if (resourcesNodes.length > 0) {
-    const resources = resourcesNodes[0];
-    const objects = Array.from(resources.getElementsByTagName('object'));
-    for (const obj of objects) {
-      const objId = obj.getAttribute('id');
-      if (objId && !requiredObjectIds.has(objId)) {
-        resources.removeChild(obj);
-      }
-    }
-  }
-
-  const serializer = new XMLSerializer();
-  const updatedXml = serializer.serializeToString(xmlDoc);
-
-  // Sobrescrever 3D/3dmodel.model no novo ZIP
-  for (const path of Object.keys(newZip.files)) {
-    if (path.toLowerCase().endsWith('3d/3dmodel.model') || path.toLowerCase().endsWith('3dmodel.model')) {
-      newZip.file(path, updatedXml);
-      break;
-    }
-  }
-
-  // Se houver model_settings.config, configurar uma única mesa associada à cor
-  if (project.modelSettingsString) {
-    try {
-      const configDoc = parser.parseFromString(project.modelSettingsString, 'application/xml');
-      const plateNodes = Array.from(configDoc.getElementsByTagName('plate'));
-      for (let i = 0; i < plateNodes.length; i++) {
-        if (i === 0) {
-          const pNode = plateNodes[0];
-          const metas = Array.from(pNode.getElementsByTagName('metadata'));
-          metas.forEach((m) => pNode.removeChild(m));
-
-          const mId = configDoc.createElement('metadata');
-          mId.setAttribute('key', 'plate_id');
-          mId.setAttribute('value', '1');
-          pNode.appendChild(mId);
-
-          const mName = configDoc.createElement('metadata');
-          mName.setAttribute('key', 'plate_name');
-          mName.setAttribute('value', `Mesa - ${colorGroup.colorName}`);
-          pNode.appendChild(mName);
-
-          const mFil = configDoc.createElement('metadata');
-          mFil.setAttribute('key', 'filament_id');
-          mFil.setAttribute('value', String(colorGroup.filamentId));
-          pNode.appendChild(mFil);
-        } else {
-          plateNodes[i].parentNode?.removeChild(plateNodes[i]);
-        }
-      }
-
-      const objNodes = Array.from(configDoc.getElementsByTagName('object'));
-      for (const oNode of objNodes) {
-        const objId = oNode.getAttribute('id');
-        if (objId && !requiredObjectIds.has(objId)) {
-          oNode.parentNode?.removeChild(oNode);
-        } else if (objId) {
-          const metas = Array.from(oNode.getElementsByTagName('metadata'));
-          let hasPlate = false;
-          let hasFilament = false;
-          metas.forEach((m) => {
-            if (m.getAttribute('key') === 'plate_id') {
-              m.setAttribute('value', '1');
-              hasPlate = true;
-            }
-            if (m.getAttribute('key') === 'filament_id') {
-              m.setAttribute('value', String(colorGroup.filamentId));
-              hasFilament = true;
-            }
-          });
-          if (!hasPlate) {
-            const mPlate = configDoc.createElement('metadata');
-            mPlate.setAttribute('key', 'plate_id');
-            mPlate.setAttribute('value', '1');
-            oNode.appendChild(mPlate);
-          }
-          if (!hasFilament) {
-            const mFil = configDoc.createElement('metadata');
-            mFil.setAttribute('key', 'filament_id');
-            mFil.setAttribute('value', String(colorGroup.filamentId));
-            oNode.appendChild(mFil);
-          }
-        }
-      }
-
-      const updatedConfig = serializer.serializeToString(configDoc);
-      for (const path of Object.keys(newZip.files)) {
-        if (path.toLowerCase().endsWith('model_settings.config')) {
-          newZip.file(path, updatedConfig);
-          break;
-        }
-      }
-    } catch (e) {
-      console.warn('Aviso: falha ao atualizar model_settings.config no split por cor:', e);
-    }
-  }
-
-  return await newZip.generateAsync({
-    type: 'blob',
-    mimeType: 'application/vnd.ms-package.3dmanufacturing-3dmodel+xml',
-    compression: 'DEFLATE',
-    compressionOptions: { level: 6 },
-  });
-};
-
-/**
- * Gera um arquivo ZIP contendo todas as cores divididas como arquivos .3mf individuais
- */
-export const generateAllColorsZip = async (
-  project: ThreeMfProjectInfo,
-  onProgress?: (percent: number, currentColor: string) => void
-): Promise<Blob> => {
   const masterZip = new JSZip();
-  const total = project.colorGroups.length;
-  const baseBaseName = project.fileName.replace(/\.3mf$/i, '').trim();
+  const baseName = originalFileName.replace(/\.(3mf|stl|obj)$/i, '').trim();
+  const total = visibleParts.length;
 
   for (let i = 0; i < total; i++) {
-    const cg = project.colorGroups[i];
+    const part = visibleParts[i];
     if (onProgress) {
-      onProgress(Math.round(((i) / total) * 100), `${cg.colorName} (${cg.colorHex})`);
+      onProgress(Math.round((i / total) * 100), part.name);
     }
 
-    const colorBlob = await generateColor3MF(project, cg);
-    const colorFileName = sanitizeFileName(`${baseBaseName}_Mesa_Cor_${cg.filamentId}_${cg.colorName}.3mf`);
-    masterZip.file(colorFileName, colorBlob);
+    const partBlob =
+      format === 'stl'
+        ? exportSplitPartToSTL(part, keepAssemblyPosition)
+        : await exportSplitPartTo3MF(part, keepAssemblyPosition);
+
+    const ext = format === 'stl' ? 'stl' : '3mf';
+    const fileName = sanitizeFileName(`${baseName}_${i + 1}_${part.name}.${ext}`);
+    masterZip.file(fileName, partBlob);
   }
 
   if (onProgress) {
-    onProgress(100, 'Empacotando arquivo ZIP das cores...');
+    onProgress(100, 'Compactando pacote ZIP...');
   }
 
   return await masterZip.generateAsync({
     type: 'blob',
     mimeType: 'application/zip',
     compression: 'DEFLATE',
-    compressionOptions: { level: 4 },
+    compressionOptions: { level: 5 },
   });
+};
+
+/**
+ * Retrocompatibilidade para exportação de grupo de cor único
+ */
+export const generateColor3MF = async (
+  project: ThreeMfProjectInfo,
+  colorGroup: ColorGroupInfo
+): Promise<Blob> => {
+  const matchingPart =
+    project.splitParts.find((p) => p.id === colorGroup.objects[0]?.id) ||
+    project.splitParts.find((p) => p.extruderId === colorGroup.filamentId);
+  if (!matchingPart) {
+    throw new Error(`Malha da cor ${colorGroup.colorName} não encontrada.`);
+  }
+  return await exportSplitPartTo3MF(matchingPart, true);
+};
+
+export const generateAllColorsZip = async (
+  project: ThreeMfProjectInfo,
+  onProgress?: (percent: number, currentColor: string) => void
+): Promise<Blob> => {
+  return await generateAllSplitPartsZip(project.splitParts, project.fileName, '3mf', true, onProgress);
 };

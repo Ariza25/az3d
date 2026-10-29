@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { Sun, Box, RotateCcw } from 'lucide-react';
+import { Sun, Box, RotateCcw, Palette } from 'lucide-react';
 import { Mesh3D } from '../../../../shared/utils/meshGenerators';
 
 interface ThreeDViewerProps {
@@ -16,6 +16,7 @@ export const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
   isBacklightOn = false,
   onToggleBacklight,
 }) => {
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -23,35 +24,54 @@ export const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
   const meshRef = useRef<THREE.Mesh | null>(null);
   const backLightRef = useRef<THREE.PointLight | null>(null);
   const frontLightRef = useRef<THREE.DirectionalLight | null>(null);
+  const ambientLightRef = useRef<THREE.AmbientLight | null>(null);
 
   const [wireframe, setWireframe] = useState(false);
-  const [materialColor, setMaterialColor] = useState('#FFFFFF'); // Branco Bambu
+  const [materialColor, setMaterialColor] = useState<string>('#FFFFFF');
 
-  // Estado para rotação e zoom do mouse
   const isMouseDown = useRef(false);
   const isRightMouseDown = useRef(false);
   const prevMousePos = useRef({ x: 0, y: 0 });
   const cameraDistance = useRef(180);
-  const cameraRotation = useRef({ theta: Math.PI / 4, phi: Math.PI / 3 });
-  const targetOffset = useRef(new THREE.Vector3(0, 0, 10));
+  const cameraRotation = useRef({ theta: Math.PI / 5, phi: Math.PI / 3 });
+  const targetOffset = useRef(new THREE.Vector3(0, 10, 0));
 
-  // Inicializar Cena Three.js
+  const syncCameraTransform = () => {
+    const cam = cameraRef.current;
+    if (!cam) return;
+    const { theta, phi } = cameraRotation.current;
+    const r = cameraDistance.current;
+    cam.position.x = targetOffset.current.x + r * Math.sin(phi) * Math.sin(theta);
+    cam.position.y = targetOffset.current.y + r * Math.cos(phi);
+    cam.position.z = targetOffset.current.z + r * Math.sin(phi) * Math.cos(theta);
+    cam.lookAt(targetOffset.current);
+  };
+
+  // Quando chega uma malha multicor nova, ativar visualização multicor automaticamente
   useEffect(() => {
-    if (!containerRef.current) return;
-    const container = containerRef.current;
-    const width = container.clientWidth || 500;
-    const height = container.clientHeight || 500;
+    if (mesh?.colors) {
+      setMaterialColor('MULTICOLOR');
+    } else if (materialColor === 'MULTICOLOR') {
+      setMaterialColor('#FFFFFF');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mesh]);
 
-    // 1. Scene
+  // Inicializar Cena Three.js + pausa automática fora da tela (content-visibility / IntersectionObserver)
+  useEffect(() => {
+    if (!containerRef.current || !wrapperRef.current) return;
+    const container = containerRef.current;
+    const wrapper = wrapperRef.current;
+    const width = container.clientWidth || 500;
+    const height = container.clientHeight || 520;
+
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color('#0b1120'); // Dark slate slate-950
+    scene.background = new THREE.Color('#0b1120');
     sceneRef.current = scene;
 
-    // 2. Camera
-    const camera = new THREE.PerspectiveCamera(45, width / height, 1, 2000);
+    const camera = new THREE.PerspectiveCamera(45, width / height, 1, 2500);
     cameraRef.current = camera;
 
-    // 3. Renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -61,77 +81,111 @@ export const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
-    // 4. Mesa de Impressão Bambu Lab (256 x 256 mm)
+    // Mesa de Impressão Bambu Lab (256 x 256 mm)
     const bedGroup = new THREE.Group();
-
-    // Placa PEI Texturizada (256x256mm)
     const bedGeo = new THREE.PlaneGeometry(256, 256);
     const bedMat = new THREE.MeshStandardMaterial({
       color: 0x1e293b,
-      roughness: 0.8,
-      metalness: 0.2,
+      roughness: 0.85,
+      metalness: 0.15,
     });
     const bedMesh = new THREE.Mesh(bedGeo, bedMat);
     bedMesh.rotation.x = -Math.PI / 2;
-    bedMesh.position.y = -0.1;
+    bedMesh.position.y = -0.08;
     bedMesh.receiveShadow = true;
     bedGroup.add(bedMesh);
 
-    // Grade milimétrica (256x256 com divisões de 10mm e 50mm)
-    const gridHelper = new THREE.GridHelper(256, 25.6, 0x00ae42, 0x334155); // Verde Bambu e cinza
+    // Divisões inteiras (16 x 16 = blocos de 16 mm na mesa 256x256 mm)
+    const gridHelper = new THREE.GridHelper(256, 16, 0x00ae42, 0x334155);
     gridHelper.position.y = 0;
     bedGroup.add(gridHelper);
-
     scene.add(bedGroup);
 
-    // 5. Iluminação
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.45);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.52);
     scene.add(ambientLight);
+    ambientLightRef.current = ambientLight;
 
-    // Luz frontal principal para realçar relevos
-    const frontLight = new THREE.DirectionalLight(0xffffff, 1.2);
-    frontLight.position.set(100, 200, 150);
+    const frontLight = new THREE.DirectionalLight(0xffffff, 1.25);
+    frontLight.position.set(110, 210, 160);
     frontLight.castShadow = true;
     frontLight.shadow.mapSize.width = 1024;
     frontLight.shadow.mapSize.height = 1024;
     scene.add(frontLight);
     frontLightRef.current = frontLight;
 
-    // Luz de preenchimento lateral
-    const fillLight = new THREE.DirectionalLight(0x94a3b8, 0.4);
-    fillLight.position.set(-150, 100, -100);
+    const fillLight = new THREE.DirectionalLight(0x94a3b8, 0.45);
+    fillLight.position.set(-150, 110, -110);
     scene.add(fillLight);
 
-    // Luz de Fundo (Backlight para Litofania)
-    const backLight = new THREE.PointLight(0xffe8bb, 0, 300);
-    backLight.position.set(0, 30, -50);
+    const backLight = new THREE.PointLight(0xffe4a8, 0, 360);
+    backLight.position.set(0, 55, -55);
     scene.add(backLight);
     backLightRef.current = backLight;
 
-    // 6. Atualizar Posição da Câmera
-    const updateCamera = () => {
-      const theta = cameraRotation.current.theta;
-      const phi = cameraRotation.current.phi;
-      const r = cameraDistance.current;
+    syncCameraTransform();
 
-      camera.position.x = targetOffset.current.x + r * Math.sin(phi) * Math.sin(theta);
-      camera.position.y = targetOffset.current.y + r * Math.cos(phi);
-      camera.position.z = targetOffset.current.z + r * Math.sin(phi) * Math.cos(theta);
+    let animId: number | null = null;
+    let isPaused = false;
 
-      camera.lookAt(targetOffset.current);
-    };
-
-    updateCamera();
-
-    // 7. Loop de Animação
-    let animId: number;
-    const animate = () => {
-      animId = requestAnimationFrame(animate);
+    const renderLoop = () => {
+      if (isPaused) {
+        animId = null;
+        return;
+      }
+      animId = requestAnimationFrame(renderLoop);
       renderer.render(scene, camera);
     };
-    animate();
 
-    // 8. Resize Observer
+    const pauseLoop = () => {
+      isPaused = true;
+      if (animId !== null) {
+        cancelAnimationFrame(animId);
+        animId = null;
+      }
+    };
+
+    const resumeLoop = () => {
+      if (!isPaused && animId !== null) return;
+      isPaused = false;
+      if (animId === null) {
+        animId = requestAnimationFrame(renderLoop);
+      }
+    };
+
+    resumeLoop();
+
+    // Pausa eficiente quando fora da viewport (contentvisibilityautostatechange direto no elemento + fallback IO)
+    const supportsContentVisibility =
+      typeof document !== 'undefined' && 'contentVisibility' in document.documentElement.style;
+
+    let intersectionObserver: IntersectionObserver | null = null;
+    const handleContentVisibilityChange = (ev: Event) => {
+      const skipped = Boolean((ev as Event & { skipped?: boolean }).skipped);
+      if (skipped) {
+        pauseLoop();
+      } else {
+        resumeLoop();
+      }
+    };
+
+    if (supportsContentVisibility) {
+      wrapper.addEventListener('contentvisibilityautostatechange', handleContentVisibilityChange);
+    } else if (typeof IntersectionObserver !== 'undefined') {
+      intersectionObserver = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              resumeLoop();
+            } else {
+              pauseLoop();
+            }
+          }
+        },
+        { rootMargin: '200px' }
+      );
+      intersectionObserver.observe(wrapper);
+    }
+
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const w = entry.contentRect.width;
@@ -146,18 +200,46 @@ export const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
     resizeObserver.observe(container);
 
     return () => {
-      cancelAnimationFrame(animId);
+      pauseLoop();
+      if (supportsContentVisibility) {
+        wrapper.removeEventListener('contentvisibilityautostatechange', handleContentVisibilityChange);
+      }
+      if (intersectionObserver) {
+        intersectionObserver.disconnect();
+      }
       resizeObserver.disconnect();
       renderer.dispose();
     };
   }, []);
 
-  // Atualizar Geometria 3D quando o mesh mudar
+  // Enquadrar câmera apenas quando um novo mesh ou modo for carregado
+  useEffect(() => {
+    if (!mesh) return;
+    const maxDim = Math.max(mesh.widthMm, mesh.heightMm, mesh.depthMm, 40);
+    cameraDistance.current = maxDim * 2.05;
+
+    if (mode === 'lithophane') {
+      targetOffset.current.set(0, Math.max(20, mesh.depthMm * 0.5), 0);
+      cameraRotation.current = { theta: 0.18, phi: Math.PI / 2.25 };
+    } else if (mode === 'sculpture') {
+      targetOffset.current.set(0, Math.max(20, mesh.depthMm * 0.48), 0);
+      cameraRotation.current = { theta: Math.PI / 5, phi: Math.PI / 2.5 };
+    } else {
+      targetOffset.current.set(0, Math.max(4, mesh.depthMm * 0.5), 0);
+      cameraRotation.current = { theta: Math.PI / 6, phi: Math.PI / 3.2 };
+    }
+
+    if (backLightRef.current) {
+      backLightRef.current.position.set(0, Math.max(30, mesh.depthMm * 0.5), -55);
+    }
+    syncCameraTransform();
+  }, [mesh, mode]);
+
+  // Atualizar Geometria e Material 3D
   useEffect(() => {
     if (!sceneRef.current) return;
     const scene = sceneRef.current;
 
-    // Remover mesh anterior
     if (meshRef.current) {
       scene.remove(meshRef.current);
       meshRef.current.geometry.dispose();
@@ -171,76 +253,79 @@ export const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
 
     if (!mesh) return;
 
-    // Criar BufferGeometry com os vértices e triângulos calculados
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(mesh.vertices, 3));
     geometry.setIndex(new THREE.BufferAttribute(mesh.indices, 1));
+
+    const useLitBacklight = mode === 'lithophane' && isBacklightOn && Boolean(mesh.lithoGlowColors);
+    const useMultiColor = materialColor === 'MULTICOLOR' && Boolean(mesh.colors);
+
+    if (useLitBacklight && mesh.lithoGlowColors) {
+      geometry.setAttribute('color', new THREE.BufferAttribute(mesh.lithoGlowColors, 3));
+    } else if (useMultiColor && mesh.colors) {
+      geometry.setAttribute('color', new THREE.BufferAttribute(mesh.colors, 3));
+    }
+
     geometry.computeVertexNormals();
 
-    // Para litofanias, material levemente translúcido
     let mat: THREE.Material;
-    if (mode === 'lithophane') {
-      mat = new THREE.MeshPhysicalMaterial({
-        color: new THREE.Color(materialColor),
-        roughness: 0.35,
-        transmission: isBacklightOn ? 0.8 : 0.2, // Transmissão de luz
-        thickness: 3.0,
-        ior: 1.45,
+    if (useLitBacklight) {
+      // Simulação realista de placa PLA retroiluminada por lâmpada quente
+      mat = new THREE.MeshStandardMaterial({
+        color: new THREE.Color('#ffffff'),
+        vertexColors: true,
+        roughness: 0.42,
+        metalness: 0.02,
+        emissive: new THREE.Color('#fff1cf'),
+        emissiveIntensity: 0.16,
+        wireframe,
+        side: THREE.DoubleSide,
+      });
+    } else if (mode === 'lithophane') {
+      const baseHex = materialColor === 'MULTICOLOR' ? '#FFFFFF' : materialColor;
+      mat = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(baseHex),
+        roughness: 0.40,
+        metalness: 0.05,
         wireframe,
         side: THREE.DoubleSide,
       });
     } else {
+      const baseHex = useMultiColor ? '#FFFFFF' : materialColor === 'MULTICOLOR' ? '#FFFFFF' : materialColor;
       mat = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(materialColor),
-        roughness: 0.45,
-        metalness: 0.1,
+        color: new THREE.Color(baseHex),
+        vertexColors: useMultiColor,
+        roughness: 0.44,
+        metalness: 0.08,
         wireframe,
         side: THREE.DoubleSide,
       });
     }
 
     const objectMesh = new THREE.Mesh(geometry, mat);
-    // Orientação: o fatiador do Bambu Lab utiliza Z para cima, enquanto Three.js tem Y para cima por padrão
-    // Rotacionamos -90 graus em X para que o topo fique orientado para cima na tela
+    // Bambu usa +Z para cima e -Y para frente; Three.js usa +Y para cima e +Z para frente (-90° em X)
     objectMesh.rotation.x = -Math.PI / 2;
-    objectMesh.castShadow = true;
-    objectMesh.receiveShadow = true;
+    objectMesh.castShadow = !useLitBacklight;
+    objectMesh.receiveShadow = !useLitBacklight;
 
     scene.add(objectMesh);
     meshRef.current = objectMesh;
+  }, [mesh, mode, wireframe, materialColor, isBacklightOn]);
 
-    // Ajustar distância de câmera para enquadrar a peça
-    const maxDim = Math.max(mesh.widthMm, mesh.heightMm, mesh.depthMm, 40);
-    cameraDistance.current = maxDim * 2.2;
-    // Centralizar foco da câmera: para esculturas 3D eretas, focar na metade da altura (Y no Three.js)
-    const midHeight = mode === 'sculpture' ? Math.max(15, mesh.depthMm / 2) : 10;
-    targetOffset.current.set(0, midHeight, 0);
-
-    // Atualizar câmera
-    if (cameraRef.current) {
-      const theta = cameraRotation.current.theta;
-      const phi = cameraRotation.current.phi;
-      const r = cameraDistance.current;
-      cameraRef.current.position.x = r * Math.sin(phi) * Math.sin(theta);
-      cameraRef.current.position.y = r * Math.cos(phi);
-      cameraRef.current.position.z = r * Math.sin(phi) * Math.cos(theta);
-      cameraRef.current.lookAt(targetOffset.current);
-    }
-  }, [mesh, mode, wireframe, materialColor]);
-
-  // Atualizar Backlight (Luz de fundo para Litofania)
+  // Ajustar iluminação para modo Backlight de Litofania
   useEffect(() => {
-    if (!backLightRef.current || !frontLightRef.current) return;
+    if (!backLightRef.current || !frontLightRef.current || !ambientLightRef.current) return;
     if (mode === 'lithophane' && isBacklightOn) {
-      backLightRef.current.intensity = 250;
-      frontLightRef.current.intensity = 0.2; // Diminui frente para destacar luz de trás
+      backLightRef.current.intensity = 220;
+      frontLightRef.current.intensity = 0.35;
+      ambientLightRef.current.intensity = 0.85;
     } else {
       backLightRef.current.intensity = 0;
-      frontLightRef.current.intensity = 1.2;
+      frontLightRef.current.intensity = 1.25;
+      ambientLightRef.current.intensity = 0.52;
     }
   }, [mode, isBacklightOn]);
 
-  // Controles de Mouse (Orbit e Zoom)
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.button === 0) isMouseDown.current = true;
     if (e.button === 2) isRightMouseDown.current = true;
@@ -254,24 +339,17 @@ export const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
     prevMousePos.current = { x: e.clientX, y: e.clientY };
 
     if (isMouseDown.current) {
-      // Rotacionar
       cameraRotation.current.theta -= dx * 0.01;
-      cameraRotation.current.phi = Math.max(0.1, Math.min(Math.PI / 2 - 0.05, cameraRotation.current.phi - dy * 0.01));
+      cameraRotation.current.phi = Math.max(
+        0.08,
+        Math.min(Math.PI / 2 - 0.02, cameraRotation.current.phi - dy * 0.01)
+      );
     } else if (isRightMouseDown.current) {
-      // Pan
       targetOffset.current.x -= dx * 0.2;
       targetOffset.current.y += dy * 0.2;
     }
 
-    if (cameraRef.current) {
-      const theta = cameraRotation.current.theta;
-      const phi = cameraRotation.current.phi;
-      const r = cameraDistance.current;
-      cameraRef.current.position.x = targetOffset.current.x + r * Math.sin(phi) * Math.sin(theta);
-      cameraRef.current.position.y = targetOffset.current.y + r * Math.cos(phi);
-      cameraRef.current.position.z = targetOffset.current.z + r * Math.sin(phi) * Math.cos(theta);
-      cameraRef.current.lookAt(targetOffset.current);
-    }
+    syncCameraTransform();
   };
 
   const handleMouseUp = () => {
@@ -281,36 +359,36 @@ export const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
 
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
-    cameraDistance.current = Math.max(30, Math.min(600, cameraDistance.current + e.deltaY * 0.2));
-    if (cameraRef.current) {
-      const theta = cameraRotation.current.theta;
-      const phi = cameraRotation.current.phi;
-      const r = cameraDistance.current;
-      cameraRef.current.position.x = targetOffset.current.x + r * Math.sin(phi) * Math.sin(theta);
-      cameraRef.current.position.y = targetOffset.current.y + r * Math.cos(phi);
-      cameraRef.current.position.z = targetOffset.current.z + r * Math.sin(phi) * Math.cos(theta);
-      cameraRef.current.lookAt(targetOffset.current);
-    }
+    cameraDistance.current = Math.max(25, Math.min(750, cameraDistance.current + e.deltaY * 0.2));
+    syncCameraTransform();
   };
 
   const resetCamera = () => {
-    cameraDistance.current = mesh ? Math.max(mesh.widthMm, mesh.heightMm, 60) * 2.2 : 180;
-    cameraRotation.current = { theta: Math.PI / 4, phi: Math.PI / 3 };
-    targetOffset.current.set(0, 10, 0);
-    if (cameraRef.current) {
-      const theta = cameraRotation.current.theta;
-      const phi = cameraRotation.current.phi;
-      const r = cameraDistance.current;
-      cameraRef.current.position.x = r * Math.sin(phi) * Math.sin(theta);
-      cameraRef.current.position.y = r * Math.cos(phi);
-      cameraRef.current.position.z = r * Math.sin(phi) * Math.cos(theta);
-      cameraRef.current.lookAt(targetOffset.current);
+    if (!mesh) {
+      cameraDistance.current = 180;
+      cameraRotation.current = { theta: Math.PI / 5, phi: Math.PI / 3 };
+      targetOffset.current.set(0, 10, 0);
+    } else {
+      const maxDim = Math.max(mesh.widthMm, mesh.heightMm, mesh.depthMm, 40);
+      cameraDistance.current = maxDim * 2.05;
+      targetOffset.current.set(0, Math.max(6, mesh.depthMm * 0.5), 0);
+      cameraRotation.current =
+        mode === 'lithophane'
+          ? { theta: 0.18, phi: Math.PI / 2.25 }
+          : { theta: Math.PI / 5, phi: Math.PI / 3 };
     }
+    syncCameraTransform();
   };
 
   return (
-    <div className="relative w-full h-[520px] rounded-2xl overflow-hidden border border-slate-700/60 bg-slate-950 shadow-2xl flex flex-col select-none">
-      {/* Viewport 3D Canvas */}
+    <div
+      ref={wrapperRef}
+      style={{
+        contentVisibility: 'auto',
+        containIntrinsicSize: 'auto none auto 520px',
+      }}
+      className="relative w-full h-[520px] rounded-2xl overflow-hidden border border-slate-700/60 bg-slate-950 shadow-2xl flex flex-col select-none"
+    >
       <div
         ref={containerRef}
         className="w-full h-full cursor-grab active:cursor-grabbing"
@@ -328,6 +406,12 @@ export const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
           Mesa Bambu 256×256 mm
         </div>
+        {mesh?.paletteHex && mesh.paletteHex.length > 1 && (
+          <div className="px-2.5 py-1.5 rounded-lg bg-slate-900/85 backdrop-blur-md border border-amber-500/40 text-[11px] font-mono text-amber-300 flex items-center gap-1.5 shadow-lg">
+            <Palette className="w-3.5 h-3.5 text-amber-400" />
+            <span>{mesh.paletteHex.length} Cores AMS</span>
+          </div>
+        )}
       </div>
 
       {/* Dimensões em tempo real */}
@@ -355,8 +439,22 @@ export const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
 
       {/* Barra de Ferramentas Flutuante Superior Direita */}
       <div className="absolute top-4 right-4 flex items-center gap-2">
-        {/* Alternador de Cor do Filamento de Visualização */}
         <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-900/80 backdrop-blur-md border border-slate-700/80 shadow-lg">
+          {mesh?.colors && (
+            <button
+              type="button"
+              title="Cores Pintadas Multi-Filamento (AMS)"
+              onClick={() => setMaterialColor('MULTICOLOR')}
+              className={`w-5 h-5 rounded-full transition-transform border ${
+                materialColor === 'MULTICOLOR'
+                  ? 'scale-125 border-white ring-2 ring-amber-400/60'
+                  : 'border-slate-500 hover:scale-110'
+              }`}
+              style={{
+                background: 'conic-gradient(#ef4444, #f59e0b, #10b981, #3b82f6, #8b5cf6, #ef4444)',
+              }}
+            />
+          )}
           {[
             { color: '#FFFFFF', label: 'Branco' },
             { color: '#00AE42', label: 'Verde Bambu' },
@@ -371,7 +469,9 @@ export const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
               title={`Filamento: ${c.label}`}
               onClick={() => setMaterialColor(c.color)}
               className={`w-5 h-5 rounded-full transition-transform border ${
-                materialColor === c.color ? 'scale-125 border-emerald-400 ring-2 ring-emerald-400/30' : 'border-slate-600 hover:scale-110'
+                materialColor === c.color
+                  ? 'scale-125 border-emerald-400 ring-2 ring-emerald-400/30'
+                  : 'border-slate-600 hover:scale-110'
               }`}
               style={{ backgroundColor: c.color }}
             />
@@ -384,13 +484,14 @@ export const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
             type="button"
             onClick={onToggleBacklight}
             title={isBacklightOn ? 'Desligar Luz Traseira' : 'Simular Luz Traseira (Ver Foto)'}
-            className={`p-2 rounded-xl backdrop-blur-md border transition-all ${
+            className={`px-2.5 py-2 rounded-xl backdrop-blur-md border transition-all flex items-center gap-1.5 text-xs font-bold ${
               isBacklightOn
-                ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-lg shadow-amber-500/20'
+                ? 'bg-amber-500/25 text-amber-300 border-amber-400/60 shadow-lg shadow-amber-500/20'
                 : 'bg-slate-900/80 text-slate-300 border-slate-700/80 hover:bg-slate-800'
             }`}
           >
             <Sun className="w-4 h-4" />
+            <span className="hidden sm:inline">{isBacklightOn ? 'Luz Acesa' : 'Testar Luz'}</span>
           </button>
         )}
 
@@ -437,7 +538,7 @@ export const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
           </p>
           <p className="text-xs text-slate-500 mt-1 max-w-xs text-center">
             {mode === 'sculpture'
-              ? 'Clique em "Gerar Escultura 3D na RTX 4060" para processar o volume completo na GPU.'
+              ? 'Configure os parâmetros ao lado e clique em "Gerar Escultura 3D na RTX 4060".'
               : 'Envie uma imagem PNG/JPEG na barra lateral para gerar o modelo 3D em tempo real.'}
           </p>
         </div>
@@ -445,4 +546,3 @@ export const ThreeDViewer: React.FC<ThreeDViewerProps> = ({
     </div>
   );
 };
-
