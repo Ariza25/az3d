@@ -744,7 +744,12 @@ func marketplaceOrderAccessErrorMessage(account models.MarketplaceAccount, err e
 		return ""
 	}
 	if mercadolivre.IsOrderAccessForbidden(err) {
-		return fmt.Sprintf("Integracao autorizada, mas a API /orders do Mercado Livre recusou a consulta para o Seller ID '%s'. Reconecte a conta do vendedor para atualizar as permissoes de pedidos.", account.SellerID)
+		var meliErr *mercadolivre.APIError
+		detail := ""
+		if errors.As(err, &meliErr) && strings.TrimSpace(meliErr.Detail) != "" {
+			detail = " Detalhe: " + strings.TrimSpace(meliErr.Detail) + "."
+		}
+		return fmt.Sprintf("Integracao autorizada, mas a API /orders do Mercado Livre recusou a consulta para o Seller ID '%s'. Verifique no DevCenter se a permissao funcional 'Vendas e Envios' (leitura e escrita) esta habilitada para o aplicativo e reconecte a conta do vendedor.%s", account.SellerID, detail)
 	}
 	return marketplaceConnectorErrorMessage(err)
 }

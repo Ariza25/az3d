@@ -6,6 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	"az3d-backend/internal/marketplaces/mercadolivre"
+	"az3d-backend/models"
+
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/gin-gonic/gin"
 )
@@ -75,5 +78,19 @@ func TestDisconnectMarketplaceAccount(t *testing.T) {
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("unmet sqlmock expectations: %v", err)
+	}
+}
+
+func TestMarketplaceOrderAccessErrorMessageIncludesDetailAndDevCenterGuidance(t *testing.T) {
+	err := &mercadolivre.APIError{
+		Operation:  "/orders/search",
+		StatusCode: http.StatusForbidden,
+		Detail:     "Acesso negado por política do Mercado Livre",
+	}
+	got := marketplaceOrderAccessErrorMessage(models.MarketplaceAccount{SellerID: "3624201494"}, err)
+	for _, want := range []string{"3624201494", "Vendas e Envios", "Acesso negado por política do Mercado Livre"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("expected %q in %q", want, got)
+		}
 	}
 }

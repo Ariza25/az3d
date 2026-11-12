@@ -130,7 +130,7 @@ func TestOrderAccessForbiddenIsClassified(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		http.Error(w, `{"message":"not_owned_order"}`, http.StatusForbidden)
+		http.Error(w, `{"code":"PA_UNAUTHORIZED_RESULT_FROM_POLICIES","blocked_by":"PolicyAgent","message":"At least one policy returned UNAUTHORIZED.","status":403}`, http.StatusForbidden)
 	}))
 	defer server.Close()
 	t.Setenv("MELI_API_BASE_URL", server.URL)
@@ -138,6 +138,10 @@ func TestOrderAccessForbiddenIsClassified(t *testing.T) {
 	err := New().TestOrderAccess(context.Background(), mp.Account{AccessToken: "access-token", SellerID: "123"})
 	if !IsOrderAccessForbidden(err) {
 		t.Fatalf("error should be classified as forbidden order access: %v", err)
+	}
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) || !strings.Contains(apiErr.Detail, "DevCenter") {
+		t.Fatalf("expected PolicyAgent detail to guide DevCenter scopes check, got %#v", err)
 	}
 }
 

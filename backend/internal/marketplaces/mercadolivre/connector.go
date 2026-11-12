@@ -129,9 +129,11 @@ func (c *Connector) getJSONWithHeaders(ctx context.Context, endpoint string, tok
 		if res.StatusCode == http.StatusUnauthorized {
 			detail = "Token de acesso inválido ou expirado"
 		} else if strings.Contains(bodyStr, "PA_UNAUTHORIZED_RESULT_FROM_POLICIES") || strings.Contains(bodyStr, "PolicyAgent") {
-			detail = "Acesso negado por política do Mercado Livre (verifique pendências cadastrais/endereço no painel do Mercado Livre)"
+			detail = "Acesso negado por política do Mercado Livre (verifique no DevCenter se a permissão funcional e os escopos de leitura e escrita estão habilitados, remova escopos urn:mp:* do app MeLi se houver e confira pendências cadastrais da conta)"
+		} else if strings.Contains(bodyStr, "Invalid scopes") || strings.Contains(bodyStr, "invalid_scope") {
+			detail = "Escopos insuficientes para o aplicativo no Mercado Livre (habilite as permissões funcionais no DevCenter e reconecte a conta)"
 		} else if strings.Contains(bodyStr, "access_denied") {
-			detail = "Acesso negado às informações do anúncio pelo Mercado Livre"
+			detail = "Acesso negado às informações do anúncio ou recurso pelo Mercado Livre"
 		} else if strings.Contains(bodyStr, "not allowed") {
 			detail = "Formato de ID inválido para o Mercado Livre"
 		}
